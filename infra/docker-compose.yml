@@ -1,0 +1,92 @@
+name: remedy-scribe
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: remedy
+      POSTGRES_PASSWORD: remedy
+      POSTGRES_DB: remedy_scribe
+    ports:
+      # 5432 is claimed by a native Postgres service on the host in this
+      # environment — Docker's port-forward silently loses that race, so
+      # the container is reachable from the host on 5433 instead. Only
+      # affects host-side tooling (alembic/uvicorn run outside Docker);
+      # api/worker talk to `postgres:5432` over the compose network.
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U remedy -d remedy_scribe"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      # 6379 also collides with something already bound on the host here
+      # (see the postgres note above) — 6380 on the host side only.
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: remedy
+      MINIO_ROOT_PASSWORD: remedy-dev-secret
+    ports:
+      # Same host-port collision pattern as postgres/redis above.
+      - "9002:9000"
+      - "9003:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ../apps/api
+    env_file:
+      - ../apps/api/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://remedy:remedy@postgres:5432/remedy_scribe
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT_URL: http://minio:9000
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ../apps/api
+    command: celery -A app.tasks.celery_app worker --loglevel=info
+    env_file:
+      - ../apps/api/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://remedy:remedy@postgres:5432/remedy_scribe
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT_URL: http://minio:9000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  minio_data:

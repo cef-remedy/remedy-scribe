@@ -1,0 +1,1264 @@
+<title>Remedy Scribe Production Checklist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600;700&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+  /* ── Light palette: complete token set on bare :root ─────────────── */
+  :root {
+    --ground:      #F5F7F3;
+    --surface:     #FFFFFF;
+    --surface-2:   #EDF0EA;
+    --ink:         #16201D;
+    --ink-2:       #46534E;
+    --ink-3:       #78857F;
+    --rule:        #D8DED4;
+    --rule-strong: #B6C0B7;
+    --accent:      #0E5C52;
+    --accent-2:    #0A443C;
+    --accent-soft: #DEEBE6;
+    --warn:        #A2432A;
+    --warn-soft:   #F7E7E0;
+    --call:        #3F45A0;
+    --call-soft:   #E4E6F6;
+    --learn:       #566627;
+    --learn-soft:  #E9EEDA;
+    --shadow:      0 1px 2px rgba(22,32,29,.05), 0 8px 24px -16px rgba(22,32,29,.18);
+
+    --f-display: "Zilla Slab", Georgia, "Times New Roman", serif;
+    --f-body:    "Public Sans", "Helvetica Neue", Arial, sans-serif;
+    --f-mono:    "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+    --measure: 68ch;
+  }
+
+  /* System dark: tokens only, guarded so an explicit light choice wins */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #0E1512;
+      --surface:     #151E1A;
+      --surface-2:   #1C2721;
+      --ink:         #E6EDE7;
+      --ink-2:       #A3B0A8;
+      --ink-3:       #76837B;
+      --rule:        #2A362F;
+      --rule-strong: #3C4B42;
+      --accent:      #5CC2AE;
+      --accent-2:    #8AD8C7;
+      --accent-soft: #16302A;
+      --warn:        #E89A7C;
+      --warn-soft:   #33201A;
+      --call:        #9AA0EE;
+      --call-soft:   #1E2140;
+      --learn:       #A9BC6E;
+      --learn-soft:  #242C16;
+      --shadow:      0 1px 2px rgba(0,0,0,.3), 0 8px 24px -16px rgba(0,0,0,.6);
+    }
+  }
+
+  /* Explicit dark choice wins over a light OS */
+  :root[data-theme="dark"] {
+    --ground:      #0E1512;
+    --surface:     #151E1A;
+    --surface-2:   #1C2721;
+    --ink:         #E6EDE7;
+    --ink-2:       #A3B0A8;
+    --ink-3:       #76837B;
+    --rule:        #2A362F;
+    --rule-strong: #3C4B42;
+    --accent:      #5CC2AE;
+    --accent-2:    #8AD8C7;
+    --accent-soft: #16302A;
+    --warn:        #E89A7C;
+    --warn-soft:   #33201A;
+    --call:        #9AA0EE;
+    --call-soft:   #1E2140;
+    --learn:       #A9BC6E;
+    --learn-soft:  #242C16;
+    --shadow:      0 1px 2px rgba(0,0,0,.3), 0 8px 24px -16px rgba(0,0,0,.6);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 16.5px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 24px 96px;
+  }
+
+  @media (min-width: 1040px) {
+    .shell {
+      grid-template-columns: 216px minmax(0, 1fr);
+      gap: 56px;
+      padding-right: 40px;
+    }
+  }
+
+  /* ── Rail ─────────────────────────────────────────────────────────── */
+  .rail { display: none; }
+
+  @media (min-width: 1040px) {
+    .rail {
+      display: block;
+      position: sticky;
+      top: 0;
+      align-self: start;
+      max-height: 100vh;
+      overflow-y: auto;
+      padding: 40px 0;
+      border-right: 1px solid var(--rule);
+    }
+  }
+
+  .rail-label {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 14px;
+  }
+
+  .rail-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+
+  .rail-list a {
+    display: grid;
+    grid-template-columns: 20px 1fr auto;
+    gap: 8px;
+    align-items: baseline;
+    padding: 6px 10px 6px 0;
+    color: var(--ink-2);
+    text-decoration: none;
+    font-size: 13.5px;
+    line-height: 1.35;
+    border-radius: 3px;
+  }
+  .rail-list a:hover { color: var(--accent); background: var(--accent-soft); }
+  .rail-list a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .rail-num {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .rail-count {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .rail-count.done { color: var(--accent); }
+
+  /* ── Masthead ─────────────────────────────────────────────────────── */
+  main { min-width: 0; padding-top: 40px; }
+
+  .masthead { border-bottom: 2px solid var(--ink); padding-bottom: 28px; }
+
+  .eyebrow {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 18px;
+  }
+
+  h1 {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: clamp(2.1rem, 5.4vw, 3.4rem);
+    line-height: 1.04;
+    letter-spacing: -.018em;
+    margin: 0 0 18px;
+    text-wrap: balance;
+  }
+
+  .standfirst {
+    font-size: 1.14rem;
+    line-height: 1.5;
+    color: var(--ink-2);
+    max-width: 58ch;
+    margin: 0 0 26px;
+  }
+
+  .companions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 20px;
+    font-family: var(--f-mono);
+    font-size: 12px;
+    color: var(--ink-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .companions b { color: var(--ink-2); font-weight: 500; }
+
+  /* ── Progress meter ───────────────────────────────────────────────── */
+  .meter {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 26px 0 0;
+    padding: 14px 18px;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+  }
+  .meter-track {
+    flex: 1;
+    height: 6px;
+    background: var(--surface-2);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .meter-fill {
+    height: 100%;
+    width: 100%;
+    transform: scaleX(0);
+    transform-origin: left center;
+    background: var(--accent);
+    border-radius: 99px;
+    transition: transform .25s ease;
+  }
+  .meter-read {
+    font-family: var(--f-mono);
+    font-size: 12.5px;
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .meter-read b { color: var(--ink); font-weight: 500; }
+  .meter-reset {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    background: none;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 5px 9px;
+    cursor: pointer;
+  }
+  .meter-reset:hover { color: var(--warn); border-color: var(--warn); }
+  .meter-reset:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .meter-fill { transition: none; }
+  }
+
+  /* ── Sections ─────────────────────────────────────────────────────── */
+  section { margin-top: 56px; }
+
+  .phase-head {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 18px;
+    align-items: start;
+    padding-top: 26px;
+    border-top: 1px solid var(--rule-strong);
+  }
+
+  .phase-num {
+    font-family: var(--f-mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: .08em;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 3px;
+    padding: 5px 9px;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  h2 {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: clamp(1.5rem, 3.1vw, 2.05rem);
+    line-height: 1.14;
+    letter-spacing: -.012em;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .phase-goal {
+    max-width: var(--measure);
+    color: var(--ink-2);
+    margin: 16px 0 0;
+  }
+
+  h3 {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: 1.2rem;
+    line-height: 1.25;
+    margin: 40px 0 14px;
+    text-wrap: balance;
+  }
+  h3 .h3-num {
+    font-family: var(--f-mono);
+    font-size: .78em;
+    font-weight: 400;
+    color: var(--accent);
+    margin-right: 8px;
+    font-variant-numeric: tabular-nums;
+  }
+  h3 .tags { display: inline-flex; gap: 5px; margin-left: 9px; vertical-align: 2px; }
+
+  .tag {
+    font-family: var(--f-mono);
+    font-size: 9.5px;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    padding: 2.5px 5px;
+    border-radius: 2px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .tag.call  { color: var(--call);  background: var(--call-soft); }
+  .tag.warn  { color: var(--warn);  background: var(--warn-soft); }
+  .tag.learn { color: var(--learn); background: var(--learn-soft); }
+
+  h4 {
+    font-family: var(--f-body);
+    font-weight: 600;
+    font-size: 1rem;
+    margin: 32px 0 12px;
+    color: var(--ink);
+  }
+
+  p { max-width: var(--measure); margin: 0 0 15px; }
+  p:last-child { margin-bottom: 0; }
+
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
+  code {
+    font-family: var(--f-mono);
+    font-size: .855em;
+    background: var(--surface-2);
+    padding: .12em .34em;
+    border-radius: 3px;
+    overflow-wrap: break-word;
+  }
+
+  strong { font-weight: 600; }
+  em { font-style: italic; }
+
+  /* ── Task lists ───────────────────────────────────────────────────── */
+  .tasks { list-style: none; margin: 0 0 20px; padding: 0; display: flex; flex-direction: column; gap: 2px; max-width: var(--measure); }
+
+  .task {
+    display: grid;
+    grid-template-columns: 22px 1fr;
+    gap: 11px;
+    align-items: start;
+    padding: 7px 9px 7px 7px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .task:hover { background: var(--surface); border-color: var(--rule); }
+
+  .box {
+    width: 17px; height: 17px;
+    margin-top: 3px;
+    border: 1.5px solid var(--rule-strong);
+    border-radius: 3px;
+    background: var(--surface);
+    display: grid;
+    place-items: center;
+    flex: none;
+  }
+  .box svg { width: 11px; height: 11px; opacity: 0; }
+  .box svg path { stroke: var(--surface); stroke-width: 2.6; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+
+  .task input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .task input:checked ~ .box { background: var(--accent); border-color: var(--accent); }
+  .task input:checked ~ .box svg { opacity: 1; }
+  .task input:checked ~ .task-text { color: var(--ink-3); text-decoration: line-through; text-decoration-color: var(--rule-strong); }
+  .task input:focus-visible ~ .box { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .task-text { min-width: 0; }
+
+  /* ── Callouts ─────────────────────────────────────────────────────── */
+  .note {
+    max-width: var(--measure);
+    margin: 20px 0;
+    padding: 15px 18px;
+    border-radius: 4px;
+    border: 1px solid var(--rule);
+    background: var(--surface);
+  }
+  .note > p { margin-bottom: 11px; }
+  .note > p:last-child { margin-bottom: 0; }
+
+  /* The label carries its own short rule — a form-section divider rather
+     than a rail down the side of the card. */
+  .note-label {
+    display: block;
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    font-weight: 500;
+    margin: 0 0 8px;
+  }
+  .note-label::before {
+    content: "";
+    display: block;
+    width: 26px;
+    height: 2px;
+    background: currentColor;
+    margin-bottom: 9px;
+  }
+
+  .note.call  { border-color: var(--call);  background: var(--call-soft); }
+  .note.call .note-label { color: var(--call); }
+  .note.warn  { border-color: var(--warn);  background: var(--warn-soft); }
+  .note.warn .note-label { color: var(--warn); }
+  .note.learn { border-color: var(--learn); background: var(--learn-soft); }
+  .note.learn .note-label { color: var(--learn); }
+
+  .note ul { margin: 10px 0 0; padding-left: 20px; }
+  .note li { margin-bottom: 9px; }
+  .note li:last-child { margin-bottom: 0; }
+
+  /* ── Legend ───────────────────────────────────────────────────────── */
+  .legend { display: grid; gap: 10px; margin: 22px 0 0; max-width: var(--measure); }
+  .legend-row {
+    display: grid;
+    grid-template-columns: 132px 1fr;
+    gap: 16px;
+    align-items: start;
+    padding: 12px 0;
+    border-top: 1px solid var(--rule);
+  }
+  .legend-row:first-child { border-top: none; padding-top: 0; }
+  .legend-row > div:last-child { color: var(--ink-2); font-size: .95rem; }
+  @media (max-width: 620px) {
+    .legend-row { grid-template-columns: 1fr; gap: 7px; }
+  }
+
+  /* ── Status blocks (current state) ────────────────────────────────── */
+  .status-grid { display: grid; gap: 14px; margin: 22px 0 0; max-width: var(--measure); }
+  .status {
+    padding: 16px 18px;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+  }
+  .status-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin: 0 0 9px;
+  }
+  .status-dot { width: 8px; height: 8px; border-radius: 99px; flex: none; transform: translateY(-1px); }
+  .status-name {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: .11em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  /* Status is carried by the dot + label, not a side rail. */
+  .status.ok .status-dot { background: var(--accent); }
+  .status.ok .status-name { color: var(--accent); }
+  .status.hollow .status-dot { background: var(--warn); }
+  .status.hollow .status-name { color: var(--warn); }
+  .status.absent .status-dot { background: var(--ink-3); }
+  .status.absent .status-name { color: var(--ink-2); }
+  .status p { margin: 0; font-size: .96rem; }
+
+  .headline-callout {
+    max-width: var(--measure);
+    margin: 22px 0 0;
+    padding: 18px 20px;
+    background: var(--ink);
+    color: var(--ground);
+    border-radius: 4px;
+  }
+  .headline-callout p { margin: 0; color: var(--ground); }
+  .headline-callout strong { color: #fff; }
+  :root[data-theme="dark"] .headline-callout strong { color: var(--ink); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .headline-callout strong { color: var(--ink); }
+  }
+
+  /* ── Tables ───────────────────────────────────────────────────────── */
+  .table-wrap { overflow-x: auto; margin: 22px 0; max-width: 100%; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 520px;
+    font-size: .95rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 11px 14px 11px 0;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  th {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    letter-spacing: .11em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-weight: 500;
+    border-bottom: 1px solid var(--rule-strong);
+  }
+  td:first-child { font-variant-numeric: tabular-nums; }
+  .seq-order {
+    font-family: var(--f-mono);
+    color: var(--accent);
+    white-space: nowrap;
+  }
+
+  /* ── Closing ──────────────────────────────────────────────────────── */
+  .closer {
+    margin-top: 56px;
+    padding-top: 26px;
+    border-top: 2px solid var(--ink);
+  }
+  .gate {
+    max-width: var(--measure);
+    margin: 20px 0 0;
+    padding: 16px 18px;
+    border: 1px solid var(--warn);
+    border-radius: 4px;
+    background: var(--warn-soft);
+  }
+  .gate p { margin: 0; }
+  .gate .note-label { color: var(--warn); }
+</style>
+
+<div class="shell">
+
+  <nav class="rail" aria-label="Phases">
+    <p class="rail-label">Phases</p>
+    <ul class="rail-list">
+      <li><a href="#state"><span class="rail-num">—</span><span>Current state</span><span></span></a></li>
+      <li><a href="#p0"><span class="rail-num">0</span><span>Close the holes</span><span class="rail-count" data-count="p0"></span></a></li>
+      <li><a href="#p1"><span class="rail-num">1</span><span>Pipeline real</span><span class="rail-count" data-count="p1"></span></a></li>
+      <li><a href="#p2"><span class="rail-num">2</span><span>Mobile app</span><span class="rail-count" data-count="p2"></span></a></li>
+      <li><a href="#p3"><span class="rail-num">3</span><span>Grounding UI</span><span class="rail-count" data-count="p3"></span></a></li>
+      <li><a href="#p4"><span class="rail-num">4</span><span>Security</span><span class="rail-count" data-count="p4"></span></a></li>
+      <li><a href="#p5"><span class="rail-num">5</span><span>Deploy &amp; ops</span><span class="rail-count" data-count="p5"></span></a></li>
+      <li><a href="#p6"><span class="rail-num">6</span><span>Instrumentation</span><span class="rail-count" data-count="p6"></span></a></li>
+      <li><a href="#p7"><span class="rail-num">7</span><span>P1 fast-follows</span><span class="rail-count" data-count="p7"></span></a></li>
+      <li><a href="#writedown"><span class="rail-num">—</span><span>Write it down</span><span></span></a></li>
+      <li><a href="#sequencing"><span class="rail-num">—</span><span>Sequencing</span><span></span></a></li>
+    </ul>
+  </nav>
+
+  <main>
+
+    <header class="masthead">
+      <p class="eyebrow">Remedy Scribe · In-clinic AI note-taker</p>
+      <h1>From scaffold to a system that can record a real patient</h1>
+      <p class="standfirst">Everything between what runs today and a build that can legally and safely document consultations in a Remedy clinic — with the decisions left to you marked as yours to make.</p>
+      <ul class="companions">
+        <li><b>What &amp; why</b> remedy-scribe-prd.md</li>
+        <li><b>When</b> remedy-scribe-roadmap.md</li>
+        <li><b>With what</b> docs/tech-stack.md</li>
+      </ul>
+      <div class="meter">
+        <div class="meter-track"><div class="meter-fill" id="fill"></div></div>
+        <div class="meter-read" id="read"><b>0</b> / 0 done</div>
+        <button class="meter-reset" id="reset" type="button">Clear</button>
+      </div>
+    </header>
+
+    <section id="howto">
+      <h2>How to read this</h2>
+      <div class="legend">
+        <div class="legend-row">
+          <div><span class="tag" style="color:var(--accent);background:var(--accent-soft)">Checkbox</span></div>
+          <div>A task. Click to tick it off — progress is kept in this browser.</div>
+        </div>
+        <div class="legend-row">
+          <div><span class="tag call">Your call</span></div>
+          <div>A real fork in the road. The options and what each costs you are listed. Don't let anyone — including me — pick this silently. Write your choice and your reasoning into <code>docs/decisions/</code>.</div>
+        </div>
+        <div class="legend-row">
+          <div><span class="tag warn">Heads-up</span></div>
+          <div>A trap that isn't obvious from reading the code. Most of these cost people days.</div>
+        </div>
+        <div class="legend-row">
+          <div><span class="tag learn">Understand first</span></div>
+          <div>A concept to hold in your head <em>before</em> writing the code, or the code will look arbitrary.</div>
+        </div>
+      </div>
+      <div class="note learn">
+        <span class="note-label">How to use this while learning</span>
+        <p>Resist working through this as dictation. For each <strong>Your call</strong>, try to predict the tradeoff before reading the summary, then check yourself — the gap between your guess and the answer is the actual learning. For each <strong>Heads-up</strong>, ask "how would I have found this myself?" The answer is usually a test, a type, or a log line you didn't have.</p>
+      </div>
+    </section>
+
+    <section id="state">
+      <div class="phase-head">
+        <span class="phase-num">Baseline</span>
+        <h2>Current state, verified rather than assumed</h2>
+      </div>
+      <p class="phase-goal">What actually runs today — confirmed by executing it, not by reading the README.</p>
+
+      <div class="status-grid">
+        <div class="status ok">
+          <div class="status-head"><span class="status-dot"></span><span class="status-name">Real and tested</span></div>
+          <p>The data model (clinicians, patients, encounters, consent ledger, notes, revisions, audit log). Alembic migrations against live Postgres. The four-state note lifecycle with skip-prevention. Patient fuzzy-match and name-plus-birthdate dedup. JWT + TOTP login. The consent ledger's append-only Postgres trigger — verified by hand, where <code>UPDATE</code> and <code>DELETE</code> both raise. Nine passing tests, and a live server driven end-to-end through login → patient match → encounter → consent.</p>
+        </div>
+        <div class="status hollow">
+          <div class="status-head"><span class="status-dot"></span><span class="status-name">Wired but hollow</span></div>
+          <p>The Celery chain exists and is idempotent, but <code>transcribe_encounter</code> throws away its own output (<code>_ = segments</code>) and <code>generate_note</code> always calls the model with <code>transcript=[]</code>. Both provider interfaces — <code>ASRProvider</code>, <code>NoteGenerator</code> — are real; both implementations raise <code>NotImplementedError</code>.</p>
+        </div>
+        <div class="status absent">
+          <div class="status-head"><span class="status-dot"></span><span class="status-name">Absent entirely</span></div>
+          <p>Any upload path (no endpoint, no S3 client — <code>boto3</code> is in <code>requirements.txt</code> and imported nowhere). Transcript persistence. The grounding UI's data. Retention enforcement. Consent <em>enforcement</em>. RBAC enforcement. And the entire mobile client.</p>
+        </div>
+      </div>
+
+      <div class="headline-callout">
+        <p><strong>The honest headline:</strong> the doctor-facing app does not exist yet. All 72 graph nodes under <code>apps/mobile</code> are <code>App.tsx</code> boilerplate or config. Everything below is sequenced around that.</p>
+      </div>
+    </section>
+
+    <!-- ══ PHASE 0 ══ -->
+    <section id="p0" data-phase="p0">
+      <div class="phase-head">
+        <span class="phase-num">Phase 0</span>
+        <h2>Close the holes in what already exists</h2>
+      </div>
+      <p class="phase-goal">Do this first. These are not new features — they are places where the scaffold currently <em>claims</em> more than it enforces. Shipping on top of them means the claims stay false.</p>
+
+      <h3><span class="h3-num">0.1</span>Enforce the consent gate server-side<span class="tags"><span class="tag warn">Heads-up</span><span class="tag call">Your call</span></span></h3>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Add <code>assert_consent_valid(db, encounter_id)</code> — checks the ledger for a <code>given</code> event with no later <code>withdrawn</code>.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Call it in <code>confirm_upload</code> before setting <code>audio_object_key</code>, and again at the head of <code>transcribe_encounter</code>.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Return <code>409</code>, not <code>403</code> — this is a state problem, not a permissions problem.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Test: an encounter with no consent row must not be able to reach the pipeline.</span></label></li>
+      </ul>
+
+      <div class="note warn">
+        <span class="note-label">Heads-up</span>
+        <p>Right now nothing server-side stops an encounter from being uploaded and transcribed with <strong>zero</strong> consent records. P0-1 says recording is blocked without consent, and today that rule lives only in the client — exactly where a legal control must <em>not</em> live, because the client is the part an attacker or a bug controls. This is the single most important gap in the current codebase.</p>
+      </div>
+
+      <div class="note learn">
+        <span class="note-label">Understand first</span>
+        <p>The difference between a <em>UX guard</em> and an <em>enforcement point</em>. A greyed-out button is a UX guard. A server-side check that rejects the request is an enforcement point. Compliance controls need the second kind; the first is a courtesy. Every PRD requirement that says "the app blocks X" should map to a specific server-side rejection you can point at in code.</p>
+      </div>
+
+      <div class="note call">
+        <span class="note-label">Your call · how strict is re-consent?</span>
+        <p>P0-1 says a new participant mid-recording pauses recording until fresh consent is logged.</p>
+        <ul>
+          <li><strong>Manual flag by the doctor</strong> — simple, depends on them remembering.</li>
+          <li><strong>Trust ASR diarization</strong> to detect a new speaker — automatic, but diarization invents and merges speakers constantly, so you'll get false pauses mid-consult.</li>
+          <li><strong>Manual now, automate later</strong>, once you've seen real diarization output from your own clinic audio.</li>
+        </ul>
+        <p>My read is the third: you have no Taglish diarization data yet, and the second option's failure mode interrupts a live medical exam. But this is a product-risk call — make it deliberately.</p>
+      </div>
+
+      <h3><span class="h3-num">0.2</span>Actually enforce RBAC<span class="tags"><span class="tag warn">Heads-up</span></span></h3>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Apply <code>require_role(...)</code> to routes. It is defined in <code>app/api/deps.py</code> and used on <strong>zero</strong> endpoints.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Decide per-route: who can read a note — only the authoring clinician, or any clinician in the clinic?</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Test: a <code>compliance</code> token can't <code>PATCH</code> a note; a <code>doctor</code> token can't read the audit log.</span></label></li>
+      </ul>
+      <div class="note warn">
+        <span class="note-label">Heads-up</span>
+        <p>A dependency that is written but never attached is worse than one that doesn't exist — it reads like coverage in a review and provides none. Grep for <code>require_role</code> before trusting the docstring in <code>models/clinician.py</code> that says role "drives" access control. It currently drives nothing.</p>
+      </div>
+
+      <h3><span class="h3-num">0.3</span>Make auth survive a real clinic day<span class="tags"><span class="tag call">Your call</span></span></h3>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Add refresh tokens with rotation, or extend session lifetime deliberately.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Add an MFA enrollment endpoint: provision secret → return QR/URI → confirm with a valid code before activating. Today the TOTP secret only exists via a seed script.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Rate-limit <code>POST /auth/login</code>, per-IP and per-email.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Add lockout or exponential backoff after repeated failures.</span></label></li>
+      </ul>
+      <div class="note warn">
+        <span class="note-label">Heads-up</span>
+        <p><code>ACCESS_TOKEN_EXPIRE_MINUTES=30</code> with no refresh path means a doctor gets logged out mid-consultation, roughly twice per clinic session. Discovering this in a pilot rather than now would poison the "voluntary use in week 4" metric for a reason that has nothing to do with note quality.</p>
+      </div>
+      <div class="note call">
+        <span class="note-label">Your call · where does the token live on the device?</span>
+        <p><code>expo-secure-store</code> (Keychain/Keystore-backed, survives restart, the standard answer) versus in-memory only (safest against device compromise, forces re-login every launch). For a clinical app on a doctor's own device, secure-store plus a short-lived access token plus biometric re-auth on resume is the usual balance. Then consider: if the phone is lost, is there server-side revocation, or do you just wait for expiry?</p>
+      </div>
+
+      <h3><span class="h3-num">0.4</span>Fix the type and consistency drift<span class="tags"><span class="tag learn">Understand first</span></span></h3>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Convert <code>Encounter.pipeline_status</code> from free-form <code>String(32)</code> to an enum, as <code>Note.status</code> already is. It accepts any string today, and the codebase writes at least five different values across two files.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Move <code>confirm_upload</code>'s <code>audio_object_key</code> from a query parameter into a Pydantic body.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Add a <code>CHECK</code> constraint or enum for <code>ConsentLedgerEntry.event</code>.</span></label></li>
+      </ul>
+      <div class="note learn">
+        <span class="note-label">Understand first</span>
+        <p>Why enums-at-the-DB-layer matter more here than in a typical CRUD app: both <code>Note.status</code> and the consent ledger are <em>legal</em> records. "The database physically cannot hold an invalid value" is a far stronger statement to an auditor than "our code only ever writes valid values." Same reasoning as the append-only trigger — push the guarantee as far down the stack as it will go.</p>
+      </div>
+
+      <h3><span class="h3-num">0.5</span>Close the test-vs-production divergence<span class="tags"><span class="tag warn">Heads-up</span></span></h3>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Add a Postgres-backed test path (testcontainers, or a CI service container) for anything depending on Postgres-specific behavior.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Write a test proving the consent ledger rejects <code>UPDATE</code> and <code>DELETE</code>.</span></label></li>
+      </ul>
+      <div class="note warn">
+        <span class="note-label">Heads-up · this one is sharp</span>
+        <p>The test suite runs on SQLite via <code>Base.metadata.create_all()</code>. The append-only consent trigger lives in an Alembic migration. <strong>Migrations never run in the test suite, so the trigger is never exercised by a single test.</strong> I verified it manually with <code>psql</code>, which is why I know it works — but manual verification is not a regression test. Someone could drop that migration tomorrow and every test would still pass. Any guarantee implemented in SQL rather than Python is currently untested by construction.</p>
+      </div>
+      <div class="note learn">
+        <span class="note-label">Understand first</span>
+        <p>"Test against what you deploy." SQLite-for-speed is a common and often reasonable trade, but it silently voids every Postgres-specific guarantee: triggers, <code>pgcrypto</code>, native enums, Postgres <code>CHECK</code> semantics, concurrent-transaction behavior. Know exactly which of your guarantees fall in that blind spot, and cover those on real Postgres.</p>
+      </div>
+    </section>
+
+    <!-- ══ PHASE 1 ══ -->
+    <section id="p1" data-phase="p1">
+      <div class="phase-head">
+        <span class="phase-num">Phase 1</span>
+        <h2>Make the pipeline real</h2>
+      </div>
+      <p class="phase-goal">Audio recorded on a device ends up as a structured note in Postgres, with no human in the loop.</p>
+
+      <h3><span class="h3-num">1.1</span>Upload path<span class="tags"><span class="tag call">Your call</span><span class="tag learn">Understand first</span></span></h3>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Implement an S3/MinIO client module (<code>app/services/storage.py</code>) — <code>boto3</code> is declared and unused.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Implement chunked, resumable upload: <code>upload/init</code> → <code>upload/chunk/{n}</code> → <code>upload/complete</code>.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Persist per-chunk state so a resumed upload skips what already landed.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Enforce the idempotency key across the whole flow, not just encounter creation.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Server-side encryption at rest on the bucket, plus a lifecycle policy keyed to <code>AUDIO_RETENTION_DAYS</code>.</span></label></li>
+      </ul>
+      <div class="note call">
+        <span class="note-label">Your call · build the upload protocol or adopt one?</span>
+        <ul>
+          <li><strong>S3 multipart with presigned URLs.</strong> The device uploads straight to object storage; your API only mints URLs and takes a completion callback. Cheapest to run, least bandwidth through your server, natively resumable. Cost: presigned-URL scoping is easy to get subtly wrong, and your API no longer sees the bytes, so it can't enforce anything about them.</li>
+          <li><strong>The <a href="https://tus.io">tus.io</a> resumable protocol.</strong> A real spec with mature clients and servers, designed for exactly this. Cost: another moving part to run and understand.</li>
+          <li><strong>Roll your own chunk endpoints.</strong> Total control, matches the PRD's wording directly, and you'll understand every failure mode because you wrote them. Cost: you will reimplement bugs the other two already fixed — partial-chunk corruption, concurrent resume, orphaned uploads.</li>
+        </ul>
+        <p>For learning value, rolling your own once is genuinely instructive. For a 4–8 week clinical MVP, presigned multipart is the pragmatic answer. If you roll your own, handle at minimum: chunk checksums, out-of-order arrival, and an orphan-upload reaper.</p>
+      </div>
+      <div class="note learn">
+        <span class="note-label">Understand first</span>
+        <p>Why idempotency keys exist at all. A phone on clinic wifi will retry a request whose response it never saw. Without a key, "retry" and "second consultation" are indistinguishable to your server, and you get duplicate notes on the same patient — a clinical-safety bug, not just a data bug. Trace the key's path through <code>encounters.py</code> and convince yourself where a duplicate could still slip through today.</p>
+      </div>
+      <div class="note warn">
+        <span class="note-label">Heads-up</span>
+        <p>Local audio must only be deleted after the server confirms <em>both</em> receipt and that note generation has begun (P0-2). Deleting on upload-complete alone means a server-side pipeline crash loses the consultation permanently. The confirmation the device waits for should be about the pipeline, not the bytes.</p>
+      </div>
+
+      <h3><span class="h3-num">1.2</span>Transcript persistence<span class="tags"><span class="tag call">Your call</span></span></h3>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Add a transcript store holding full text, per-word timings, per-word confidence, and speaker labels.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Make <code>transcribe_encounter</code> actually persist its output — it currently discards it with <code>_ = segments</code>.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Make <code>generate_note</code> load the persisted transcript instead of passing <code>transcript=[]</code>.</span></label></li>
+      </ul>
+      <div class="note call">
+        <span class="note-label">Your call · where does the transcript live?</span>
+        <ul>
+          <li><strong>Postgres <code>JSONB</code>.</strong> Queryable, transactional with the note, encryptable with your existing approach. Cost: word-level data for a 20-minute consult is large — you'll load megabytes to render one note.</li>
+          <li><strong>Row-per-word table.</strong> Precise, indexable by time, ideal for "play from here." Cost: hundreds of thousands of rows per clinic-week and a heavier write path.</li>
+          <li><strong>Object storage, like the audio.</strong> Cheap, unlimited size. Cost: not queryable, another fetch on the read path, and a second place PHI lives that retention must remember to purge.</li>
+        </ul>
+        <p>This choice largely determines how hard Phase 3 is, so weigh that requirement now rather than after. My instinct is <code>JSONB</code> for the MVP with the <em>sentence</em> as the addressable unit — one transactional home for one note's data. If you want word-precision audio seeking, the row-per-word table stops being overkill.</p>
+      </div>
+      <div class="note warn">
+        <span class="note-label">Heads-up</span>
+        <p>The transcript is PHI, arguably more sensitive than the note — it's verbatim, including things the doctor chose not to write down. Whatever you pick needs the same encryption, access logging, and retention clock as the audio. A retention job that purges audio and leaves transcripts is not a retention policy.</p>
+      </div>
+
+      <h3><span class="h3-num">1.3</span>Real ASR integration<span class="tags"><span class="tag warn">Heads-up</span><span class="tag call">Your call</span></span></h3>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Implement <code>ElevenLabsScribeProvider.transcribe</code> — stream from storage, POST to Scribe v2 with diarization on.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Handle rate limits, timeouts, partial failures via Celery retries (already scaffolded).</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Record which ASR provider and model version produced each transcript.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Fix <code>_parse_response</code> — see below.</span></label></li>
+      </ul>
+      <div class="note warn">
+        <span class="note-label">Heads-up · there is a real bug in the stub I wrote</span>
+        <p><code>_parse_response</code> groups every word by speaker across the entire recording, producing one giant segment per speaker. That destroys turn order: you get "everything the doctor said" then "everything the patient said," instead of the actual back-and-forth. A note generated from that will mangle who reported which symptom. Segments must be <em>turns</em> — split when the speaker label changes. Worth reading the function and spotting the bug yourself first; it's a good example of code that looks reasonable and is semantically wrong.</p>
+      </div>
+      <div class="note warn">
+        <span class="note-label">Heads-up · diarization gives you anonymous labels</span>
+        <p>Scribe returns <code>speaker_0</code>, <code>speaker_1</code> — not "doctor" and "patient." Mapping them is your problem, and getting it backwards inverts Subjective content: the patient's reported symptoms become the doctor's words. Heuristics that actually work: the doctor speaks first (they start the recording), the doctor speaks the consent script, the doctor has more total speech time. None are reliable alone. Consider letting the consent script double as the doctor's voice fingerprint, since you know who reads it.</p>
+      </div>
+      <div class="note call">
+        <span class="note-label">Your call · how do you validate ASR quality with no bake-off?</span>
+        <p>The roadmap explicitly dropped the vendor bake-off and accepted the risk, making internal alpha the first real test. So decide now what you'll measure: a small set of consented recordings hand-transcribed as ground truth? Clinically-weighted entity error rate on drug names and doses, as the PRD's metrics suggest? A doctor-reported "did you have to fix a name or dose" flag per note? Pick something cheap and start collecting from day one of alpha — the risk register says this surfaces via edit burden, and edit burden is only measurable if you instrumented it before the first note.</p>
+      </div>
+
+      <h3><span class="h3-num">1.4</span>Real note generation<span class="tags"><span class="tag warn">Heads-up</span><span class="tag call">Your call</span><span class="tag learn">Understand first</span></span></h3>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Implement <code>LunaNoteGenerator.generate</code> — single fused call, APSO order, hedged language, silence suppression.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Implement <code>HaikuNoteGenerator.generate</code> as the configured fallback.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Use structured output (JSON schema / tool call), not free-text parsing.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Pass word-level confidence into the prompt in a form the model can act on.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Store the prompt version alongside each generated note.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Add a golden-transcript test suite: fixed transcript in, assertions on the note out.</span></label></li>
+      </ul>
+      <div class="note warn">
+        <span class="note-label">Heads-up</span>
+        <p>"Generation is suppressed over silent or low-confidence windows" (P0-4) will not happen just because your system prompt says so. Models are strongly biased toward fluent, complete-looking clinical text. Hand it a transcript with a garbled 30-second stretch and it will smooth over the gap plausibly, and you won't be able to tell. Make suppression <em>mechanical</em> where you can: mark low-confidence spans explicitly in the input (<code>[INAUDIBLE 0.31]</code>), and validate the output for invented content rather than trusting instruction-following.</p>
+      </div>
+      <div class="note warn">
+        <span class="note-label">Heads-up</span>
+        <p>Storing the prompt version per note matters more than it sounds. When edit burden jumps in week 3, the first question is "did we change the prompt?" — and without a version stamped on each row, that's unanswerable after the fact.</p>
+      </div>
+      <div class="note call">
+        <span class="note-label">Your call · how do you get trustworthy source spans?</span>
+        <p>P0-4 requires every generated line to trace back to its transcript passage, and P0-7 builds a UI on that. But <strong>an LLM asked to emit character offsets will produce confident, wrong numbers</strong> — it cannot count characters reliably.</p>
+        <ul>
+          <li>Have the model <strong>quote</strong> the supporting passage verbatim, then string-search the transcript server-side for real offsets. Slower, more tokens, offsets are ground truth.</li>
+          <li>Give each transcript sentence a stable <strong>ID</strong> and have the model cite IDs. Cheap, robust, coarser.</li>
+          <li>Ask for offsets directly. Cheapest, and wrong often enough to break the feature.</li>
+        </ul>
+        <p>I'd take sentence IDs — the only option that's both cheap and verifiable, and sentence-level grounding is almost certainly enough for a doctor scanning for "where did this come from?"</p>
+      </div>
+      <div class="note learn">
+        <span class="note-label">Understand first</span>
+        <p>The difference between a model <em>citing</em> and a model <em>appearing to cite</em>. Any output can contain a plausible-looking reference; only a reference you independently verified against the source is evidence. This distinction is the whole reason the grounding UI is P0 rather than nice-to-have — it's the doctor's mechanism for catching exactly this failure.</p>
+      </div>
+
+      <h3><span class="h3-num">1.5</span>Pipeline failure handling<span class="tags"><span class="tag learn">Understand first</span></span></h3>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Give the doctor a specific, actionable error per failure mode — upload / transcription / generation. The PRD explicitly rejects "a silent gap in the record."</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Add a dead-letter path: after max retries, mark the encounter failed and surface it in the app.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Never leave an encounter stuck in an intermediate <code>pipeline_status</code> with nothing watching it.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Add a "regenerate note" action for transient failures.</span></label></li>
+      </ul>
+      <div class="note learn">
+        <span class="note-label">Understand first</span>
+        <p>A queue system's real hard part isn't throughput, it's <em>stuck work</em>. Every async pipeline eventually has jobs that neither succeeded nor failed loudly. Decide now how you'll notice — a periodic sweep for encounters older than N minutes in a non-terminal state is the usual answer, and it's far easier to add before you have production data.</p>
+      </div>
+    </section>
+
+    <!-- ══ PHASE 2 ══ -->
+    <section id="p2" data-phase="p2">
+      <div class="phase-head">
+        <span class="phase-num">Phase 2</span>
+        <h2>Build the mobile app</h2>
+      </div>
+      <p class="phase-goal">The largest phase, and currently 0% done. Everything above is invisible to a doctor without it.</p>
+
+      <h3><span class="h3-num">2.1</span>App foundation<span class="tags"><span class="tag warn">Heads-up</span></span></h3>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Navigation (<code>expo-router</code> or React Navigation) — today <code>App.tsx</code> is one static screen.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Generate a typed API client from FastAPI's OpenAPI schema rather than hand-writing fetch calls — the payoff for the Python/TypeScript split in the stack doc.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Auth flow: login → TOTP → secure token storage → biometric unlock on resume.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Error and offline UI primitives you'll reuse everywhere.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Build a real dev client (<code>npx expo run:android</code>) — Expo Go can't host the native modules you need.</span></label></li>
+      </ul>
+      <div class="note warn">
+        <span class="note-label">Heads-up</span>
+        <p>You need a working Android/iOS toolchain for this phase, and it's a genuine time sink the first time. Budget real hours for Android Studio, SDK versions, and — for iOS — a Mac plus a paid Apple developer account. This is the most common place a mobile-first plan slips, and it slips for reasons that have nothing to do with your code.</p>
+      </div>
+
+      <h3><span class="h3-num">2.2</span>Recording — the hard part<span class="tags"><span class="tag learn">Understand first</span><span class="tag warn">Heads-up</span><span class="tag call">Your call</span></span></h3>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">One-tap record with a persistent, always-visible recording indicator (P0-1).</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Background capture surviving backgrounding, screen lock, and incoming calls (P0-2).</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Android: foreground service with an ongoing notification.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">iOS: <code>UIBackgroundModes: audio</code> plus the correct <code>AVAudioSession</code> category.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Encrypt audio on-device <em>before</em> it touches disk, key sealed in Keychain/Keystore.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Handle interruptions: pause/resume on call, save partial audio on crash.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Write audio in chunks as you go — never buffer a whole consult in memory.</span></label></li>
+      </ul>
+      <div class="note learn">
+        <span class="note-label">Understand first</span>
+        <p>Mobile OSes treat background microphone access as adversarial by default, and reasonably so. Both platforms will kill or silence a backgrounded recorder unless you declare intent through a specific mechanism — a foreground service on Android, a background mode on iOS — and both require user-visible indication. This is precisely why the stack doc rules out a PWA: browsers give you no such mechanism at all. Read the platform docs before writing this; it's the difference between a day and a week.</p>
+      </div>
+      <div class="note warn">
+        <span class="note-label">Heads-up</span>
+        <p>Apple review will ask why a medical app records in the background. Have the clinical justification written down before you submit, and expect the consent flow to be the thing that satisfies them.</p>
+      </div>
+      <div class="note warn">
+        <span class="note-label">Heads-up</span>
+        <p>A 30-minute consultation is a big file, and battery and thermal behavior over a full clinic day is a real constraint nobody models in advance. Test an actual 8-hour day of intermittent recording on a real mid-range Android phone — the kind a doctor actually carries, not a flagship. The PRD lists "what devices do doctors actually carry" as an open question; answer it before you tune bitrate.</p>
+      </div>
+      <div class="note call">
+        <span class="note-label">Your call · audio format and bitrate</span>
+        <p>You're trading ASR accuracy against file size against upload time on clinic wifi. Speech at 16 kHz mono in a compressed format (AAC/Opus) is usually plenty for ASR and dramatically smaller than uncompressed WAV. Verify against Scribe's documented input expectations before committing, and test whether aggressive compression measurably hurts Taglish accuracy — code-switched speech may be less robust to compression artifacts than monolingual English.</p>
+      </div>
+
+      <h3><span class="h3-num">2.3</span>Consent flow<span class="tags"><span class="tag warn">Heads-up</span></span></h3>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Consent screen with the script in Filipino and English, blocking recording until resolved.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Capture the participant roster before recording starts.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Record the spoken consent exchange as the first segment of the audio file.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Handle decline gracefully — the app stays fully usable without recording (explicit PRD edge case).</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Mid-visit re-consent: pause, capture new roster, log a new ledger entry, resume.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Withdrawal action, available at any time, that reaches the server.</span></label></li>
+      </ul>
+      <div class="note warn">
+        <span class="note-label">Heads-up</span>
+        <p>Withdrawal currently has <em>no</em> server-side effect — no pipeline abort, no deletion. P0-1 says processing stops and audio is queued for deletion "without undue delay." Implementing that means revoking a Celery task that may already be mid-flight, which is genuinely awkward: you can't reliably kill a running task, so the pattern is a consent check at each stage boundary plus a cleanup job. Design for "stops at the next checkpoint," not "stops instantly" — and make sure that's what you tell Legal it does.</p>
+      </div>
+
+      <h3><span class="h3-num">2.4</span>Offline queue<span class="tags"><span class="tag learn">Understand first</span></span></h3>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">SQLite-backed durable queue (<code>expo-sqlite</code>) surviving app kill and device restart.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Visible, persistent queue status — nothing may fail silently.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Background upload with exponential backoff.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Generate the idempotency key on-device at recording start, and persist it before the first byte uploads.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Delete local audio only after the server confirms receipt <em>and</em> pipeline start.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Handle the device-full case.</span></label></li>
+      </ul>
+      <div class="note learn">
+        <span class="note-label">Understand first</span>
+        <p>This is a write-ahead log — the same pattern databases use for durability. The invariant: the <em>record of intent</em> is committed to durable storage before the risky operation begins, so a crash at any point leaves you able to reconstruct what should happen. Generate the idempotency key in memory and crash before persisting it, and the retry generates a new key — giving you the duplicate the key existed to prevent.</p>
+      </div>
+
+      <h3><span class="h3-num">2.5</span>Patient identity<span class="tags"><span class="tag warn">Heads-up</span><span class="tag call">Your call</span></span></h3>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Patient search by typed or dictated name.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Exact match links silently; near match requires one-tap confirmation; no match offers create-new.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Loose-sessions tray for recordings started before a patient was selected.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Re-confirm patient identity when the note is filed, not only at recording start.</span></label></li>
+      </ul>
+      <div class="note warn">
+        <span class="note-label">Heads-up · an architectural consequence you'll hit immediately</span>
+        <p><code>Patient.full_name</code> is encrypted at rest via <code>EncryptedString</code>, which means <strong>the database cannot search it.</strong> Ciphertext isn't comparable, so <code>match_patient</code> filters by exact birthdate first and only then compares names in Python. The PRD's UX wants name-first search — and name-first search over encrypted columns is impossible without help.</p>
+      </div>
+      <div class="note call">
+        <span class="note-label">Your call · how do you get searchable encrypted names?</span>
+        <ul>
+          <li><strong>Blind index.</strong> Store an HMAC of the normalized name alongside the ciphertext and search that. Enables exact and prefix matching while the name stays encrypted. Standard solution; adds a second key to manage, and leaks equality — you can tell two patients share a name without decrypting.</li>
+          <li><strong>Don't encrypt the name;</strong> rely on DB- and disk-level encryption instead. Simplest, searchable, weaker — a Postgres read is now a PHI read.</li>
+          <li><strong>Keep birthdate-first matching</strong> and design the UX around it. The front-desk check-in queue (the PRD's own P1 item) sidesteps search entirely.</li>
+        </ul>
+        <p>Also worth thinking through: a mistyped birthdate currently means dedup silently fails and you create a duplicate patient, putting one person's history in two records. What's your recovery path? A merge tool is unglamorous and you will need it.</p>
+      </div>
+
+      <h3><span class="h3-num">2.6</span>Review, edit, sign<span class="tags"><span class="tag call">Your call</span><span class="tag warn">Heads-up</span></span></h3>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Note review screen in Assessment → Plan → Subjective → Objective order.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Free editing of any section pre-signing, each edit recorded as a <code>NoteRevision</code>.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Explicit stepwise state transitions, no skipping (the server already enforces this).</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Signing ceremony: deliberate, distinct, capturing name + PRC license + timestamp.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Objective-findings entry for things never spoken aloud.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Show the prior visit's assessment and plan for longitudinal context.</span></label></li>
+      </ul>
+      <div class="note call">
+        <span class="note-label">Your call · what counts as a "minor edit"?</span>
+        <p>The PRD's headline quality target is "≥70% of signed notes require only minor edits," so this definition literally determines whether you pass. Character-level edit distance? Word-level? Clinically weighted, where a changed dose counts more than a rephrased sentence? Decide before alpha, write it down, and compute it consistently — a metric redefined mid-pilot tells you nothing.</p>
+      </div>
+      <div class="note warn">
+        <span class="note-label">Heads-up</span>
+        <p><code>NoteRevision</code> stores full before/after text per edit. Every revision is another encrypted copy of PHI, and they compound fast. Make sure retention covers revisions too, and consider whether you need keystroke-level revisions or just per-save snapshots.</p>
+      </div>
+    </section>
+
+    <!-- ══ PHASE 3 ══ -->
+    <section id="p3" data-phase="p3">
+      <div class="phase-head">
+        <span class="phase-num">Phase 3</span>
+        <h2>Grounding UI</h2>
+      </div>
+      <p class="phase-goal">P0-7 — the doctor's mechanism for checking the AI's work.</p>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Tap a note line → highlight the source transcript passage.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Tap again → play audio from that timestamp.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Serve audio without permanently re-downloading PHI — short-lived presigned URLs, range requests.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Handle audio already deleted by retention while the note remains.</span></label></li>
+      </ul>
+      <div class="note learn">
+        <span class="note-label">Understand first</span>
+        <p>This feature is the product's trust mechanism. The doctor's rational response to "an AI wrote this" is "prove it," and grounding is the proof. Everything upstream — span storage, sentence IDs, verbatim quoting — exists to make this screen honest. Cut corners in 1.2 or 1.4 and this is where it shows.</p>
+      </div>
+      <div class="note warn">
+        <span class="note-label">Heads-up</span>
+        <p>Notes outlive audio. Retention will delete the recording while the signed note remains a permanent medical record. The grounding UI must degrade gracefully to "transcript only," then to "source no longer retained" — and the doctor should understand which state they're in, not just see a dead play button.</p>
+      </div>
+    </section>
+
+    <!-- ══ PHASE 4 ══ -->
+    <section id="p4" data-phase="p4">
+      <div class="phase-head">
+        <span class="phase-num">Phase 4</span>
+        <h2>Security and compliance hardening</h2>
+      </div>
+      <p class="phase-goal">P0-8, plus the retention policy the scaffold currently only gestures at.</p>
+
+      <h3><span class="h3-num">4.1</span>Encryption and key management<span class="tags"><span class="tag warn">Heads-up</span><span class="tag call">Your call</span></span></h3>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Decide and document the PHI-at-rest approach.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Key rotation procedure — written and rehearsed.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Separate keys per environment; production keys never on a developer machine.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">TLS everywhere, HSTS, modern cipher suites.</span></label></li>
+      </ul>
+      <div class="note warn">
+        <span class="note-label">Heads-up · single point of catastrophe</span>
+        <p><code>PHI_ENCRYPTION_KEY</code> is one Fernet key in an env var, with no rotation story. Lose it and <strong>every encrypted column is permanently unrecoverable</strong> — patient names, note contents, revisions. Leak it and all of it is exposed. Before pilot: back that key up somewhere a person can't casually delete, and write down how you'd rotate it — which with plain Fernet means re-encrypting every row, so know that cost now.</p>
+      </div>
+      <div class="note call">
+        <span class="note-label">Your call · Fernet-in-app, pgcrypto, or KMS envelope encryption?</span>
+        <p>The stack doc specified <code>pgcrypto</code>; the implementation used app-layer Fernet, because it works identically on SQLite, which the test suite needs. That divergence is fine but should be a decision, not an accident. Envelope encryption with a managed KMS makes rotation tractable and keeps keys off your servers; it's also more infrastructure than a pilot may warrant. Ask Remedy's DPO what they'll require <em>before</em> wider rollout — retrofitting is much worse than starting there.</p>
+      </div>
+
+      <h3><span class="h3-num">4.2</span>Audit logging<span class="tags"><span class="tag warn">Heads-up</span></span></h3>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Audit every PHI access, not just three write paths. <code>audit.record</code> is called in a handful of places and most reads go unlogged.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Log actor, action, entity, timestamp for every read of a patient, note, transcript, or audio object.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Make audit logs tamper-evident — same append-only trigger pattern as the consent ledger.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Build a review interface, or at minimum a documented query — "reviewable" is the actual requirement.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Set an audit-log retention period, likely longer than PHI retention.</span></label></li>
+      </ul>
+      <div class="note warn">
+        <span class="note-label">Heads-up</span>
+        <p>"Access logs" means <em>reads</em>, and reads are the ones developers forget, because nothing visibly breaks when they're missing. The failure only surfaces during an audit or a breach investigation, when the question is "who looked at this patient's record?" and the answer is "we don't know."</p>
+      </div>
+
+      <h3><span class="h3-num">4.3</span>Operational security</h3>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Secrets in a real secret manager, not <code>.env</code> files on servers.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Dependency scanning in CI (<code>pip-audit</code>, <code>npm audit</code>) — the mobile scaffold already reports vulnerabilities.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Reconsider <code>passlib</code> + the <code>bcrypt==4.0.1</code> pin. That pin works around a passlib incompatibility, and pinning a security-critical library backwards is debt to schedule, not forget. Modern alternative: <code>argon2-cffi</code>, or <code>bcrypt</code> directly.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Backup and <em>tested</em> restore for Postgres. An untested backup is a hope.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Breach response runbook (roadmap Week 5).</span></label></li>
+      </ul>
+
+      <h3><span class="h3-num">4.4</span>Retention enforcement<span class="tags"><span class="tag warn">Heads-up</span><span class="tag call">Your call</span></span></h3>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Implement the job that actually deletes expired audio.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Extend deletion to transcripts and note revisions, not just audio.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Log every deletion to the audit trail.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Handle withdrawal as an immediate-deletion path.</span></label></li>
+      </ul>
+      <div class="note warn">
+        <span class="note-label">Heads-up</span>
+        <p><code>audio_retention_expires_at</code> is set on every encounter and <strong>nothing reads it.</strong> Retention is currently a column, not a policy.</p>
+      </div>
+      <div class="note call">
+        <span class="note-label">Your call · Celery Beat, cron, or bucket lifecycle rules?</span>
+        <p>Bucket lifecycle is most reliable for the audio objects themselves — the storage layer enforces it whether your app is running or not — but it can't touch Postgres rows. Celery Beat keeps the logic in your app where it can cascade to transcripts and revisions. Most likely you want both: lifecycle as the backstop, an application job for derived data. Note the PRD's open question: the actual retention period is still owned by Legal/Compliance, so keep it configurable — which the scaffold already does.</p>
+      </div>
+    </section>
+
+    <!-- ══ PHASE 5 ══ -->
+    <section id="p5" data-phase="p5">
+      <div class="phase-head">
+        <span class="phase-num">Phase 5</span>
+        <h2>Deployment and operations</h2>
+      </div>
+
+      <h3><span class="h3-num">5.1</span>Deployment<span class="tags"><span class="tag call">Your call</span></span></h3>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Choose and provision a hosting target.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Production compose or equivalent — the current one is dev-only, with host ports shifted to 5433/6380/9002 as a local-collision workaround.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Managed Postgres with automated backups and PITR.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Managed Redis, or accept and document the data-loss window.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Run migrations as an explicit deploy step, never automatically on boot.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Health and readiness endpoints wired to the orchestrator. <code>/health</code> exists and checks neither DB nor Redis.</span></label></li>
+      </ul>
+      <div class="note call">
+        <span class="note-label">Your call · where does this run, and in which jurisdiction?</span>
+        <p>Data residency is a real question for Philippine health data, and it may constrain your provider list before performance or cost does. Ask Legal early. Beyond that: a single VM with Docker Compose is the cheapest thing that works and entirely defensible for a pilot in Remedy's own clinics; managed containers cost more and remove a class of 2 a.m. problems; Kubernetes is almost certainly wrong at this scale. Pick the least infrastructure that meets the compliance bar.</p>
+      </div>
+
+      <h3><span class="h3-num">5.2</span>Observability<span class="tags"><span class="tag warn">Heads-up</span><span class="tag learn">Understand first</span></span></h3>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Structured logging with correlation IDs threaded from mobile request through Celery task.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Error tracking on both API and mobile.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Metrics: pipeline latency per stage, failure rate by stage, queue depth, per-consult cost.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Alerts for pipeline failure rate, stuck encounters, queue depth, upload failure rate.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">A cost dashboard against the PRD's &lt;$0.10/consult target.</span></label></li>
+      </ul>
+      <div class="note warn">
+        <span class="note-label">Heads-up</span>
+        <p>Scrub PHI from logs and error reports. This is the single easiest way to leak clinical data, and it happens by accident: an exception with a transcript in the message, a request body captured by your error tracker, a debug log of a patient name. Configure data scrubbing <em>before</em> pointing the tracker at production, not after.</p>
+      </div>
+      <div class="note learn">
+        <span class="note-label">Understand first</span>
+        <p>A correlation ID that survives the async boundary is what turns "note generation is sometimes slow" into "note generation is slow for encounters with more than 20 minutes of audio." Pass it explicitly into the Celery task — it will not propagate on its own.</p>
+      </div>
+
+      <h3><span class="h3-num">5.3</span>CI/CD</h3>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">CI: lint (<code>ruff</code>), type-check (<code>mypy</code>), test on <strong>Postgres</strong> (see 0.5), build the mobile bundle.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Migration safety check — fail CI if a migration is missing for a model change.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Staging environment with realistic synthetic data, never production PHI.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Mobile release pipeline (EAS Build, internal distribution for pilot doctors).</span></label></li>
+      </ul>
+    </section>
+
+    <!-- ══ PHASE 6 ══ -->
+    <section id="p6" data-phase="p6">
+      <div class="phase-head">
+        <span class="phase-num">Phase 6</span>
+        <h2>Pilot instrumentation</h2>
+      </div>
+      <p class="phase-goal">Everything the PRD promises to measure needs code before week 0, not after.</p>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Edit-burden computation from <code>NoteRevision</code> rows (see the 2.6 decision on "minor").</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Correctly-filed-rate tracking.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Post-encounter five-star rating prompt.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Documentation-time measurement, comparable to the week-0 paper baseline.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Voluntary-use tracking — is this doctor still using it unprompted in week 4?</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">A weekly manual-review sampling workflow for unsafe-acceptance rate.</span></label></li>
+      </ul>
+      <div class="note warn">
+        <span class="note-label">Heads-up</span>
+        <p>The roadmap's stated mitigation for skipping the vendor bake-off is "watch the edit-burden metric closely from day one of internal alpha." That mitigation only exists if the metric is instrumented <em>before</em> alpha. If it isn't, the accepted risk quietly becomes an unmonitored risk — the worst outcome available, because you'll have neither pre-validation nor early detection.</p>
+      </div>
+    </section>
+
+    <!-- ══ PHASE 7 ══ -->
+    <section id="p7" data-phase="p7">
+      <div class="phase-head">
+        <span class="phase-num">Phase 7</span>
+        <h2>P1 fast-follows</h2>
+      </div>
+      <p class="phase-goal">Build only after the Week 6 checkpoint passes.</p>
+      <ul class="tasks">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Patient-facing plain-language summary — Filipino, 6th-grade reading level, on request, delivered before the patient leaves.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Referral letter drafting.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Prior-visit Assessment/Plan auto-injected into the note-generation prompt as labeled historical context.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Front-desk check-in queue integration — also the cleanest answer to the 2.5 patient-search problem.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Dermatology quick-entry pad for Objective findings.</span></label></li>
+      </ul>
+      <div class="note learn">
+        <span class="note-label">Understand first</span>
+        <p>The PRD's P2 list is a set of things not to architect <em>out</em>. As you make choices in Phases 1–5, occasionally sanity-check them against per-doctor templates, medical certificates, multi-tenancy, and EMR integration. You don't build for them — you just avoid decisions that would make them a rewrite. The <code>NoteGenerator</code> interface is this done right: swapping models is a config flag because someone thought about it in advance.</p>
+      </div>
+    </section>
+
+    <!-- ══ WRITE IT DOWN ══ -->
+    <section id="writedown">
+      <div class="phase-head">
+        <span class="phase-num">Cross-cutting</span>
+        <h2>What to write down as you go</h2>
+      </div>
+      <p class="phase-goal">Create <code>docs/decisions/</code> and record every <span class="tag call">Your call</span> above as a short entry: the decision, the options considered, why you chose, and what would change your mind. Four sentences is enough.</p>
+      <p>Two reasons this matters more than it seems. First, in eight weeks you will not remember why you picked hand-rolled chunked upload over presigned URLs, and neither will anyone reviewing it. Second — and this is the part specific to you — writing the "what would change my mind" line is what turns a decision you <em>made</em> into a decision you <em>understand</em>. If you can't fill that line in, you probably haven't finished thinking about it.</p>
+      <p>Keep <code>docs/tech-stack.md</code> honest as reality diverges from it. It already has one divergence worth fixing: it specifies <code>pgcrypto</code> and the code uses app-layer Fernet. A stack doc that quietly stops matching the code is worse than no stack doc, because people trust it.</p>
+    </section>
+
+    <!-- ══ SEQUENCING ══ -->
+    <section id="sequencing">
+      <div class="phase-head">
+        <span class="phase-num">Sequencing</span>
+        <h2>What order to actually do this in</h2>
+      </div>
+      <p class="phase-goal">Given a lean team and the roadmap's 4–8 week MVP target. The order encodes dependency and risk, not just preference.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Order</th><th>Work</th><th>Why here</th></tr></thead>
+          <tbody>
+            <tr><td class="seq-order">1</td><td>Phase 0</td><td>These are false claims in the codebase. Fix before building on them.</td></tr>
+            <tr><td class="seq-order">2</td><td>Phase 1.1–1.2</td><td>Upload and transcript persistence unblock everything downstream.</td></tr>
+            <tr><td class="seq-order">3</td><td>Phase 2.1–2.2</td><td>Recording is the longest-lead, highest-risk work. Start early, fail early.</td></tr>
+            <tr><td class="seq-order">4</td><td>Phase 1.3–1.4</td><td>Real ASR and note-gen, now that you have real audio to feed them.</td></tr>
+            <tr><td class="seq-order">5</td><td>Phase 2.3–2.6</td><td>Consent, queue, identity, review/sign → <strong>internal alpha</strong>.</td></tr>
+            <tr><td class="seq-order">6</td><td>Phase 6</td><td>Instrument <em>before</em> alpha, not after.</td></tr>
+            <tr><td class="seq-order">7</td><td>Phase 3</td><td>Grounding UI.</td></tr>
+            <tr><td class="seq-order">8</td><td>Phase 4–5</td><td>Security hardening and deployment, before real patients.</td></tr>
+            <tr><td class="seq-order">9</td><td>Go/no-go</td><td>Then Phase 7.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note warn">
+        <span class="note-label">Heads-up · a hard constraint on that order</span>
+        <p>Phase 4 sits late in the list but is non-negotiable at the boundary: <strong>no real patient data touches this system until 4.1, 4.2, and 4.4 are done</strong>, regardless of what else is finished. Alpha on synthetic or fully-consented internal recordings is fine before then. Real consultations are not.</p>
+      </div>
+    </section>
+
+    <div class="closer">
+      <div class="gate">
+        <span class="note-label">Standing blocker, from the roadmap</span>
+        <p>Consent-gated recording cannot go live to real patients until Philippine counsel clears the RA 4200 flow. Build it, test it, and keep it dark until Legal signs off.</p>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  (function () {
+    var KEY = 'remedy-scribe-checklist-v1';
+    var store = {};
+    var canPersist = true;
+
+    try {
+      store = JSON.parse(localStorage.getItem(KEY) || '{}') || {};
+    } catch (e) { canPersist = false; store = {}; }
+
+    function save() {
+      if (!canPersist) return;
+      try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { canPersist = false; }
+    }
+
+    // Stable key from the task's own text, so editing the doc elsewhere
+    // doesn't shift every saved state by one.
+    function hash(str) {
+      var h = 5381, i = str.length;
+      while (i) { h = (h * 33) ^ str.charCodeAt(--i); }
+      return (h >>> 0).toString(36);
+    }
+
+    var tasks = Array.prototype.slice.call(document.querySelectorAll('.task'));
+    var boxes = [];
+
+    tasks.forEach(function (label) {
+      var input = label.querySelector('input');
+      var text = (label.querySelector('.task-text') || {}).textContent || '';
+      var k = hash(text.trim());
+      input.dataset.key = k;
+      if (store[k]) input.checked = true;
+      boxes.push(input);
+      input.addEventListener('change', function () {
+        if (input.checked) { store[k] = 1; } else { delete store[k]; }
+        save();
+        render();
+      });
+    });
+
+    var fill = document.getElementById('fill');
+    var read = document.getElementById('read');
+    var counts = Array.prototype.slice.call(document.querySelectorAll('[data-count]'));
+
+    function render() {
+      var done = boxes.filter(function (b) { return b.checked; }).length;
+      var total = boxes.length;
+      var pct = total ? Math.round((done / total) * 100) : 0;
+      fill.style.transform = 'scaleX(' + (total ? done / total : 0) + ')';
+      read.innerHTML = '<b>' + done + '</b> / ' + total + ' done · ' + pct + '%';
+
+      counts.forEach(function (el) {
+        var id = el.getAttribute('data-count');
+        var sec = document.getElementById(id);
+        if (!sec) return;
+        var ins = sec.querySelectorAll('.task input');
+        var d = 0;
+        Array.prototype.forEach.call(ins, function (i) { if (i.checked) d++; });
+        el.textContent = d + '/' + ins.length;
+        if (ins.length && d === ins.length) { el.classList.add('done'); }
+        else { el.classList.remove('done'); }
+      });
+    }
+
+    document.getElementById('reset').addEventListener('click', function () {
+      boxes.forEach(function (b) { b.checked = false; });
+      store = {};
+      save();
+      render();
+    });
+
+    render();
+  })();
+</script>

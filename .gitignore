@@ -1,0 +1,4 @@
+# Root-level catch-all. Each app also has its own .gitignore for
+# language-specific ignores (apps/api/.gitignore, apps/mobile/.gitignore).
+.DS_Store
+*.log

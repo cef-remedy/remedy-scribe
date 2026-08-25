@@ -1,0 +1,1227 @@
+<title>Inside the Remedy Scribe Scaffold</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+  :root {
+    --ground:      #F6F6F3;
+    --surface:     #FFFFFF;
+    --panel:       #EFF0EC;
+    --ink:         #191C1F;
+    --ink-2:       #4A5257;
+    --ink-3:       #7C858B;
+    --rule:        #DCDED8;
+    --rule-2:      #BCC0B9;
+    --accent:      #1B4A6B;
+    --accent-soft: #E1E9EF;
+    --verified:    #0E5C52;
+    --verified-soft:#DFEBE6;
+    --gotcha:      #9E4025;
+    --gotcha-soft: #F6E6DF;
+    --concept:     #5A4A86;
+    --concept-soft:#EAE6F3;
+
+    --f-display: "Newsreader", Georgia, "Times New Roman", serif;
+    --f-body:    "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+    --f-mono:    "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+    --measure: 66ch;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #101315;
+      --surface:     #171B1E;
+      --panel:       #1D2226;
+      --ink:         #E7EBEC;
+      --ink-2:       #A6AFB4;
+      --ink-3:       #79838A;
+      --rule:        #2A3136;
+      --rule-2:      #3D464C;
+      --accent:      #74B4DC;
+      --accent-soft: #162936;
+      --verified:    #5CC2AE;
+      --verified-soft:#14302A;
+      --gotcha:      #E29473;
+      --gotcha-soft: #32201A;
+      --concept:     #AFA0DC;
+      --concept-soft:#221E33;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #101315;
+    --surface:     #171B1E;
+    --panel:       #1D2226;
+    --ink:         #E7EBEC;
+    --ink-2:       #A6AFB4;
+    --ink-3:       #79838A;
+    --rule:        #2A3136;
+    --rule-2:      #3D464C;
+    --accent:      #74B4DC;
+    --accent-soft: #162936;
+    --verified:    #5CC2AE;
+    --verified-soft:#14302A;
+    --gotcha:      #E29473;
+    --gotcha-soft: #32201A;
+    --concept:     #AFA0DC;
+    --concept-soft:#221E33;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 16.5px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+  .wrap { max-width: 880px; margin: 0 auto; padding: 44px 24px 110px; }
+  main { min-width: 0; }
+
+  @media (min-width: 1120px) {
+    .wrap {
+      display: grid;
+      grid-template-columns: 196px minmax(0, 1fr);
+      gap: 54px;
+      max-width: 1180px;
+      align-items: start;
+    }
+    main { max-width: 820px; }
+  }
+
+  /* ── Contents panel ───────────────────────────────────── */
+  .toc { display: none; }
+
+  @media (min-width: 1120px) {
+    .toc {
+      display: block;
+      position: sticky;
+      top: 0;
+      max-height: 100vh;
+      overflow-y: auto;
+      padding: 48px 0 40px;
+    }
+  }
+
+  .toc-h {
+    font-family: var(--f-mono);
+    font-size: 10px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 14px;
+  }
+
+  .toc ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+  .toc li { margin: 0; }
+
+  .toc a {
+    display: grid;
+    grid-template-columns: 16px 1fr;
+    gap: 9px;
+    align-items: baseline;
+    padding: 6px 9px;
+    border-radius: 3px;
+    color: var(--ink-2);
+    text-decoration: none;
+    font-size: 13.5px;
+    line-height: 1.35;
+  }
+  .toc a:hover { color: var(--ink); background: var(--panel); }
+  .toc a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .toc .t-n {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .toc a[aria-current="true"] {
+    color: var(--accent);
+    background: var(--accent-soft);
+    font-weight: 500;
+  }
+  .toc a[aria-current="true"] .t-n { color: var(--accent); }
+
+  /* Narrow screens: a disclosure instead of the panel */
+  .toc-m {
+    margin: 26px 0 0;
+    padding: 12px 15px;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    max-width: var(--measure);
+  }
+  .toc-m summary {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--accent);
+    cursor: pointer;
+  }
+  .toc-m summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+  .toc-m ul {
+    list-style: none;
+    margin: 13px 0 2px;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 3px 18px;
+  }
+  .toc-m li { margin: 0; }
+  .toc-m a { font-size: .94rem; text-decoration: none; color: var(--ink-2); }
+  .toc-m a:hover { color: var(--accent); }
+  @media (min-width: 1120px) { .toc-m { display: none; } }
+
+  /* Anchor jumps shouldn't butt against the viewport edge */
+  section[id] { scroll-margin-top: 26px; }
+
+  /* ── Masthead ─────────────────────────────────────────── */
+  .masthead { padding-bottom: 30px; border-bottom: 1px solid var(--rule-2); }
+
+  .kicker {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: .17em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 20px;
+  }
+
+  h1 {
+    font-family: var(--f-display);
+    font-weight: 500;
+    font-size: clamp(2.2rem, 5.6vw, 3.5rem);
+    line-height: 1.06;
+    letter-spacing: -.015em;
+    margin: 0 0 20px;
+    text-wrap: balance;
+  }
+
+  .standfirst {
+    font-family: var(--f-display);
+    font-size: 1.28rem;
+    line-height: 1.48;
+    color: var(--ink-2);
+    max-width: 54ch;
+    margin: 0;
+  }
+
+  .facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 30px;
+    margin: 28px 0 0;
+    padding: 0;
+    list-style: none;
+    font-family: var(--f-mono);
+    font-size: 12px;
+    color: var(--ink-3);
+  }
+  .facts b { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
+
+  /* ── Sections ─────────────────────────────────────────── */
+  section { margin-top: 64px; }
+
+  .part {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 10px;
+  }
+
+  h2 {
+    font-family: var(--f-display);
+    font-weight: 500;
+    font-size: clamp(1.6rem, 3.6vw, 2.25rem);
+    line-height: 1.14;
+    letter-spacing: -.012em;
+    margin: 0 0 20px;
+    text-wrap: balance;
+  }
+
+  h3 {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: 1.3rem;
+    line-height: 1.25;
+    margin: 44px 0 14px;
+    text-wrap: balance;
+  }
+
+  h4 {
+    font-family: var(--f-body);
+    font-weight: 600;
+    font-size: .98rem;
+    margin: 30px 0 10px;
+  }
+
+  p, ul, ol { max-width: var(--measure); }
+  p { margin: 0 0 16px; }
+  ul, ol { margin: 0 0 16px; padding-left: 22px; }
+  li { margin-bottom: 8px; }
+  li:last-child { margin-bottom: 0; }
+
+  a { color: var(--accent); text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
+  strong { font-weight: 600; }
+
+  code {
+    font-family: var(--f-mono);
+    font-size: .855em;
+    background: var(--panel);
+    padding: .12em .34em;
+    border-radius: 3px;
+    overflow-wrap: break-word;
+  }
+
+  /* ── Code specimens ───────────────────────────────────── */
+  figure.code { margin: 22px 0; }
+
+  .filebar {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+    font-family: var(--f-mono);
+    font-size: 11.5px;
+    padding: 8px 14px;
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+    color: var(--ink-2);
+  }
+  .filebar .lines { color: var(--ink-3); white-space: nowrap; }
+
+  pre {
+    margin: 0;
+    padding: 14px;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 0 0 4px 4px;
+    overflow-x: auto;
+    font-family: var(--f-mono);
+    font-size: 12.9px;
+    line-height: 1.62;
+    tab-size: 4;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+
+  .cmt { color: var(--ink-3); }
+  .kw  { color: var(--accent); }
+  .str { color: var(--verified); }
+
+  figure.code figcaption {
+    max-width: var(--measure);
+    font-size: .93rem;
+    color: var(--ink-2);
+    margin-top: 12px;
+  }
+
+  /* ── Margin-labelled notes ────────────────────────────── */
+  .note {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+    max-width: 780px;
+    margin: 24px 0;
+    padding: 15px 17px;
+    border-radius: 4px;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+  }
+  @media (min-width: 760px) {
+    .note { grid-template-columns: 108px 1fr; gap: 22px; padding: 16px 20px; }
+  }
+
+  .note-tag {
+    font-family: var(--f-mono);
+    font-size: 10px;
+    letter-spacing: .11em;
+    text-transform: uppercase;
+    font-weight: 500;
+    line-height: 1.5;
+    padding-top: 3px;
+  }
+  .note-body > :last-child { margin-bottom: 0; }
+  .note-body p, .note-body ul { max-width: 60ch; }
+
+  .note.why      { background: var(--concept-soft); border-color: var(--concept); }
+  .note.why .note-tag { color: var(--concept); }
+  .note.trap     { background: var(--gotcha-soft); border-color: var(--gotcha); }
+  .note.trap .note-tag { color: var(--gotcha); }
+  .note.proof    { background: var(--verified-soft); border-color: var(--verified); }
+  .note.proof .note-tag { color: var(--verified); }
+
+  /* ── Figures / diagrams ───────────────────────────────── */
+  figure.dia { margin: 30px 0; }
+  figure.dia svg { display: block; width: 100%; max-width: 100%; height: auto; color: var(--ink-2); }
+  figure.dia figcaption {
+    max-width: var(--measure);
+    font-size: .93rem;
+    color: var(--ink-2);
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+  }
+  .dia-hold {
+    padding: 22px 18px;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    overflow-x: auto;
+  }
+  .svg-box  { fill: var(--panel);   stroke: var(--rule-2); }
+  .svg-lit  { fill: var(--accent-soft); stroke: var(--accent); }
+  .svg-txt  { fill: var(--ink); font-family: "IBM Plex Sans", sans-serif; font-size: 13px; }
+  .svg-mono { fill: var(--ink); font-family: "IBM Plex Mono", monospace; font-size: 11.5px; }
+  .svg-lbl  { fill: var(--ink-3); font-family: "IBM Plex Mono", monospace; font-size: 10.5px; }
+  .svg-acc  { fill: var(--accent); font-family: "IBM Plex Mono", monospace; font-size: 10.5px; }
+
+  /* ── Reading order ────────────────────────────────────── */
+  ol.reading { list-style: none; padding: 0; max-width: var(--measure); counter-reset: r; }
+  ol.reading li {
+    counter-increment: r;
+    display: grid;
+    grid-template-columns: 26px 1fr;
+    gap: 13px;
+    padding: 12px 0;
+    border-top: 1px solid var(--rule);
+    margin: 0;
+  }
+  ol.reading li:first-child { border-top: none; }
+  ol.reading li::before {
+    content: counter(r);
+    font-family: var(--f-mono);
+    font-size: 11.5px;
+    color: var(--accent);
+    padding-top: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  ol.reading .r-file {
+    font-family: var(--f-mono);
+    font-size: 12.5px;
+    display: block;
+    margin-bottom: 3px;
+  }
+  ol.reading .r-why { color: var(--ink-2); font-size: .95rem; }
+
+  /* ── Tables ───────────────────────────────────────────── */
+  .tw { overflow-x: auto; margin: 22px 0; }
+  table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: .94rem; }
+  th, td { text-align: left; padding: 10px 16px 10px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-weight: 500;
+    border-bottom: 1px solid var(--rule-2);
+  }
+
+  /* ── Self-check ───────────────────────────────────────── */
+  .quiz { max-width: var(--measure); margin: 22px 0 0; padding: 0; list-style: none; }
+  .quiz li {
+    padding: 13px 0;
+    border-top: 1px solid var(--rule);
+    font-family: var(--f-display);
+    font-size: 1.08rem;
+    line-height: 1.45;
+  }
+  .quiz li:first-child { border-top: none; }
+  .quiz .where {
+    display: block;
+    font-family: var(--f-mono);
+    font-size: 11px;
+    color: var(--ink-3);
+    margin-top: 5px;
+  }
+
+  .closer { margin-top: 68px; padding-top: 26px; border-top: 1px solid var(--rule-2); }
+</style>
+
+<div class="wrap">
+
+  <nav class="toc" aria-label="Sections">
+    <p class="toc-h">Contents</p>
+    <ul>
+      <li><a href="#orientation"><span class="t-n"></span><span>Orientation</span></a></li>
+      <li><a href="#start"><span class="t-n"></span><span>Where to start</span></a></li>
+      <li><a href="#layers"><span class="t-n">1</span><span>The layer cake</span></a></li>
+      <li><a href="#patterns"><span class="t-n">2</span><span>Six patterns</span></a></li>
+      <li><a href="#request"><span class="t-n">3</span><span>Request traced</span></a></li>
+      <li><a href="#async"><span class="t-n">4</span><span>The async half</span></a></li>
+      <li><a href="#migrations"><span class="t-n">5</span><span>Migrations</span></a></li>
+      <li><a href="#tests"><span class="t-n">6</span><span>Tests</span></a></li>
+      <li><a href="#mobile"><span class="t-n">7</span><span>Mobile & infra</span></a></li>
+      <li><a href="#bugs"><span class="t-n">8</span><span>Five bugs</span></a></li>
+      <li><a href="#selfcheck"><span class="t-n">9</span><span>Self-check</span></a></li>
+    </ul>
+  </nav>
+
+  <main>
+
+  <header class="masthead">
+    <p class="kicker">Remedy Scribe · Codebase walkthrough</p>
+    <h1>Inside the scaffold: what got built, and why it's shaped that way</h1>
+    <p class="standfirst">A guided tour of ~1,900 lines of Python, an Expo client, and the infrastructure around them — written to be read next to the code, with the reasoning behind each decision made explicit.</p>
+    <ul class="facts">
+      <li><b>54</b> Python files</li>
+      <li><b>1,930</b> lines</li>
+      <li><b>9</b> passing tests</li>
+      <li><b>2</b> migrations</li>
+      <li><b>7</b> data models</li>
+    </ul>
+  </header>
+
+    <details class="toc-m">
+      <summary>Contents</summary>
+      <ul>
+      <li><a href="#orientation">Orientation</a></li>
+      <li><a href="#start">Where to start</a></li>
+      <li><a href="#layers">The layer cake</a></li>
+      <li><a href="#patterns">Six patterns</a></li>
+      <li><a href="#request">Request traced</a></li>
+      <li><a href="#async">The async half</a></li>
+      <li><a href="#migrations">Migrations</a></li>
+      <li><a href="#tests">Tests</a></li>
+      <li><a href="#mobile">Mobile & infra</a></li>
+      <li><a href="#bugs">Five bugs</a></li>
+      <li><a href="#selfcheck">Self-check</a></li>
+      </ul>
+    </details>
+
+  <!-- ══════════════ THE PICTURE ══════════════ -->
+  <section id="orientation">
+    <p class="part">Orientation</p>
+    <h2>The whole thing in one paragraph</h2>
+    <p>A doctor's phone records a consultation and uploads it. A FastAPI server stores the audio, hands it to a speech-to-text vendor, hands the transcript to a language model, and saves the result as a structured note that the doctor edits and signs. Postgres holds the records, Redis carries the background jobs, S3-compatible storage holds the audio. What exists today is that skeleton with every joint articulated and two joints — the actual ASR and note-generation calls — left as sockets with the shape declared but nothing plugged in.</p>
+    <p>The rest of this document explains why each part sits where it does. If you read only one section, read <strong>the six patterns</strong> — that's where the transferable ideas are.</p>
+
+    <div class="note proof">
+      <span class="note-tag">Verified</span>
+      <div class="note-body">
+        <p>Everything described here was executed, not just written. Migrations ran against a real Postgres in Docker; the append-only trigger was tested by hand in <code>psql</code>; the server was started and driven through login → patient match → encounter → consent with <code>curl</code>; the Expo app type-checks and bundles. Where something is <em>not</em> proven, this document says so.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ READING ORDER ══════════════ -->
+  <section id="start">
+    <p class="part">Where to start</p>
+    <h2>Read the code in this order</h2>
+    <p>Codebases are not meant to be read alphabetically. This order follows dependency: each file only relies on ones above it, so nothing is a forward reference.</p>
+
+    <ol class="reading">
+      <li><div><span class="r-file">app/core/config.py</span><span class="r-why">Every other module reads settings from here. Start with what's configurable and you learn what the system considers a knob versus a fact.</span></div></li>
+      <li><div><span class="r-file">app/models/*.py</span><span class="r-why">The data model is the real specification. Read all seven; the docstrings map each table back to a PRD requirement.</span></div></li>
+      <li><div><span class="r-file">app/core/security.py</span><span class="r-why">Password hashing, JWT, TOTP, and the encryption wrapper — one file, four separable ideas.</span></div></li>
+      <li><div><span class="r-file">app/api/deps.py</span><span class="r-why">Short, and it explains how every route gets a database session and an authenticated user without asking for one.</span></div></li>
+      <li><div><span class="r-file">app/services/note_lifecycle.py</span><span class="r-why">The clearest example of the service-layer pattern: 59 lines that own one field.</span></div></li>
+      <li><div><span class="r-file">app/api/routes/notes.py</span><span class="r-why">Now you can see a route as what it is — a thin translator between HTTP and a service call.</span></div></li>
+      <li><div><span class="r-file">app/tasks/pipeline.py</span><span class="r-why">The async half. Read it last, because it depends on nearly everything else.</span></div></li>
+    </ol>
+  </section>
+
+  <!-- ══════════════ LAYERS ══════════════ -->
+  <section id="layers">
+    <p class="part">Part one</p>
+    <h2>The layer cake, and what each layer is forbidden from doing</h2>
+    <p>The folder structure isn't decoration — it encodes a rule about which direction dependencies flow. Layers only ever import <em>downward</em>. A model never imports a route; a service never imports FastAPI. That single constraint is what makes the code testable, because you can exercise a service without an HTTP request and a model without a service.</p>
+
+    <figure class="dia">
+      <div class="dia-hold">
+        <svg viewBox="0 0 700 430" role="img" aria-label="Layer diagram: an HTTP request passes down through route, service, and model layers into Postgres, while Pydantic schemas validate at the route boundary and FastAPI dependencies inject the session and current clinician. Imports only ever flow downward.">
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+            </marker>
+            <marker id="ar-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent)"/>
+            </marker>
+          </defs>
+
+          <!-- spine boxes -->
+          <rect x="212" y="14" width="200" height="42" rx="4" class="svg-box"/>
+          <text x="312" y="40" text-anchor="middle" class="svg-txt">HTTP request</text>
+
+          <rect x="212" y="98" width="200" height="58" rx="4" class="svg-box"/>
+          <text x="312" y="122" text-anchor="middle" class="svg-txt">Route</text>
+          <text x="312" y="141" text-anchor="middle" class="svg-lbl">api/routes/*.py</text>
+
+          <rect x="212" y="198" width="200" height="58" rx="4" class="svg-box"/>
+          <text x="312" y="222" text-anchor="middle" class="svg-txt">Service</text>
+          <text x="312" y="241" text-anchor="middle" class="svg-lbl">services/*.py</text>
+
+          <rect x="212" y="298" width="200" height="58" rx="4" class="svg-box"/>
+          <text x="312" y="322" text-anchor="middle" class="svg-txt">Model</text>
+          <text x="312" y="341" text-anchor="middle" class="svg-lbl">models/*.py</text>
+
+          <rect x="212" y="386" width="200" height="34" rx="4" class="svg-lit"/>
+          <text x="312" y="408" text-anchor="middle" class="svg-mono">PostgreSQL</text>
+
+          <!-- spine arrows -->
+          <line x1="312" y1="56" x2="312" y2="94" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
+          <line x1="312" y1="156" x2="312" y2="194" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
+          <text x="322" y="179" class="svg-lbl">calls</text>
+          <line x1="312" y1="256" x2="312" y2="294" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
+          <text x="322" y="279" class="svg-lbl">reads / writes</text>
+          <line x1="312" y1="356" x2="312" y2="382" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
+          <text x="322" y="374" class="svg-lbl">SQL</text>
+
+          <!-- left: schemas -->
+          <rect x="12" y="98" width="150" height="58" rx="4" class="svg-box"/>
+          <text x="87" y="122" text-anchor="middle" class="svg-txt">Schemas</text>
+          <text x="87" y="141" text-anchor="middle" class="svg-lbl">schemas/*.py</text>
+          <line x1="162" y1="127" x2="208" y2="127" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
+          <text x="87" y="176" text-anchor="middle" class="svg-lbl">validate in + out</text>
+
+          <!-- right: deps -->
+          <rect x="462" y="98" width="150" height="58" rx="4" class="svg-box"/>
+          <text x="537" y="122" text-anchor="middle" class="svg-txt">Dependencies</text>
+          <text x="537" y="141" text-anchor="middle" class="svg-lbl">api/deps.py</text>
+          <line x1="462" y1="127" x2="416" y2="127" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
+          <text x="537" y="176" text-anchor="middle" class="svg-lbl">inject db + user</text>
+
+          <!-- config, read by all -->
+          <rect x="462" y="248" width="150" height="58" rx="4" class="svg-box"/>
+          <text x="537" y="272" text-anchor="middle" class="svg-txt">Settings</text>
+          <text x="537" y="291" text-anchor="middle" class="svg-lbl">core/config.py</text>
+          <line x1="462" y1="277" x2="416" y2="277" stroke="currentColor" stroke-width="1.4" stroke-dasharray="3 3" marker-end="url(#ar)"/>
+
+          <!-- the rule -->
+          <line x1="646" y1="110" x2="646" y2="400" stroke="var(--accent)" stroke-width="1.4" marker-end="url(#ar-a)"/>
+          <text x="658" y="240" class="svg-acc">imports</text>
+          <text x="658" y="256" class="svg-acc">flow only</text>
+          <text x="658" y="272" class="svg-acc">downward</text>
+        </svg>
+      </div>
+      <figcaption>The dependency rule the folder layout encodes. Solid arrows are calls; the dashed arrow is a read. Nothing points back up — which is exactly why a service can be unit-tested with no HTTP request and no running server.</figcaption>
+    </figure>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>Layer</th><th>Its one job</th><th>What it must never do</th></tr></thead>
+        <tbody>
+          <tr><td><code>core/</code></td><td>Settings and cryptography primitives</td><td>Know about HTTP or the database schema</td></tr>
+          <tr><td><code>db/</code></td><td>Engine, session factory, declarative base</td><td>Contain business rules</td></tr>
+          <tr><td><code>models/</code></td><td>Table definitions — the shape of stored truth</td><td>Enforce workflow rules or call services</td></tr>
+          <tr><td><code>schemas/</code></td><td>Validate what crosses the API boundary</td><td>Be reused as ORM models</td></tr>
+          <tr><td><code>services/</code></td><td>Business rules, the interesting logic</td><td>Import FastAPI or raise <code>HTTPException</code></td></tr>
+          <tr><td><code>api/routes/</code></td><td>Translate HTTP ↔ service calls</td><td>Contain business rules worth testing</td></tr>
+          <tr><td><code>tasks/</code></td><td>Long-running work, off the request path</td><td>Assume a web request exists</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note why">
+      <span class="note-tag">Why it matters</span>
+      <div class="note-body">
+        <p>Notice the "must never" column for <code>services/</code>: no <code>HTTPException</code>. That's why <code>note_lifecycle.py</code> defines its own <code>InvalidTransitionError</code> and <code>SigningRequiresLicenseError</code>, and the route translates those into 409 and 422. It costs a few extra lines — and it means the state machine could be driven by a CLI tool, a background job, or a test with no HTTP concept at all. Every time a service raises an HTTP error directly, that portability quietly dies.</p>
+      </div>
+    </div>
+
+    <h3>Models versus schemas: two shapes for the same noun</h3>
+    <p>There's a <code>Patient</code> model and a <code>PatientOut</code> schema, and beginners reasonably ask why both exist. They answer different questions. The model answers "what does the database store?" The schema answers "what am I willing to show the outside world, and what will I accept from it?"</p>
+    <p>They diverge the moment those answers differ — which is immediately. The <code>Clinician</code> model has <code>hashed_password</code> and <code>mfa_secret</code>; <code>ClinicianOut</code> has neither, so no route can leak them even by accident. That's not duplication, it's a boundary.</p>
+  </section>
+
+  <!-- ══════════════ SIX PATTERNS ══════════════ -->
+  <section id="patterns">
+    <p class="part">Part two</p>
+    <h2>Six patterns worth taking with you</h2>
+    <p>These are the ideas in the scaffold that generalize past this project. Each one is small; each one buys something specific.</p>
+
+    <h3>1 · A settings object built once per process</h3>
+    <figure class="code">
+      <div class="filebar"><span>app/core/config.py</span><span class="lines">excerpt</span></div>
+<pre><code>class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=<span class="str">".env"</span>, extra=<span class="str">"ignore"</span>)
+
+    database_url: str = <span class="str">"postgresql+psycopg://remedy:remedy@localhost:5433/remedy_scribe"</span>
+    note_generator_provider: Literal[<span class="str">"luna"</span>, <span class="str">"haiku"</span>] = <span class="str">"luna"</span>
+    audio_retention_days: int = 90
+
+
+<span class="kw">@lru_cache</span>
+<span class="kw">def</span> get_settings() -> Settings:
+    <span class="kw">return</span> Settings()</code></pre>
+      <figcaption>Pydantic reads and type-checks the environment; <code>lru_cache</code> makes the result a singleton.</figcaption>
+    </figure>
+    <p>Two things are happening. <code>BaseSettings</code> turns environment variables into a validated, typed object — so <code>AUDIO_RETENTION_DAYS=ninety</code> fails at startup with a clear error instead of at 3 a.m. inside a date calculation. And <code>Literal["luna", "haiku"]</code> means an invalid provider name is impossible to configure at all.</p>
+    <p>The <code>@lru_cache</code> is the subtle part: it makes <code>get_settings()</code> return the <em>same instance</em> every call, so reading config never re-parses the environment.</p>
+
+    <div class="note trap">
+      <span class="note-tag">The catch</span>
+      <div class="note-body">
+        <p>That cache is why <code>tests/conftest.py</code> sets environment variables at the very top of the file, <em>before</em> importing anything from <code>app</code>. The first call to <code>get_settings()</code> anywhere in the process freezes the values. Import the app first and your test database URL is ignored — silently, with tests running against your development database. The <code># noqa: E402</code> comments on those later imports exist to tell the linter this ordering is deliberate, not sloppy.</p>
+      </div>
+    </div>
+
+    <h3>2 · Mixins for columns every table shares</h3>
+    <figure class="code">
+      <div class="filebar"><span>app/models/mixins.py</span><span class="lines">25 lines</span></div>
+<pre><code><span class="kw">class</span> UUIDPrimaryKeyMixin:
+    <span class="cmt"># String(36) UUID PK — portable across Postgres and SQLite,</span>
+    <span class="cmt"># unlike postgresql.UUID which only works on real Postgres.</span>
+    id: Mapped[str] = mapped_column(String(36), primary_key=<span class="kw">True</span>, default=_uuid_str)
+
+
+<span class="kw">class</span> TimestampMixin:
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=<span class="kw">True</span>), default=_utcnow, nullable=<span class="kw">False</span>
+    )</code></pre>
+      <figcaption>Every model inherits these, so <code>id</code> and <code>created_at</code> are declared once.</figcaption>
+    </figure>
+    <p>Worth noticing <em>why</em> the primary key is a string rather than Postgres's native UUID type: the test suite runs on SQLite, which has no UUID type. Choosing <code>String(36)</code> means the same model definition works on both. That's a small tax on Postgres for a large gain in test speed.</p>
+    <p>Also notice UUIDs rather than auto-incrementing integers. Sequential integers leak information — a competitor can read <code>/patients/1834</code> and infer your patient count, and a client can guess neighbouring IDs. The client also can't generate an integer ID offline, which matters for a phone that creates records without a network.</p>
+
+    <h3>3 · Transparent column encryption via <code>TypeDecorator</code></h3>
+    <figure class="code">
+      <div class="filebar"><span>app/core/security.py</span><span class="lines">excerpt</span></div>
+<pre><code><span class="kw">class</span> EncryptedString(TypeDecorator):
+    impl = String
+    cache_ok = <span class="kw">True</span>
+
+    <span class="kw">def</span> process_bind_param(self, value, dialect):   <span class="cmt"># Python -> DB</span>
+        <span class="kw">if</span> value <span class="kw">is None</span>: <span class="kw">return None</span>
+        <span class="kw">return</span> self._fernet().encrypt(value.encode()).decode()
+
+    <span class="kw">def</span> process_result_value(self, value, dialect):  <span class="cmt"># DB -> Python</span>
+        <span class="kw">if</span> value <span class="kw">is None</span>: <span class="kw">return None</span>
+        <span class="kw">return</span> self._fernet().decrypt(value.encode()).decode()</code></pre>
+      <figcaption>Two hooks on the write and read path. Everything else about the column behaves normally.</figcaption>
+    </figure>
+    <p>This is my favourite pattern in the scaffold, because of how little it asks of the rest of the code. Declare a column as <code>EncryptedString(512)</code> instead of <code>String(512)</code> and it is encrypted at rest — forever, everywhere, with no call site changed. Look at how <code>Patient</code> uses it:</p>
+
+    <figure class="code">
+      <div class="filebar"><span>app/models/patient.py</span><span class="lines">excerpt</span></div>
+<pre><code>full_name: Mapped[str] = mapped_column(EncryptedString(512), nullable=<span class="kw">False</span>)
+birthdate: Mapped[date] = mapped_column(Date, nullable=<span class="kw">False</span>, index=<span class="kw">True</span>)</code></pre>
+      <figcaption>One line's difference between an encrypted column and a plain one.</figcaption>
+    </figure>
+    <p>Service code writes <code>Patient(full_name="Juan Dela Cruz", ...)</code> and reads <code>patient.full_name</code> as an ordinary string. The ciphertext exists only between the driver and the disk. Note also that the method raises if <code>PHI_ENCRYPTION_KEY</code> is unset rather than falling back to plaintext — a security control should fail loudly, never degrade quietly.</p>
+
+    <div class="note trap">
+      <span class="note-tag">The catch</span>
+      <div class="note-body">
+        <p>Encrypted columns cannot be searched by the database. Ciphertext isn't comparable, so <code>WHERE full_name = 'Juan'</code> can never match. That's the entire reason <code>match_patient</code> filters on <code>birthdate</code> first — an indexed plaintext column — and only then compares names in Python. This one line of model code shapes the whole patient-search feature, which is a good illustration of how far a storage decision can reach.</p>
+      </div>
+    </div>
+
+    <h3>4 · Dependency injection, and why it makes tests trivial</h3>
+    <figure class="code">
+      <div class="filebar"><span>app/api/deps.py</span><span class="lines">excerpt</span></div>
+<pre><code><span class="kw">def</span> get_current_clinician(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+) -> Clinician:
+    payload = decode_access_token(token)
+    <span class="kw">if</span> payload <span class="kw">is None or</span> <span class="str">"sub"</span> <span class="kw">not in</span> payload:
+        <span class="kw">raise</span> HTTPException(401, <span class="str">"Invalid or expired token"</span>)
+
+    clinician = db.get(Clinician, payload[<span class="str">"sub"</span>])
+    <span class="kw">if</span> clinician <span class="kw">is None or not</span> clinician.is_active:
+        <span class="kw">raise</span> HTTPException(401, <span class="str">"Clinician not found or inactive"</span>)
+    <span class="kw">return</span> clinician</code></pre>
+      <figcaption>A dependency that itself depends on two other dependencies. FastAPI resolves the chain.</figcaption>
+    </figure>
+    <p>Any route that writes <code>clinician: Clinician = Depends(get_current_clinician)</code> is now authenticated, and its signature <em>documents</em> that fact. Compare it to a decorator that stuffs a user onto a magic request object: here the requirement is visible in the type signature, and the route body receives a real <code>Clinician</code>.</p>
+    <p>The payoff shows up in the test suite, in three lines:</p>
+
+    <figure class="code">
+      <div class="filebar"><span>tests/conftest.py</span><span class="lines">excerpt</span></div>
+<pre><code><span class="kw">def</span> _override_get_db():
+    <span class="kw">yield</span> db
+
+app.dependency_overrides[get_db] = _override_get_db</code></pre>
+      <figcaption>Swapping the database for the whole application, without touching a route.</figcaption>
+    </figure>
+    <p>Every route in every module now uses the test session. No mocking library, no patching of import paths, no conditional code inside the app that asks "am I in a test?" That last point is the real prize: the application has no idea it is being tested.</p>
+
+    <div class="note why">
+      <span class="note-tag">Why it matters</span>
+      <div class="note-body">
+        <p><code>get_db</code> is a generator — it <code>yield</code>s a session and closes it in a <code>finally</code>. FastAPI runs the code after the <code>yield</code> once the response is sent. That's how a session is guaranteed to close even when a route raises, and it's the same mechanism as a Python <code>with</code> block, applied across the request lifecycle.</p>
+      </div>
+    </div>
+
+    <h3>5 · One service owns one field</h3>
+    <p>The note lifecycle is the sharpest example. PRD requirement P0-5 says four states with none skippable. That rule is expressed as a dictionary:</p>
+
+    <figure class="code">
+      <div class="filebar"><span>app/services/note_lifecycle.py</span><span class="lines">excerpt</span></div>
+<pre><code><span class="cmt"># Each status maps to the single next status it may advance to.</span>
+_ALLOWED_NEXT: dict[NoteStatus, NoteStatus] = {
+    NoteStatus.GENERATED:     NoteStatus.FILED,
+    NoteStatus.FILED:         NoteStatus.AUTHENTICATED,
+    NoteStatus.AUTHENTICATED: NoteStatus.SIGNED,
+}
+
+<span class="kw">def</span> transition(db, note, to_status, *, clinician_id, prc_license_number=<span class="kw">None</span>):
+    allowed = _ALLOWED_NEXT.get(note.status)
+    <span class="kw">if</span> allowed <span class="kw">is None or</span> to_status != allowed:
+        <span class="kw">raise</span> InvalidTransitionError(...)
+
+    <span class="kw">if</span> to_status == NoteStatus.SIGNED:
+        <span class="kw">if not</span> prc_license_number:
+            <span class="kw">raise</span> SigningRequiresLicenseError(...)
+        note.signed_by_clinician_id = clinician_id
+        note.signed_prc_license_number = prc_license_number
+        note.signed_at = datetime.now(timezone.utc)
+
+    note.status = to_status</code></pre>
+      <figcaption>The legal rule as data, plus the one place it's checked.</figcaption>
+    </figure>
+    <p>Three properties are worth naming. The rule lives in <strong>data</strong>, not scattered <code>if</code> statements, so it can be read at a glance and printed in an error message. <code>SIGNED</code> is absent as a key, which makes it terminal — a signed note cannot transition anywhere, and that falls out of the structure rather than needing its own check. And the signature captures identity, licence, and timestamp <em>in the same operation</em> as the status change, so a signed note without a signer is not a state the code can produce.</p>
+    <p>The module docstring states the contract plainly: this is "the only code path allowed to change <code>Note.status</code>." That is a convention, not something Python enforces — but it's a convention with one obvious home, which is the most you can ask of a convention.</p>
+
+    <h3>6 · A provider interface is what turns a rewrite into a config change</h3>
+    <p>The PRD says GPT-5.6 Luna generates notes, with Claude Haiku 4.5 "available as a configured fallback." The roadmap leans on that: since the vendor bake-off was cancelled, a swap has to be cheap. Here is what "cheap" required structurally.</p>
+
+    <figure class="dia">
+      <div class="dia-hold">
+        <svg viewBox="0 0 700 300" role="img" aria-label="Comparison diagram. On the left, the pipeline imports LunaNoteGenerator directly, so changing provider means editing pipeline.py. On the right, the pipeline calls get_note_generator, which reads a setting and returns either Luna or Haiku, so changing provider means editing an environment variable.">
+          <defs>
+            <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <!-- divider -->
+          <line x1="350" y1="10" x2="350" y2="290" stroke="var(--rule-2)" stroke-width="1" stroke-dasharray="4 4"/>
+
+          <!-- LEFT: direct -->
+          <text x="20" y="26" class="svg-lbl">WITHOUT THE INTERFACE</text>
+
+          <rect x="20" y="48" width="150" height="44" rx="4" class="svg-box"/>
+          <text x="95" y="70" text-anchor="middle" class="svg-mono">pipeline.py</text>
+          <text x="95" y="85" text-anchor="middle" class="svg-lbl">generate_note()</text>
+
+          <line x1="95" y1="92" x2="95" y2="140" stroke="currentColor" stroke-width="1.4" marker-end="url(#a2)"/>
+          <text x="104" y="120" class="svg-lbl">imports</text>
+
+          <rect x="20" y="144" width="150" height="44" rx="4" class="svg-box"/>
+          <text x="95" y="171" text-anchor="middle" class="svg-mono">LunaGenerator</text>
+
+          <text x="20" y="228" class="svg-txt">To switch vendors:</text>
+          <text x="20" y="250" class="svg-acc">edit pipeline.py,</text>
+          <text x="20" y="266" class="svg-acc">redeploy, retest</text>
+
+          <!-- RIGHT: factory -->
+          <text x="380" y="26" class="svg-lbl">WITH THE INTERFACE</text>
+
+          <rect x="380" y="48" width="150" height="44" rx="4" class="svg-box"/>
+          <text x="455" y="70" text-anchor="middle" class="svg-mono">pipeline.py</text>
+          <text x="455" y="85" text-anchor="middle" class="svg-lbl">generate_note()</text>
+
+          <line x1="455" y1="92" x2="455" y2="118" stroke="currentColor" stroke-width="1.4" marker-end="url(#a2)"/>
+
+          <rect x="380" y="122" width="180" height="44" rx="4" class="svg-lit"/>
+          <text x="470" y="143" text-anchor="middle" class="svg-mono">get_note_generator()</text>
+          <text x="470" y="158" text-anchor="middle" class="svg-lbl">reads NOTE_GENERATOR_PROVIDER</text>
+
+          <line x1="425" y1="166" x2="410" y2="204" stroke="currentColor" stroke-width="1.4" marker-end="url(#a2)"/>
+          <line x1="512" y1="166" x2="530" y2="204" stroke="currentColor" stroke-width="1.4" marker-end="url(#a2)"/>
+
+          <rect x="345" y="208" width="130" height="40" rx="4" class="svg-box"/>
+          <text x="410" y="233" text-anchor="middle" class="svg-mono">LunaGenerator</text>
+
+          <rect x="487" y="208" width="130" height="40" rx="4" class="svg-box"/>
+          <text x="552" y="233" text-anchor="middle" class="svg-mono">HaikuGenerator</text>
+
+          <text x="380" y="282" class="svg-txt">To switch vendors: <tspan class="svg-acc">edit one env var</tspan></text>
+        </svg>
+      </div>
+      <figcaption>The difference the abstraction buys. On the left the vendor's class name appears inside pipeline code, so it is part of the deployable. On the right the only thing that names a vendor is a factory reading configuration — so the same build can run either provider.</figcaption>
+    </figure>
+
+    <figure class="code">
+      <div class="filebar"><span>app/services/note_generation/__init__.py</span><span class="lines">excerpt</span></div>
+<pre><code><span class="kw">def</span> get_note_generator() -> NoteGenerator:
+    provider = get_settings().note_generator_provider
+    <span class="kw">if</span> provider == <span class="str">"haiku"</span>:
+        <span class="kw">return</span> HaikuNoteGenerator()
+    <span class="kw">return</span> LunaNoteGenerator()</code></pre>
+      <figcaption>Six lines. This is the whole of what makes the PRD's fallback requirement real.</figcaption>
+    </figure>
+
+    <p>The abstract base class does the other half of the work: it declares the contract both providers must satisfy, so <code>pipeline.py</code> can call <code>.generate(transcript)</code> without knowing or caring which vendor answers.</p>
+
+    <div class="note why">
+      <span class="note-tag">Why it matters</span>
+      <div class="note-body">
+        <p>The same pattern appears for speech-to-text in <code>services/asr/</code>, and for the same reason — the roadmap names Speechmatics as the fallback if ElevenLabs' data-processing agreement doesn't cover the Scribe API. Both are cases where a <em>business</em> risk (a vendor may not work out) was answered with a <em>structural</em> choice (never name the vendor at the call site). That translation from commercial risk to code shape is worth learning to do deliberately.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ REQUEST LIFECYCLE ══════════════ -->
+  <section id="request">
+    <p class="part">Part three</p>
+    <h2>One request, traced all the way down</h2>
+    <p>Take the request that signs a note — <code>POST /api/v1/notes/{id}/transition</code> with <code>{"to_status": "signed", "prc_license_number": "PRC-000111"}</code>. Here is every layer it touches, in order.</p>
+
+    <ol>
+      <li><strong>FastAPI matches the route</strong> and sees the parameter <code>payload: NoteTransitionRequest</code>. The JSON body is parsed and validated against that Pydantic model. A misspelled status is rejected here with a 422, before any of my code runs.</li>
+      <li><strong>Dependencies resolve.</strong> <code>get_db</code> opens a session. <code>get_current_clinician</code> pulls the bearer token, verifies its signature and expiry, loads the <code>Clinician</code>, and checks <code>is_active</code>. Either can abort the request before the route body starts.</li>
+      <li><strong>The route body runs</strong> — and it is deliberately dull. Fetch the note or 404, call <code>transition(...)</code>, translate two domain exceptions into 409 and 422, record an audit entry, return.</li>
+      <li><strong>The service enforces the rules.</strong> Is this transition legal from the current state? If signing, is a licence number present? It sets the signature fields and commits.</li>
+      <li><strong>SQLAlchemy writes.</strong> Every <code>EncryptedString</code> column passes through <code>process_bind_param</code> on the way out, so the four note sections are encrypted before the driver sees them.</li>
+      <li><strong>The response is serialized</strong> through <code>NoteOut</code>. Only fields declared there are emitted — a new internal column added to the model tomorrow will not silently start appearing in API responses.</li>
+    </ol>
+
+    <p>Step six is a quiet but real security property. Because the route declares <code>response_model=NoteOut</code>, the schema acts as an allow-list on the way out, not just a validator on the way in.</p>
+
+    <h3>The login request, and what MFA actually checks</h3>
+    <figure class="code">
+      <div class="filebar"><span>app/api/routes/auth.py</span><span class="lines">excerpt</span></div>
+<pre><code><span class="kw">if</span> (
+    clinician <span class="kw">is None</span>
+    <span class="kw">or not</span> clinician.is_active
+    <span class="kw">or not</span> verify_password(payload.password, clinician.hashed_password)
+    <span class="kw">or not</span> clinician.mfa_secret
+    <span class="kw">or not</span> verify_mfa_code(clinician.mfa_secret, payload.mfa_code)
+):
+    <span class="kw">raise</span> HTTPException(401, <span class="str">"Invalid credentials or MFA code"</span>)</code></pre>
+      <figcaption>One condition, one error message — deliberately.</figcaption>
+    </figure>
+    <p>All five failure modes produce the same 401 with the same text. That's intentional: distinct messages for "no such user," "wrong password," and "wrong code" hand an attacker a way to enumerate valid accounts and to learn that a password was correct before brute-forcing the second factor.</p>
+    <p>The TOTP check itself is worth understanding, because it isn't a stored comparison. Both server and phone hold the same shared secret, and both compute the same function of <code>(secret, current 30-second window)</code>. Nothing is transmitted or looked up. The <code>valid_window=1</code> argument accepts the adjacent windows too, which covers ordinary clock drift — a real necessity, and also a reminder that the code is only as fresh as ±30 seconds.</p>
+  </section>
+
+  <!-- ══════════════ PIPELINE ══════════════ -->
+  <section id="async">
+    <p class="part">Part four</p>
+    <h2>The async half: why any of this is a queue</h2>
+    <p>Transcribing twenty minutes of audio and generating a note takes far longer than an HTTP request should live. So the upload-confirmation route does the minimum — records the audio key, sets the retention clock, enqueues work — and returns immediately. The slow part happens in a Celery worker.</p>
+
+    <figure class="dia">
+      <div class="dia-hold">
+        <svg viewBox="0 0 700 320" role="img" aria-label="Pipeline diagram. A confirm-upload request writes the audio key to the encounter row, whose unique idempotency key prevents duplicates, then enqueues a Celery chain through Redis. The transcribe task runs, then the generate-note task, each guarded by a check that skips work already done, finally writing a Note row.">
+          <defs>
+            <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <!-- request -->
+          <rect x="14" y="40" width="132" height="48" rx="4" class="svg-box"/>
+          <text x="80" y="61" text-anchor="middle" class="svg-mono">POST</text>
+          <text x="80" y="77" text-anchor="middle" class="svg-lbl">confirm-upload</text>
+
+          <line x1="146" y1="64" x2="196" y2="64" stroke="currentColor" stroke-width="1.4" marker-end="url(#a3)"/>
+
+          <!-- encounter row -->
+          <rect x="200" y="34" width="150" height="60" rx="4" class="svg-lit"/>
+          <text x="275" y="56" text-anchor="middle" class="svg-mono">Encounter row</text>
+          <text x="275" y="72" text-anchor="middle" class="svg-lbl">unique idempotency</text>
+          <text x="275" y="86" text-anchor="middle" class="svg-lbl">key = no duplicates</text>
+
+          <line x1="350" y1="64" x2="400" y2="64" stroke="currentColor" stroke-width="1.4" marker-end="url(#a3)"/>
+          <text x="356" y="54" class="svg-lbl">enqueue</text>
+
+          <!-- redis -->
+          <rect x="404" y="40" width="112" height="48" rx="4" class="svg-box"/>
+          <text x="460" y="61" text-anchor="middle" class="svg-mono">Redis</text>
+          <text x="460" y="77" text-anchor="middle" class="svg-lbl">broker</text>
+
+          <!-- response back -->
+          <line x1="80" y1="88" x2="80" y2="126" stroke="currentColor" stroke-width="1.4" marker-end="url(#a3)"/>
+          <text x="16" y="146" class="svg-acc">202 returns now —</text>
+          <text x="16" y="162" class="svg-acc">work continues</text>
+
+          <!-- worker lane -->
+          <line x1="460" y1="88" x2="460" y2="120" stroke="currentColor" stroke-width="1.4" marker-end="url(#a3)"/>
+          <text x="330" y="112" class="svg-lbl">worker picks up</text>
+
+          <rect x="236" y="196" width="180" height="62" rx="4" class="svg-box"/>
+          <text x="326" y="219" text-anchor="middle" class="svg-mono">transcribe_encounter</text>
+          <text x="326" y="236" text-anchor="middle" class="svg-lbl">skips if already</text>
+          <text x="326" y="249" text-anchor="middle" class="svg-lbl">transcribed</text>
+
+          <rect x="466" y="196" width="180" height="62" rx="4" class="svg-box"/>
+          <text x="556" y="219" text-anchor="middle" class="svg-mono">generate_note</text>
+          <text x="556" y="236" text-anchor="middle" class="svg-lbl">skips if a Note</text>
+          <text x="556" y="249" text-anchor="middle" class="svg-lbl">already exists</text>
+
+          <line x1="460" y1="124" x2="360" y2="192" stroke="currentColor" stroke-width="1.4" marker-end="url(#a3)"/>
+          <line x1="416" y1="227" x2="462" y2="227" stroke="currentColor" stroke-width="1.4" marker-end="url(#a3)"/>
+          <text x="418" y="217" class="svg-lbl">chained</text>
+
+          <!-- note row -->
+          <rect x="466" y="282" width="180" height="30" rx="4" class="svg-lit"/>
+          <text x="556" y="302" text-anchor="middle" class="svg-mono">Note row</text>
+          <line x1="556" y1="258" x2="556" y2="278" stroke="currentColor" stroke-width="1.4" marker-end="url(#a3)"/>
+
+          <!-- retry -->
+          <path d="M 250 258 q -40 26 -6 44 q 34 16 66 -14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="3 3" marker-end="url(#a3)"/>
+          <text x="196" y="300" class="svg-lbl">retry ×3</text>
+        </svg>
+      </div>
+      <figcaption>One encounter's journey. Two guards make this safe to run more than once: a unique constraint at the entrance, and a "have I already done this?" check inside each task.</figcaption>
+    </figure>
+
+    <p>The chain itself is one line, and the syntax is worth decoding:</p>
+
+    <figure class="code">
+      <div class="filebar"><span>app/tasks/pipeline.py</span><span class="lines">excerpt</span></div>
+<pre><code>chain = transcribe_encounter.s(encounter_id) | generate_note.s()
+chain.apply_async()</code></pre>
+      <figcaption><code>.s()</code> builds a signature — a task plus its arguments, not yet executed. <code>|</code> chains them.</figcaption>
+    </figure>
+    <p>The pipe means "run the first, then pass its return value as the first argument to the second." So <code>transcribe_encounter</code> returning <code>encounter_id</code> is not incidental — it's how the second task learns what to work on.</p>
+
+    <h3>Why the tasks check whether they've already run</h3>
+    <p>The Celery config sets <code>task_acks_late=True</code>, which means a job is only acknowledged after it finishes. Kill a worker mid-task and the job returns to the queue and runs again — good for reliability, and it means every task must tolerate being executed twice. Hence:</p>
+
+    <figure class="code">
+      <div class="filebar"><span>app/tasks/pipeline.py</span><span class="lines">excerpt</span></div>
+<pre><code><span class="kw">if</span> encounter.pipeline_status <span class="kw">in</span> (<span class="str">"transcribed"</span>, <span class="str">"note_generated"</span>):
+    <span class="kw">return</span> encounter_id  <span class="cmt"># already done — redelivered message, no-op</span></code></pre>
+      <figcaption>Idempotency inside the task, complementing the unique constraint outside it.</figcaption>
+    </figure>
+    <p>Without this, a redelivered message means a second call to a paid transcription API and possibly a second note on the same encounter. The two protections operate at different levels and you want both: the unique constraint stops duplicate <em>work being requested</em>, the in-task check stops duplicate <em>work being performed</em>.</p>
+
+    <div class="note trap">
+      <span class="note-tag">Known gap</span>
+      <div class="note-body">
+        <p>Read <code>transcribe_encounter</code> closely and you'll find <code>_ = segments</code> — the transcript is computed and thrown away. <code>generate_note</code> then calls the model with <code>transcript=[]</code>. Both are marked <code>TODO</code>. The plumbing is real and the shape is right; nothing flows through it yet. Transcript persistence is the first thing to build here, and the checklist covers what that choice involves.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ DATABASE ══════════════ -->
+  <section id="migrations">
+    <p class="part">Part five</p>
+    <h2>Migrations, and pushing guarantees into the database</h2>
+    <p>Two migrations exist. The first creates all seven tables. The second does something more interesting: it makes the consent ledger physically append-only.</p>
+
+    <figure class="code">
+      <div class="filebar"><span>alembic/versions/_append_only_consent_ledger.py</span><span class="lines">excerpt</span></div>
+<pre><code>CREATE <span class="kw">OR</span> REPLACE FUNCTION reject_consent_ledger_mutation()
+RETURNS TRIGGER <span class="kw">AS</span> $$
+<span class="kw">BEGIN</span>
+    RAISE EXCEPTION
+        <span class="str">'consent_ledger_entries is append-only (P0-1) — % is not permitted'</span>, TG_OP;
+<span class="kw">END</span>;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER consent_ledger_entries_no_mutation
+BEFORE UPDATE <span class="kw">OR</span> DELETE <span class="kw">ON</span> consent_ledger_entries
+<span class="kw">FOR EACH ROW</span> EXECUTE FUNCTION reject_consent_ledger_mutation();</code></pre>
+      <figcaption>A trigger that refuses every update and delete on the table.</figcaption>
+    </figure>
+
+    <p>My first attempt used <code>REVOKE UPDATE, DELETE ON consent_ledger_entries FROM PUBLIC</code>, which looks equivalent and isn't. In Postgres, the <strong>owner of a table bypasses its own grants</strong> — and the application's role owns the table it created, so the revoke would have protected against everyone except the one account an attacker would actually have. A trigger applies to the owner too. That distinction is the difference between a real control and a decorative one.</p>
+
+    <div class="note proof">
+      <span class="note-tag">Proven</span>
+      <div class="note-body">
+        <p>I tested this by hand: inserted a ledger row, then attempted <code>UPDATE</code> and <code>DELETE</code>. Both raised <code>consent_ledger_entries is append-only (P0-1)</code>. It works — but see the gap below, because "it works" and "it's protected from regression" are different claims.</p>
+      </div>
+    </div>
+
+    <div class="note trap">
+      <span class="note-tag">Known gap</span>
+      <div class="note-body">
+        <p>The test suite builds its schema with <code>Base.metadata.create_all()</code>, which reads model definitions — not migrations. So the trigger never exists during tests, and nothing in the suite exercises it. Every guarantee written in SQL rather than Python is currently invisible to CI. This is worth internalizing as a general lesson: your tests only cover the parts of your stack they actually construct.</p>
+      </div>
+    </div>
+
+    <h3>The autogenerate hook, and a bug it exists to fix</h3>
+    <p>Alembic can compare your models to the live database and write the migration for you. It did — and the generated file failed immediately with <code>NameError: name 'app' is not defined</code>, because it rendered the column type as <code>app.core.security.EncryptedString(length=512)</code> without importing <code>app.core.security</code>. Alembic knows how to import SQLAlchemy's own types; it cannot guess where a custom one lives.</p>
+
+    <figure class="code">
+      <div class="filebar"><span>alembic/env.py</span><span class="lines">excerpt</span></div>
+<pre><code><span class="kw">def</span> _add_custom_type_imports(context_, revision, directives) -> <span class="kw">None</span>:
+    <span class="kw">for</span> script <span class="kw">in</span> directives:
+        <span class="kw">if</span> script.upgrade_ops.is_empty():
+            <span class="kw">continue</span>
+        script.imports.add(<span class="str">"import app.core.security"</span>)</code></pre>
+      <figcaption>A hook into migration generation, so every future migration touching a PHI column carries its import.</figcaption>
+    </figure>
+    <p>Two things generalize from this. First, the fix belongs in the generator, not the generated file — patching one migration by hand leaves the trap armed for the next person. Second, <code>env.py</code> reads the database URL from application settings rather than from <code>alembic.ini</code>, so migrations and the app can never disagree about which database they mean.</p>
+  </section>
+
+  <!-- ══════════════ TESTS ══════════════ -->
+  <section id="tests">
+    <p class="part">Part six</p>
+    <h2>The tests, and what they deliberately don't cover</h2>
+    <p>Nine tests, four files. They're chosen to cover logic that could plausibly be wrong, not to chase a coverage number.</p>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>File</th><th>What it pins down</th></tr></thead>
+        <tbody>
+          <tr><td><code>test_health.py</code></td><td>The app starts and routes resolve. A smoke test.</td></tr>
+          <tr><td><code>test_patient_matching.py</code></td><td>Exact match, near match, and — importantly — that the same name with a different birthdate does <em>not</em> match.</td></tr>
+          <tr><td><code>test_note_lifecycle.py</code></td><td>States can't be skipped; signing without a licence fails; a full run captures the signature.</td></tr>
+          <tr><td><code>test_auth_flow.py</code></td><td>Wrong credentials are refused; a real TOTP code yields a token that opens a protected route.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>The third patient-matching test is the one I'd point at. It asserts a <em>negative</em>: that matching does not happen when it shouldn't. P0-6 says dedup uses name and birthdate together, and the failure mode that requirement guards against — two different patients merged into one record — is a clinical-safety problem, not a data-tidiness one. Tests that assert something correctly refuses are often more valuable than tests that assert it works.</p>
+
+    <figure class="code">
+      <div class="filebar"><span>tests/conftest.py</span><span class="lines">excerpt</span></div>
+<pre><code><span class="kw">@pytest</span>.fixture(autouse=<span class="kw">True</span>)
+<span class="kw">def</span> _fresh_schema():
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    <span class="kw">yield</span></code></pre>
+      <figcaption><code>autouse=True</code> means every test gets this without asking. Tables are dropped and recreated each time.</figcaption>
+    </figure>
+    <p>Dropping and recreating per test is brutal and, on SQLite, fast enough not to matter. What it buys is complete independence: no test can be affected by another's leftover rows, and there is no ordering dependency to debug later. On Postgres you'd reach for a transaction rolled back after each test instead.</p>
+
+    <p>What the suite does <em>not</em> cover, stated plainly: the Postgres trigger (as above), the Celery tasks, the stubbed vendor calls, and any route not exercised by the two auth tests. That's an honest MVP test suite — thin, and thin in known places rather than unknown ones.</p>
+  </section>
+
+  <!-- ══════════════ MOBILE + INFRA ══════════════ -->
+  <section id="mobile">
+    <p class="part">Part seven</p>
+    <h2>The mobile side and the local infrastructure</h2>
+
+    <h3>What's actually in <code>apps/mobile</code></h3>
+    <p>Honestly: a scaffold and four dependency choices. There's no application code — one placeholder screen. But the dependency choices encode real decisions, so they're worth reading.</p>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>Package</th><th>Why it's there</th></tr></thead>
+        <tbody>
+          <tr><td><code>expo-dev-client</code></td><td>The pivotal one. Background audio needs native modules that Expo Go can't load, so the project needs a custom development build. This package is what makes that possible while keeping Expo's tooling.</td></tr>
+          <tr><td><code>expo-audio</code></td><td>Recording. Replaces <code>expo-av</code>, which I installed first and then found deprecated.</td></tr>
+          <tr><td><code>expo-secure-store</code></td><td>Keychain / Keystore access — where the auth token and the audio encryption key belong.</td></tr>
+          <tr><td><code>expo-sqlite</code></td><td>The durable upload queue. Must survive the app being killed, so it can't live in memory.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note why">
+      <span class="note-tag">Why it matters</span>
+      <div class="note-body">
+        <p>This is the single most consequential decision in the whole stack, and it's worth being able to argue it: a web app <em>cannot</em> satisfy P0-2. Mobile browsers suspend microphone capture when the screen locks or the tab backgrounds. No amount of clever JavaScript changes that, because it's an OS-level policy. The requirement "recording survives interruption" is therefore what forces a native app — not preference, not performance.</p>
+      </div>
+    </div>
+
+    <p>I verified the scaffold genuinely builds rather than trusting that it would: <code>tsc --noEmit</code> passes, and <code>expo export --platform android</code> bundles 580 modules into a 1.4 MB Hermes bytecode file. That's a real Metro build, headless, with no emulator — a useful check to keep running as the app grows.</p>
+
+    <h3>The compose file, and why the ports look wrong</h3>
+    <p><code>infra/docker-compose.yml</code> runs Postgres, Redis, MinIO, the API, and a Celery worker. Two details are non-obvious.</p>
+    <p>First, host ports are shifted: Postgres on <strong>5433</strong>, Redis on <strong>6380</strong>, MinIO on <strong>9002/9003</strong>. This isn't stylistic. A native Postgres install on the development machine already held 5432, and Docker's published port silently lost the race — connections reached the wrong server and failed authentication with a message that looked like a credentials bug. Inside the compose network the services still use standard ports; only the host mapping moved.</p>
+    <p>Second, every service declares a <code>healthcheck</code>, and the API depends on them with <code>condition: service_healthy</code>. Without that, the API starts before Postgres finishes initializing and crashes on first connection — the classic docker-compose race. A container being <em>started</em> and being <em>ready</em> are different states, and only healthchecks let you wait for the second.</p>
+  </section>
+
+  <!-- ══════════════ BUGS ══════════════ -->
+  <section id="bugs">
+    <p class="part">Part eight</p>
+    <h2>Five things that broke, and how each was diagnosed</h2>
+    <p>This is the part I'd most want you to read, because the errors were the useful bit. Each one has a diagnostic move worth reusing.</p>
+
+    <h4>1 · <code>psycopg2-binary</code> wouldn't install</h4>
+    <p>The error asked for Microsoft Visual C++ 14.0. The real cause: no prebuilt wheel exists for <code>psycopg2-binary</code> on Python 3.13 for Windows, so pip fell back to compiling from source and needed a C toolchain. Fix: use <code>psycopg[binary]</code>, the version-3 driver with current wheels, and change the SQLAlchemy URL prefix from <code>postgresql+psycopg2</code> to <code>postgresql+psycopg</code>.</p>
+    <p><strong>The generalizable move:</strong> when installation demands a compiler, you're usually missing a wheel, not a compiler. Check what your Python version and platform actually have available before installing build tools.</p>
+
+    <h4>2 · <code>bcrypt</code> raised on a 72-byte password nobody typed</h4>
+    <p>Tests failed inside <code>passlib</code>'s own startup self-check, with an error about a password longer than 72 bytes — on a password of about 12 characters. Reading the traceback showed the string was <code>passlib</code>'s internal probe, not mine: it deliberately hashes a long value to detect a historical bcrypt bug, and modern <code>bcrypt</code> now rejects over-length input instead of truncating. Fix: pin <code>bcrypt==4.0.1</code>.</p>
+    <p><strong>The generalizable move:</strong> read the traceback for <em>whose</em> code is running. The password in the error wasn't mine, and noticing that pointed straight at a library-compatibility problem rather than a bug in my hashing.</p>
+
+    <h4>3 · Postgres rejected the right password</h4>
+    <p><code>psql</code> inside the container worked; connecting from the host with identical credentials failed. Since credentials can't be simultaneously right and wrong, the connection must have been reaching a different server — confirmed with <code>netstat -ano | grep 5432</code>, which showed two processes listening. Fix: shift the host port.</p>
+    <p><strong>The generalizable move:</strong> when the same credentials work in one place and fail in another, stop debugging the credentials and start questioning what you're connected to.</p>
+
+    <h4>4 · Alembic generated a migration that couldn't run</h4>
+    <p>Covered above — the missing import for the custom column type. The signal was that the failure was a <code>NameError</code> at module import, not a database error, which located the problem in code generation rather than in SQL.</p>
+
+    <h4>5 · The versions directory didn't exist</h4>
+    <p>Alembic printed its full plan, then died with <code>FileNotFoundError</code> writing the file, because I'd created <code>alembic/</code> and <code>alembic/versions/</code> was never made. Trivial, and included because it's representative: a tool can do all its real work and still fail on filesystem plumbing. The fix took a second once I read the <em>last</em> line of the traceback instead of the first.</p>
+
+    <div class="note why">
+      <span class="note-tag">Worth noticing</span>
+      <div class="note-body">
+        <p>Four of these five were environment problems, not logic problems — and that ratio is normal. Most of the time lost on a new project goes to dependency resolution, platform differences, and port conflicts, and almost none of it is in the code you set out to write. Recognizing an environment failure quickly is a distinct skill from debugging your own logic, and it's the one that saves whole afternoons.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ SELF-CHECK ══════════════ -->
+  <section id="selfcheck">
+    <p class="part">Part nine</p>
+    <h2>If you can answer these, you own the codebase</h2>
+    <p>Not a quiz to pass — a way to find which section to re-read. If any answer feels vague, that's the part worth opening the code for.</p>
+
+    <ul class="quiz">
+      <li>Why does the project define both a <code>Patient</code> model and a <code>PatientOut</code> schema?<span class="where">Part one — models versus schemas</span></li>
+      <li>What single line of code would you change to run note generation on Claude instead of Luna, and why is it only one?<span class="where">Part two, pattern six</span></li>
+      <li>Why must <code>tests/conftest.py</code> set environment variables before its imports?<span class="where">Part two, pattern one</span></li>
+      <li>Why can't the database search <code>Patient.full_name</code>, and what does that force the matching logic to do?<span class="where">Part two, pattern three</span></li>
+      <li>Why is the consent ledger protected by a trigger rather than a <code>REVOKE</code>?<span class="where">Part five</span></li>
+      <li>Two different mechanisms stop a retried upload creating two notes. What are they, and why do you want both?<span class="where">Part four</span></li>
+      <li>Why does the login route return one identical error for five different failures?<span class="where">Part three</span></li>
+      <li>What guarantee does the test suite structurally cannot verify, and why?<span class="where">Parts five and six</span></li>
+      <li>Why does P0-2 rule out building this as a web app?<span class="where">Part seven</span></li>
+    </ul>
+  </section>
+
+  <div class="closer">
+    <p>The companion document, <strong>Remedy Scribe Production Checklist</strong>, covers what to build next and the decisions still open. This one was about what's already here and why it's shaped this way — read together, the checklist's "Your call" markers should now read as choices you can actually weigh rather than options to accept.</p>
+  </div>
+
+  </main>
+</div>
+
+<script>
+  (function () {
+    var links = Array.prototype.slice.call(document.querySelectorAll('.toc a[href^="#"]'));
+    if (!links.length) return;
+
+    var targets = links.map(function (a) {
+      return { link: a, el: document.getElementById(a.getAttribute('href').slice(1)) };
+    }).filter(function (t) { return t.el; });
+
+    var current = null;
+    function mark() {
+      var line = 130;                     // treat this y-offset as "where the reader is"
+      var active = targets[0];
+      for (var i = 0; i < targets.length; i++) {
+        if (targets[i].el.getBoundingClientRect().top <= line) { active = targets[i]; }
+      }
+      // At the very bottom, favour the last section even if it never crosses the line.
+      if (window.innerHeight + window.scrollY >= document.body.scrollHeight - 4) {
+        active = targets[targets.length - 1];
+      }
+      if (active === current) return;
+      if (current) current.link.removeAttribute('aria-current');
+      active.link.setAttribute('aria-current', 'true');
+      current = active;
+    }
+
+    var queued = false;
+    function onScroll() {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(function () { queued = false; mark(); });
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    mark();
+  })();
+</script>
