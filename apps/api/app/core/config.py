@@ -64,8 +64,12 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
 
-    # ASR
-    elevenlabs_api_key: str | None = None
+    # ASR (Phase 1.3: Groq-hosted Whisper large-v3, not ElevenLabs Scribe v2 —
+    # a deliberate switch away from the PRD's named vendor; see
+    # docs/decisions/0018 for why, and for the diarization capability this
+    # gives up (Whisper does not diarize; ElevenLabs Scribe did)).
+    groq_api_key: str | None = None
+    groq_whisper_model: str = "whisper-large-v3"
 
     # Compliance (audio retention is a config value, not a hardcoded default)
     audio_retention_days: int = 90

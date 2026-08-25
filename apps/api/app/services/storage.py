@@ -191,6 +191,17 @@ def abort_multipart_upload(key: str, upload_id: str) -> None:
     _client().abort_multipart_upload(Bucket=get_settings().s3_bucket, Key=key, UploadId=upload_id)
 
 
+def download_object(key: str) -> bytes:
+    """Phase 1.3: reads a full audio object into memory to send on to the
+    ASR provider. Fine at the size a single consult produces (a 20-40
+    minute recording, compressed mono, is comfortably single-digit-to-
+    low-double-digit MB) — this is not a candidate for true streaming
+    until audio files get much larger than that, which isn't expected
+    for this product's use case.
+    """
+    return _client().get_object(Bucket=get_settings().s3_bucket, Key=key)["Body"].read()
+
+
 def head_object(key: str) -> dict[str, Any] | None:
     """Used to verify a just-completed object actually exists in the
     bucket before the caller commits to it server-side — cheap defense

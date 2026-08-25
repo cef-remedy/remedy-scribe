@@ -31,10 +31,14 @@ class ASRProvider(ABC):
     """
 
     #: Phase 1.2: stored on Transcript.asr_provider so a persisted
-    #: transcript records what produced it. Deliberately just a name —
-    #: 1.3 owns recording an actual *model version* string, since that
-    #: only means something once the real API call exists to report one.
+    #: transcript records what produced it.
     provider_name: str = "unknown"
+
+    #: Phase 1.3: stored on Transcript.asr_model_version. A property, not
+    #: a class attribute, on implementations where the model is
+    #: configurable (GroqWhisperProvider reads it from settings) rather
+    #: than fixed per class.
+    model_version: str = "unknown"
 
     @abstractmethod
     def transcribe(self, audio_object_key: str) -> list[TranscriptSegment]:

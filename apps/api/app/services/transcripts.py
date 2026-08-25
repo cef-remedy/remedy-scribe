@@ -30,7 +30,14 @@ def _json_to_segments(data: list[dict]) -> list[TranscriptSegment]:
     ]
 
 
-def persist_transcript(db: Session, encounter_id: str, *, provider_name: str, segments: list[TranscriptSegment]) -> Transcript:
+def persist_transcript(
+    db: Session,
+    encounter_id: str,
+    *,
+    provider_name: str,
+    model_version: str | None = None,
+    segments: list[TranscriptSegment],
+) -> Transcript:
     """Upserts on `encounter_id`'s unique constraint — idempotent on its
     own, in addition to `transcribe_encounter`'s existing no-op check
     for an already-transcribed encounter (belt and suspenders: a
@@ -42,6 +49,7 @@ def persist_transcript(db: Session, encounter_id: str, *, provider_name: str, se
 
     if existing is not None:
         existing.asr_provider = provider_name
+        existing.asr_model_version = model_version
         existing.segments = _segments_to_json(segments)
         existing.retention_expires_at = retention_expires_at
         db.add(existing)
@@ -52,6 +60,7 @@ def persist_transcript(db: Session, encounter_id: str, *, provider_name: str, se
     row = Transcript(
         encounter_id=encounter_id,
         asr_provider=provider_name,
+        asr_model_version=model_version,
         segments=_segments_to_json(segments),
         retention_expires_at=retention_expires_at,
     )

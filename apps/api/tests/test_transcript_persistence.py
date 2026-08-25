@@ -66,7 +66,7 @@ def _seed_encounter(db) -> tuple[Encounter, Clinician]:
 def test_persist_and_load_round_trips_segments(db):
     encounter, _clinician = _seed_encounter(db)
 
-    persist_transcript(db, encounter.id, provider_name="elevenlabs_scribe_v2", segments=_SAMPLE_SEGMENTS)
+    persist_transcript(db, encounter.id, provider_name="groq_whisper_large_v3", segments=_SAMPLE_SEGMENTS)
     loaded = load_transcript(db, encounter.id)
 
     assert loaded == _SAMPLE_SEGMENTS
@@ -81,8 +81,8 @@ def test_load_transcript_returns_empty_list_when_nothing_persisted(db):
 def test_persist_transcript_upserts_rather_than_duplicating(db):
     encounter, _clinician = _seed_encounter(db)
 
-    persist_transcript(db, encounter.id, provider_name="elevenlabs_scribe_v2", segments=_SAMPLE_SEGMENTS[:1])
-    persist_transcript(db, encounter.id, provider_name="elevenlabs_scribe_v2", segments=_SAMPLE_SEGMENTS)
+    persist_transcript(db, encounter.id, provider_name="groq_whisper_large_v3", segments=_SAMPLE_SEGMENTS[:1])
+    persist_transcript(db, encounter.id, provider_name="groq_whisper_large_v3", segments=_SAMPLE_SEGMENTS)
 
     rows = db.query(Transcript).filter(Transcript.encounter_id == encounter.id).all()
     assert len(rows) == 1
@@ -91,7 +91,7 @@ def test_persist_transcript_upserts_rather_than_duplicating(db):
 
 def test_each_segment_gets_a_stable_id(db):
     encounter, _clinician = _seed_encounter(db)
-    row = persist_transcript(db, encounter.id, provider_name="elevenlabs_scribe_v2", segments=_SAMPLE_SEGMENTS)
+    row = persist_transcript(db, encounter.id, provider_name="groq_whisper_large_v3", segments=_SAMPLE_SEGMENTS)
     assert [seg["id"] for seg in row.segments] == ["seg0", "seg1"]
 
 
@@ -100,7 +100,7 @@ def test_each_segment_gets_a_stable_id(db):
 
 def test_segments_column_is_not_stored_as_plaintext(db):
     encounter, _clinician = _seed_encounter(db)
-    persist_transcript(db, encounter.id, provider_name="elevenlabs_scribe_v2", segments=_SAMPLE_SEGMENTS)
+    persist_transcript(db, encounter.id, provider_name="groq_whisper_large_v3", segments=_SAMPLE_SEGMENTS)
 
     raw = db.execute(text("SELECT segments FROM transcripts WHERE encounter_id = :id"), {"id": encounter.id}).scalar()
 
@@ -118,7 +118,7 @@ def test_encrypted_json_round_trip_in_isolation():
 
 def test_retention_expires_at_is_set(db):
     encounter, _clinician = _seed_encounter(db)
-    row = persist_transcript(db, encounter.id, provider_name="elevenlabs_scribe_v2", segments=_SAMPLE_SEGMENTS)
+    row = persist_transcript(db, encounter.id, provider_name="groq_whisper_large_v3", segments=_SAMPLE_SEGMENTS)
     assert row.retention_expires_at is not None
 
 
@@ -127,6 +127,7 @@ def test_retention_expires_at_is_set(db):
 
 class _FakeASRProvider:
     provider_name = "fake-asr"
+    model_version = "fake-model-v1"
 
     def transcribe(self, audio_object_key: str) -> list[TranscriptSegment]:
         return _SAMPLE_SEGMENTS
@@ -144,6 +145,7 @@ def test_transcribe_encounter_persists_the_transcript(db, monkeypatch):
 
     transcript = db.query(Transcript).filter(Transcript.encounter_id == encounter.id).one()
     assert transcript.asr_provider == "fake-asr"
+    assert transcript.asr_model_version == "fake-model-v1"
     assert load_transcript(db, encounter.id) == _SAMPLE_SEGMENTS
 
 
@@ -164,7 +166,7 @@ def test_generate_note_loads_the_persisted_transcript_not_empty(db, monkeypatch)
     monkeypatch.setattr("app.tasks.pipeline.get_note_generator", lambda: _RecordingNoteGenerator())
 
     encounter, _clinician = _seed_encounter(db)
-    persist_transcript(db, encounter.id, provider_name="elevenlabs_scribe_v2", segments=_SAMPLE_SEGMENTS)
+    persist_transcript(db, encounter.id, provider_name="groq_whisper_large_v3", segments=_SAMPLE_SEGMENTS)
 
     generate_note(encounter.id)
 

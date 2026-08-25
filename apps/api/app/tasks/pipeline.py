@@ -51,7 +51,9 @@ def transcribe_encounter(self, encounter_id: str) -> str:
 
         provider = get_asr_provider()
         segments = provider.transcribe(encounter.audio_object_key)
-        persist_transcript(db, encounter_id, provider_name=provider.provider_name, segments=segments)
+        persist_transcript(
+            db, encounter_id, provider_name=provider.provider_name, model_version=provider.model_version, segments=segments
+        )
 
         encounter.pipeline_status = EncounterPipelineStatus.TRANSCRIBED
         db.add(encounter)

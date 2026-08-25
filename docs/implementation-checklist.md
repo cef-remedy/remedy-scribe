@@ -127,10 +127,10 @@ This choice largely determines how hard Phase 3 (grounding UI) is, so think abou
 
 ### 1.3 Real ASR integration ⚠️ 🧠
 
-- [ ] Implement `ElevenLabsScribeProvider.transcribe` — stream the object from storage, POST to Scribe v2 with diarization enabled.
-- [ ] Handle rate limits, timeouts, and partial failures with Celery retries (already scaffolded via `self.retry`).
-- [ ] Record which ASR provider and model version produced each transcript.
-- [ ] **Fix `_parse_response`** — see the heads-up below.
+- [x] Implement `ElevenLabsScribeProvider.transcribe` — stream the object from storage, POST to Scribe v2 with diarization enabled. (Vendor changed to Groq-hosted Whisper large-v3, the user's call — no diarization capability at all as a result. See decision 0018.)
+- [x] Handle rate limits, timeouts, and partial failures with Celery retries (already scaffolded via `self.retry`).
+- [x] Record which ASR provider and model version produced each transcript.
+- [x] **Fix `_parse_response`** — see the heads-up below. (N/A in the form asked: Whisper has no speaker labels to mis-group by, so the original bug's *mechanism* can't recur — but turn order is still explicitly preserved by construction; see docs/progress/1.3.)
 
 ⚠️ **Heads-up — there is a real bug in the stub I wrote.** `_parse_response` groups every word by speaker across the entire recording, producing one giant segment per speaker. That destroys turn order: you get "everything the doctor said" then "everything the patient said," instead of the actual back-and-forth. A note generated from that will mangle who reported which symptom. Segments must be *turns* — split when the speaker label changes. Worth reading that function and seeing the bug yourself before fixing it; it's a good example of code that looks reasonable and is semantically wrong.
 

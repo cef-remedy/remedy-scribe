@@ -45,5 +45,9 @@ class Transcript(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         String(36), ForeignKey("encounters.id"), nullable=False, unique=True, index=True
     )
     asr_provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    # Phase 1.3: deferred in 1.2 (decision 0017) until a real ASR
+    # integration existed to report a real version string — Groq's
+    # GROQ_WHISPER_MODEL setting is that string now.
+    asr_model_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
     segments: Mapped[list[dict]] = mapped_column(EncryptedJSON, nullable=False)
     retention_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

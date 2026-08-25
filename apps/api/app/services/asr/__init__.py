@@ -1,13 +1,13 @@
 from app.services.asr.base import ASRProvider, TranscriptSegment, TranscriptWord
-from app.services.asr.elevenlabs import ElevenLabsScribeProvider
+from app.services.asr.groq_whisper import GroqWhisperProvider
 
 
 def get_asr_provider() -> ASRProvider:
-    # Only one ASR vendor is in the PRD today (ElevenLabs Scribe v2). This
-    # factory exists anyway so a Speechmatics fallback — the roadmap's
-    # named contingency if the ElevenLabs BAA/DPA question resolves
-    # negatively — is a new class + one line here, not a call-site change.
-    return ElevenLabsScribeProvider()
+    # Phase 1.3: Groq-hosted Whisper large-v3, not the PRD's named
+    # ElevenLabs Scribe v2 — see docs/decisions/0018. This factory is
+    # still the swap point if that decision changes: a new class + one
+    # line here, not a call-site change anywhere else.
+    return GroqWhisperProvider()
 
 
 __all__ = ["ASRProvider", "TranscriptSegment", "TranscriptWord", "get_asr_provider"]
