@@ -19,3 +19,7 @@ product/legal/risk fork the checklist flags for you is marked **STATUS: OPEN
 | [0003](0003-mid-visit-reconsent-detection.md) | 0.1 / 2.3 | Manual flag vs. diarization-based detection for mid-visit re-consent | **OPEN — your call** |
 | [0004](0004-note-read-access-scope.md) | 0.2 | Note reads: authoring clinician only, or any clinician in the clinic | Decided (implementation) |
 | [0005](0005-rbac-role-policy-and-audit-log-endpoint.md) | 0.2 | Per-route role policy (`doctor` vs `admin` for clinical writes); adding a minimal audit-log endpoint early | Decided (implementation) |
+| [0006](0006-mobile-token-storage-and-revocation.md) | 0.3 | Where the token lives on the device; lost-phone revocation | Decided (user) |
+| [0007](0007-refresh-token-lifetimes-and-reuse-detection.md) | 0.3 | Access/refresh token lifetimes; what counts as reuse vs. plain revocation | Decided (implementation) |
+| [0008](0008-login-rate-limiting-backed-by-db-not-redis.md) | 0.3 | Login rate limit/lockout backed by a DB table instead of Redis | Decided (implementation) |
+| [0009](0009-mfa-enrollment-bootstrap-scope.md) | 0.3 | MFA self-service enrollment scoped to first-time setup only | Decided (implementation) — **gap flagged for pilot** |

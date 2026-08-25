@@ -33,7 +33,18 @@ class Settings(BaseSettings):
     # Auth
     jwt_secret: str = "change-me-in-every-environment"
     jwt_algorithm: str = "HS256"
-    access_token_expire_minutes: int = 30
+    # Phase 0.3: short by design, not a compromise — refresh_token_expire_hours
+    # is what actually covers a clinic day; a doctor never sees this expiry
+    # because the client refreshes silently. Short access tokens just shrink
+    # the window a leaked/logged one is usable in.
+    access_token_expire_minutes: int = 15
+    refresh_token_expire_hours: int = 12
+
+    # Phase 0.3: login rate limiting / account lockout, both computed from
+    # app/models/login_attempt.py rows (see app/services/auth_rate_limit.py).
+    login_rate_limit_per_ip_per_minute: int = 10
+    login_lockout_threshold: int = 5
+    login_lockout_window_minutes: int = 15
 
     # PHI field-level encryption (app/core/security.py:EncryptedString)
     phi_encryption_key: str | None = None

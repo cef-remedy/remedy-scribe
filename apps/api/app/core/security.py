@@ -15,6 +15,8 @@ docs/tech-stack.md §9, deferred items) — the column contract (opaque
 ciphertext at rest) stays the same either way.
 """
 
+import hashlib
+import secrets
 from datetime import datetime, timedelta, timezone
 
 import pyotp
@@ -57,8 +59,33 @@ def generate_mfa_secret() -> str:
     return pyotp.random_base32()
 
 
+def mfa_provisioning_uri(secret: str, *, account_email: str) -> str:
+    """The otpauth:// URI an authenticator app scans as a QR code, for
+    the enrollment flow (Phase 0.3) — replaces "the TOTP secret can only
+    be created by a seed script."
+    """
+    return pyotp.totp.TOTP(secret).provisioning_uri(name=account_email, issuer_name="Remedy Scribe")
+
+
 def verify_mfa_code(secret: str, code: str) -> bool:
     return pyotp.TOTP(secret).verify(code, valid_window=1)
+
+
+def generate_refresh_token() -> str:
+    """A high-entropy opaque value — not a JWT. Deliberately unstructured
+    so it can never be mistaken for (or misused as) an access token; its
+    only job is to be looked up by hash against RefreshToken.token_hash.
+    """
+    return secrets.token_urlsafe(32)
+
+
+def hash_refresh_token(raw_token: str) -> str:
+    """SHA-256, not bcrypt: this is a ~256-bit random value, not a
+    low-entropy human password, so there's no offline-guessing risk to
+    slow down — a fast, deterministic hash is what makes an indexed
+    lookup by hash possible at all.
+    """
+    return hashlib.sha256(raw_token.encode()).hexdigest()
 
 
 class EncryptedString(TypeDecorator):

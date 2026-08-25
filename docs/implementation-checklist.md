@@ -59,10 +59,10 @@ Do this first. These are not new features; they are places where the scaffold cu
 
 ### 0.3 Make auth survive a real clinic day 🧠
 
-- [ ] Add refresh tokens with rotation, or extend session lifetime deliberately.
-- [ ] Add an MFA enrollment endpoint (provision secret → return provisioning URI/QR → confirm with one valid code before activating). Today the TOTP secret can only be created by a seed script.
-- [ ] Add rate limiting on `POST /auth/login` (per-IP and per-email).
-- [ ] Add account lockout or exponential backoff after repeated failures.
+- [x] Add refresh tokens with rotation, or extend session lifetime deliberately.
+- [x] Add an MFA enrollment endpoint (provision secret → return provisioning URI/QR → confirm with one valid code before activating). Today the TOTP secret can only be created by a seed script.
+- [x] Add rate limiting on `POST /auth/login` (per-IP and per-email).
+- [x] Add account lockout or exponential backoff after repeated failures.
 
 ⚠️ **Heads-up:** `ACCESS_TOKEN_EXPIRE_MINUTES=30` with no refresh path means a doctor gets logged out mid-consultation, roughly twice per clinic session. Discovering this in a pilot rather than now would poison the "voluntary use in week 4" metric for a reason that has nothing to do with note quality.
 

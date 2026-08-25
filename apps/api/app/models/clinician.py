@@ -24,4 +24,14 @@ class Clinician(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # revisit alongside the KMS decision in docs/tech-stack.md §9 if
     # secret-at-rest handling needs to be stricter than the app boundary.
     mfa_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    # Phase 0.3: holds a freshly-provisioned secret between "enroll"
+    # (generate + show the QR) and "confirm" (prove one valid code) —
+    # see app/api/routes/auth.py's /mfa/enroll* pair. Never read at
+    # login time; only `mfa_secret` (below) is. This is what makes
+    # "provision secret -> confirm before activating" real: an
+    # enrollment that's never confirmed leaves login exactly as
+    # unable-to-MFA as before it started.
+    mfa_secret_pending: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
