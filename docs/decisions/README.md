@@ -36,3 +36,4 @@ product/legal/risk fork the checklist flags for you is marked **STATUS: OPEN
 | [0020](0020-mypy-baseline-and-real-httpx-bug.md) | cross-cutting | First-ever mypy run found a real httpx crash and an LSP violation | Decided (implementation) — **real bug found empirically** |
 | [0021](0021-haiku-only-luna-dropped.md) | planning update, ahead of 1.4 | Note generation: Haiku only, Luna dropped entirely — **loses P0-4's configured-fallback risk mitigation** | Decided (user) |
 | [0022](0022-source-span-citation-design.md) | 1.4 | Source spans cite persisted segment IDs, not model-emitted offsets or timestamps; citations verified, not trusted | Decided (implementation) |
+| [0023](0023-pipeline-failure-handling-design.md) | 1.5 | Two failure states, not three (no `upload_failed`); dead-lettering and the stuck-sweep are separate mechanisms; `/retry` re-runs only the failed stage | Decided (implementation) |

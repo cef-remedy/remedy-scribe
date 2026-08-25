@@ -25,3 +25,4 @@ these files explain them, not duplicate them.
 | — | [audit-2026-08-25-checklist-refresh.md](audit-2026-08-25-checklist-refresh.md) | `/production-checklist` refresh: mypy baseline established, a real httpx crash found and fixed, ASR vendor references brought current |
 | — | [audit-2026-08-25-haiku-only.md](audit-2026-08-25-haiku-only.md) | Note generation: Haiku only, Luna dropped entirely — loses P0-4's configured-fallback risk mitigation; a stale local `.env` found in the process |
 | 1.4 | [1.4-real-note-generation.md](1.4-real-note-generation.md) | `HaikuNoteGenerator` — forced-tool-call structured output, mechanical two-layer suppression, segment-ID citations verified (not trusted) before persistence |
+| 1.5 | [1.5-pipeline-failure-handling.md](1.5-pipeline-failure-handling.md) | Dead-lettering (two new terminal statuses) plus a separate Celery Beat stuck-sweep; `/retry` and `/failed` routes — Phase 1 now fully closed |

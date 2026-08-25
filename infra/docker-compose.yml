@@ -87,6 +87,23 @@ services:
       redis:
         condition: service_healthy
 
+  # Phase 1.5: runs sweep_stuck_encounters on the beat_schedule declared in
+  # app/tasks/celery_app.py. A separate process from `worker` by Celery's
+  # own design — beat only schedules, it never executes a task itself, so
+  # it needs no S3/Postgres access of its own beyond what scheduling state
+  # it keeps (the default file-based scheduler, fine for one periodic task).
+  beat:
+    build:
+      context: ../apps/api
+    command: celery -A app.tasks.celery_app beat --loglevel=info
+    env_file:
+      - ../apps/api/.env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   minio_data:

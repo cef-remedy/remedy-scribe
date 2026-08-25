@@ -84,6 +84,12 @@ class Settings(BaseSettings):
     # Compliance (audio retention is a config value, not a hardcoded default)
     audio_retention_days: int = 90
 
+    # Phase 1.5: how long an encounter can sit in a non-terminal,
+    # in-flight pipeline_status (uploaded/transcribed) before
+    # sweep_stuck_encounters treats it as stuck rather than "still
+    # queued" and re-kicks the next stage. See app/tasks/pipeline.py.
+    pipeline_stuck_threshold_minutes: int = 30
+
 
 @lru_cache
 def get_settings() -> Settings:

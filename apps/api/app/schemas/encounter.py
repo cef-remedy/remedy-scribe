@@ -20,6 +20,12 @@ class EncounterOut(BaseModel):
     id: str
     patient_id: str | None
     pipeline_status: EncounterPipelineStatus
+    # Phase 1.5: what a doctor-facing client needs to render a specific,
+    # actionable failure state (P0's "no silent gap in the record") —
+    # pipeline_status alone is a state name; these two are what actually
+    # happened and how many times it's been tried.
+    retry_count: int
+    last_pipeline_error: str | None
     audio_retention_expires_at: datetime | None
     created_at: datetime
 

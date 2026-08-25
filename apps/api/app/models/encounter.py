@@ -1,11 +1,15 @@
 import enum
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 from app.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class EncounterPipelineStatus(str, enum.Enum):
@@ -23,9 +27,14 @@ class EncounterPipelineStatus(str, enum.Enum):
     NOTE_GENERATED = "note_generated"
     BLOCKED_NO_CONSENT = "blocked_no_consent"  # app/services/consent.py's terminal state (0.1)
 
-    # Phase 1.5 will add more members here (upload_failed,
-    # transcription_failed, generation_failed, ...) for per-failure-mode
-    # error states — additive, not a reason to redesign this enum.
+    # Phase 1.5: one terminal state per async pipeline stage that can
+    # actually exhaust its retries — not "upload_failed" too. An upload
+    # failure is synchronous (the phone's own request gets a 409/502 and
+    # can retry immediately) and never leaves this row in a state that
+    # needs discovering later; these two do, because they run inside a
+    # Celery task nobody is watching in real time. See decision 0023.
+    TRANSCRIPTION_FAILED = "transcription_failed"
+    GENERATION_FAILED = "generation_failed"
 
 
 class Encounter(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -89,4 +98,22 @@ class Encounter(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         default=EncounterPipelineStatus.RECORDING,
     )
 
+    # Attempts made *in the current pipeline stage*, not lifetime — reset
+    # to 0 whenever a stage succeeds (Phase 1.5), so a value here always
+    # means "how far into this attempt sequence we are," not stale
+    # history from a stage that already finished.
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # The last error message from a transcription/generation attempt —
+    # cleared on success. Deliberately just the exception's str(): every
+    # exception raised from these two tasks is an infrastructure/vendor
+    # error (HTTP status, missing API key, "not found"), never something
+    # built from transcript or note content, so this can never leak PHI
+    # the way a raw request/response log could.
+    last_pipeline_error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Stamped every time pipeline_status changes (not a generic
+    # onupdate=now(), which would also fire on an unrelated edit like
+    # link_patient) — this is specifically "when did the pipeline last
+    # make progress," the timestamp sweep_stuck_encounters compares
+    # against to find work nothing is watching (Phase 1.5's own
+    # Understand-first note: the hard part of a queue is stuck work).
+    pipeline_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)

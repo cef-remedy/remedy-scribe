@@ -154,3 +154,30 @@ def test_doctor_can_start_encounter(db, client):
     )
 
     assert response.status_code == 201
+
+
+def test_compliance_cannot_retry_failed_encounter(db, client):
+    """Phase 1.5: /retry is the same shape of doctor-only pipeline action
+    as starting an encounter — reuses the identical `require_role`
+    dependency, but worth its own regression since it's a new route.
+    """
+    from app.models.encounter import EncounterPipelineStatus
+
+    doctor = _seed_clinician(db, role="doctor")
+    compliance = _seed_clinician(db, role="compliance")
+
+    encounter = Encounter(
+        clinician_id=doctor.id,
+        upload_idempotency_key="idem-rbac-retry",
+        pipeline_status=EncounterPipelineStatus.GENERATION_FAILED,
+    )
+    db.add(encounter)
+    db.commit()
+    db.refresh(encounter)
+
+    response = client.post(
+        f"/api/v1/encounters/{encounter.id}/retry",
+        headers={"Authorization": f"Bearer {_token_for(compliance)}"},
+    )
+
+    assert response.status_code == 403
