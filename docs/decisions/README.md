@@ -23,3 +23,5 @@ product/legal/risk fork the checklist flags for you is marked **STATUS: OPEN
 | [0007](0007-refresh-token-lifetimes-and-reuse-detection.md) | 0.3 | Access/refresh token lifetimes; what counts as reuse vs. plain revocation | Decided (implementation) |
 | [0008](0008-login-rate-limiting-backed-by-db-not-redis.md) | 0.3 | Login rate limit/lockout backed by a DB table instead of Redis | Decided (implementation) |
 | [0009](0009-mfa-enrollment-bootstrap-scope.md) | 0.3 | MFA self-service enrollment scoped to first-time setup only | Decided (implementation) — **gap flagged for pilot** |
+| [0010](0010-enum-check-constraints-needed-explicit-flags.md) | 0.4 | `Note.status` had no real DB constraint; enum CHECK constraints need explicit `values_callable` too | Decided (implementation) — **bug found empirically** |
+| [0011](0011-encounter-pipeline-status-enum-membership.md) | 0.4 | `EncounterPipelineStatus` scoped to today's 5 values, not Phase 1.5's future ones | Decided (implementation) |

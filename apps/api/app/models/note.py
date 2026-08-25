@@ -13,8 +13,12 @@ class NoteStatus(str, enum.Enum):
     """P0-5: "Note state machine enforces four distinct states: generated
     → filed → authenticated → signed, with no state skippable."
 
-    The Enum column type below constrains the DB to these four values;
-    the *ordering* (no skipping) is enforced in
+    The Enum column type below constrains the DB to these four values —
+    literally, via a CHECK constraint (`create_constraint=True`; see
+    docs/decisions/0010 for why that flag has to be explicit: SQLAlchemy
+    2.0 does not add the constraint by default for a non-native enum,
+    which meant this docstring's claim was false until Phase 0.4). The
+    *ordering* (no skipping) is enforced separately, in
     app/services/note_lifecycle.py, which is the only code path allowed
     to write Note.status — routes must go through it rather than setting
     status directly.
@@ -41,7 +45,20 @@ class Note(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     encounter_id: Mapped[str] = mapped_column(String(36), ForeignKey("encounters.id"), nullable=False, unique=True)
     status: Mapped[NoteStatus] = mapped_column(
-        Enum(NoteStatus, native_enum=False), nullable=False, default=NoteStatus.GENERATED
+        Enum(
+            NoteStatus,
+            native_enum=False,
+            create_constraint=True,
+            # Without this, SQLAlchemy renders the CHECK constraint (and
+            # any native DB enum type) from each member's NAME
+            # ("GENERATED") rather than its VALUE ("generated") — which
+            # is what actually gets stored. Caught in Phase 0.4 by a test
+            # that inserted a legitimate value and watched the brand-new
+            # constraint reject it.
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
+        nullable=False,
+        default=NoteStatus.GENERATED,
     )
 
     assessment: Mapped[str] = mapped_column(EncryptedString(4096), nullable=False, default="")

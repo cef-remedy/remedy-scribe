@@ -1,8 +1,21 @@
-from sqlalchemy import ForeignKey, String
+import enum
+
+from sqlalchemy import Enum, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 from app.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin
+
+
+class ConsentEventType(str, enum.Enum):
+    """Phase 0.4: was a free-form String(16) with only a Python-side
+    comment (`# given | declined | withdrawn`) documenting the allowed
+    values — nothing enforced it. See `create_constraint=True` below.
+    """
+
+    GIVEN = "given"
+    DECLINED = "declined"
+    WITHDRAWN = "withdrawn"
 
 
 class ConsentLedgerEntry(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -26,7 +39,20 @@ class ConsentLedgerEntry(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     encounter_id: Mapped[str] = mapped_column(String(36), ForeignKey("encounters.id"), nullable=False, index=True)
 
-    event: Mapped[str] = mapped_column(String(16), nullable=False)  # given | declined | withdrawn
+    event: Mapped[ConsentEventType] = mapped_column(
+        Enum(
+            ConsentEventType,
+            native_enum=False,
+            create_constraint=True,
+            name="consenteventtype",
+            # See app/models/note.py's identical comment: without this,
+            # the generated CHECK constraint lists member NAMES ("GIVEN")
+            # instead of the VALUES ("given") actually written to the
+            # column, and rejects every real write.
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
+        nullable=False,
+    )
     participant_roster: Mapped[str] = mapped_column(String(2048), nullable=False)  # JSON-encoded list of roles/names
     purposes: Mapped[str] = mapped_column(String(512), nullable=False)  # JSON-encoded list
     script_language: Mapped[str] = mapped_column(String(8), nullable=False)  # "fil" | "en"

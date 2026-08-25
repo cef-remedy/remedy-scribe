@@ -70,9 +70,9 @@ Do this first. These are not new features; they are places where the scaffold cu
 
 ### 0.4 Fix the type and consistency drift
 
-- [ ] Convert `Encounter.pipeline_status` from a free-form `String(32)` to a proper enum, the way `Note.status` already is. It currently accepts any string, and the codebase writes at least five different values across two files.
-- [ ] Move `confirm_upload`'s `audio_object_key` from a query parameter into a Pydantic request body.
-- [ ] Add a `CHECK` constraint or enum for `ConsentLedgerEntry.event` (`given|declined|withdrawn`).
+- [x] Convert `Encounter.pipeline_status` from a free-form `String(32)` to a proper enum, the way `Note.status` already is. It currently accepts any string, and the codebase writes at least five different values across two files.
+- [x] Move `confirm_upload`'s `audio_object_key` from a query parameter into a Pydantic request body.
+- [x] Add a `CHECK` constraint or enum for `ConsentLedgerEntry.event` (`given|declined|withdrawn`).
 
 📚 **Understand first:** why enums-at-the-DB-layer matter more here than in a typical CRUD app. Both `Note.status` and the consent ledger are *legal* records. "The database physically cannot hold an invalid value" is a much stronger statement to an auditor than "our code only ever writes valid values." That's the same reasoning behind the append-only trigger — push the guarantee as far down the stack as it will go.
 

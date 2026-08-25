@@ -3,10 +3,12 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from app.models.consent import ConsentEventType
+
 
 class ConsentEntryCreate(BaseModel):
     encounter_id: str
-    event: Literal["given", "declined", "withdrawn"]
+    event: ConsentEventType
     participant_roster: list[str]
     purposes: list[str]
     script_language: Literal["fil", "en"]

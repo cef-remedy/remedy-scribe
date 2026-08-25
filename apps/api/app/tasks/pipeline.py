@@ -12,7 +12,7 @@ can't double-transcribe or double-generate either.
 from __future__ import annotations
 
 from app.db.session import SessionLocal
-from app.models.encounter import Encounter
+from app.models.encounter import Encounter, EncounterPipelineStatus
 from app.models.note import Note
 from app.services.asr import get_asr_provider
 from app.services.consent import ConsentNotValidError, assert_consent_valid
@@ -36,7 +36,7 @@ def transcribe_encounter(self, encounter_id: str) -> str:
         encounter = db.get(Encounter, encounter_id)
         if encounter is None:
             raise ValueError(f"Encounter {encounter_id} not found")
-        if encounter.pipeline_status in ("transcribed", "note_generated"):
+        if encounter.pipeline_status in (EncounterPipelineStatus.TRANSCRIBED, EncounterPipelineStatus.NOTE_GENERATED):
             return encounter_id  # already done — redelivered message, no-op
 
         # Re-checked here, not just at confirm_upload: consent can be
@@ -56,7 +56,7 @@ def transcribe_encounter(self, encounter_id: str) -> str:
         # for the grounding UI (P0-7) to resolve spans against.
         _ = segments
 
-        encounter.pipeline_status = "transcribed"
+        encounter.pipeline_status = EncounterPipelineStatus.TRANSCRIBED
         db.add(encounter)
         db.commit()
         return encounter_id
@@ -67,7 +67,7 @@ def transcribe_encounter(self, encounter_id: str) -> str:
         db.rollback()
         encounter = db.get(Encounter, encounter_id)
         if encounter is not None:
-            encounter.pipeline_status = "blocked_no_consent"
+            encounter.pipeline_status = EncounterPipelineStatus.BLOCKED_NO_CONSENT
             db.add(encounter)
             db.commit()
         return encounter_id
@@ -104,7 +104,7 @@ def generate_note(self, encounter_id: str) -> str:
             note_generator_provider=generated.provider,
         )
         db.add(note)
-        encounter.pipeline_status = "note_generated"
+        encounter.pipeline_status = EncounterPipelineStatus.NOTE_GENERATED
         db.add(encounter)
         db.commit()
         db.refresh(note)

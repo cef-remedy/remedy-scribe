@@ -88,7 +88,7 @@ def test_confirm_upload_rejects_encounter_with_no_consent(db, client):
 
     response = client.post(
         f"/api/v1/encounters/{encounter.id}/confirm-upload",
-        params={"audio_object_key": "s3://bucket/key"},
+        json={"audio_object_key": "s3://bucket/key"},
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -110,7 +110,7 @@ def test_confirm_upload_succeeds_once_consent_given(db, client, monkeypatch):
 
     response = client.post(
         f"/api/v1/encounters/{encounter.id}/confirm-upload",
-        params={"audio_object_key": "s3://bucket/key"},
+        json={"audio_object_key": "s3://bucket/key"},
         headers={"Authorization": f"Bearer {token}"},
     )
 

@@ -5,7 +5,6 @@ from app.api.deps import get_db, require_role
 from app.core.security import (
     create_access_token,
     generate_mfa_secret,
-    hash_password,
     mfa_provisioning_uri,
     verify_mfa_code,
     verify_password,

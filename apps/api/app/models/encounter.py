@@ -1,10 +1,31 @@
+import enum
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String
+from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 from app.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin
+
+
+class EncounterPipelineStatus(str, enum.Enum):
+    """Phase 0.4: was a free-form String(32) that the codebase wrote at
+    least five different values into across two files (encounters.py,
+    tasks/pipeline.py) with nothing checking any of them matched. Now a
+    proper enum, the way Note.status already was in name — see the
+    `create_constraint=True` below for why "already was" turned out to
+    be only half true.
+    """
+
+    RECORDING = "recording"
+    UPLOADED = "uploaded"
+    TRANSCRIBED = "transcribed"
+    NOTE_GENERATED = "note_generated"
+    BLOCKED_NO_CONSENT = "blocked_no_consent"  # app/services/consent.py's terminal state (0.1)
+
+    # Phase 1.5 will add more members here (upload_failed,
+    # transcription_failed, generation_failed, ...) for per-failure-mode
+    # error states — additive, not a reason to redesign this enum.
 
 
 class Encounter(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -36,9 +57,29 @@ class Encounter(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     audio_deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     audio_retention_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    # generated | filed | authenticated | signed — mirrors Note.status but
-    # kept on the encounter too so "loose sessions" / queue-status queries
-    # don't need a join when there's no Note row yet (pre-transcription).
-    pipeline_status: Mapped[str] = mapped_column(String(32), nullable=False, default="recording")
+    # Mirrors Note.status's role but kept on the encounter too so "loose
+    # sessions" / queue-status queries don't need a join when there's no
+    # Note row yet (pre-transcription). native_enum=False keeps this a
+    # plain VARCHAR under the hood (portable to SQLite, like
+    # UUIDPrimaryKeyMixin's String(36) ids); create_constraint=True is
+    # what actually makes "the database physically cannot hold an
+    # invalid value" true — SQLAlchemy 2.0 does NOT add that CHECK by
+    # default for a non-native enum, confirmed empirically while fixing
+    # this (see docs/decisions/0010).
+    pipeline_status: Mapped[EncounterPipelineStatus] = mapped_column(
+        Enum(
+            EncounterPipelineStatus,
+            native_enum=False,
+            create_constraint=True,
+            name="encounterpipelinestatus",
+            # See app/models/note.py's identical comment: without this,
+            # the generated CHECK constraint lists member NAMES
+            # ("RECORDING") instead of the VALUES ("recording") actually
+            # written to the column, and rejects every real write.
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
+        nullable=False,
+        default=EncounterPipelineStatus.RECORDING,
+    )
 
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

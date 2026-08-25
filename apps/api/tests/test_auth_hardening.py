@@ -6,7 +6,6 @@ account lockout, and the two-step MFA enrollment flow.
 """
 
 import pyotp
-import pytest
 
 from app.core.security import decode_access_token, generate_mfa_secret, hash_password
 from app.models.clinician import Clinician

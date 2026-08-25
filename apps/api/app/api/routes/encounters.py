@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db, require_role
 from app.core.config import get_settings
 from app.models.clinician import Clinician
-from app.models.encounter import Encounter
-from app.schemas.encounter import EncounterCreate, EncounterLinkPatient, EncounterOut
+from app.models.encounter import Encounter, EncounterPipelineStatus
+from app.schemas.encounter import ConfirmUploadRequest, EncounterCreate, EncounterLinkPatient, EncounterOut
 from app.services.consent import ConsentNotValidError, assert_consent_valid
 
 router = APIRouter(prefix="/encounters", tags=["encounters"])
@@ -35,7 +35,7 @@ def start_or_resume(
         patient_id=payload.patient_id,
         clinician_id=clinician.id,
         upload_idempotency_key=payload.upload_idempotency_key,
-        pipeline_status="recording",
+        pipeline_status=EncounterPipelineStatus.RECORDING,
     )
     db.add(encounter)
     db.commit()
@@ -78,7 +78,7 @@ def link_patient(
 @router.post("/{encounter_id}/confirm-upload", response_model=EncounterOut)
 def confirm_upload(
     encounter_id: str,
-    audio_object_key: str,
+    payload: ConfirmUploadRequest,
     db: Session = Depends(get_db),
     # RBAC (0.2): confirming an upload is a doctor action, part of the
     # same recording workflow as start_or_resume.
@@ -101,9 +101,9 @@ def confirm_upload(
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
 
     settings = get_settings()
-    encounter.audio_object_key = audio_object_key
+    encounter.audio_object_key = payload.audio_object_key
     encounter.audio_retention_expires_at = datetime.now(timezone.utc) + timedelta(days=settings.audio_retention_days)
-    encounter.pipeline_status = "uploaded"
+    encounter.pipeline_status = EncounterPipelineStatus.UPLOADED
     db.add(encounter)
     db.commit()
     db.refresh(encounter)
