@@ -69,7 +69,7 @@ class Note(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # JSON-encoded {section: [{start, end, transcript_start_ms, transcript_end_ms}, ...]}
     source_spans: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
 
-    note_generator_provider: Mapped[str] = mapped_column(String(16), nullable=False)  # "luna" | "haiku"
+    note_generator_provider: Mapped[str] = mapped_column(String(16), nullable=False)  # "haiku" (decision 0021)
 
     # Signing (P0-5): captured at the moment status -> SIGNED.
     signed_by_clinician_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("clinicians.id"), nullable=True)

@@ -6,7 +6,17 @@
 
 ---
 
-## Refresh log — 2026-08-25
+## Refresh log — 2026-08-25 (note generation: Haiku only, Luna dropped)
+
+**Progress: 28/120, unchanged.** A planning-ahead update to Phase 1.4, not new work done — the user's call (decision 0021): Claude Haiku 4.5 is now the sole note generator; `LunaNoteGenerator` and `app/services/note_generation/luna.py` are deleted, not kept dormant. **This drops the risk mitigation P0-4 named explicitly** — "Haiku remains available as a configured fallback if Luna underperforms" — since there is no longer a second real provider to fall back to. Not a defect; a deliberate trade the checklist item below is annotated with, same treatment as the ASR vendor swap (decision 0018).
+
+**Re-verified after making the change:** full suite — **91 passing** (unchanged from before this edit — Phase 1.4 isn't built yet, so nothing exercised the deleted code path). `ruff` and `mypy` both clean (55 source files now, down from 56 — one file fewer). App boots and `/health` responds.
+
+**A second finding, smaller but real:** the local (uncommitted) `apps/api/.env` still had `NOTE_GENERATOR_PROVIDER=luna` and a stale `ELEVENLABS_API_KEY=` line from before Phase 1.3 — invisible until now because `SettingsConfigDict(extra="ignore")` silently drops unrecognized keys, and `luna` only started failing once the `Literal` type narrowed to `["haiku"]` alone. `.env` drift under `extra="ignore"` is invisible by construction for any field not validated against a closed set — see decision 0021.
+
+---
+
+## Refresh log — 2026-08-25 (mypy baseline, ASR vendor references)
 
 **Progress: 28/120, unchanged from the last run** (this refresh re-verified ground truth and audited existing code; it didn't advance any new checklist item). Full audit trail per subphase lives in `docs/progress/` and `docs/decisions/`.
 
@@ -43,7 +53,7 @@ What actually runs today, confirmed by executing it this session — not by read
 
 **Real and tested (91 passing tests, `ruff` clean, `mypy` clean):** the data model (clinicians, patients, encounters, consent ledger, notes, revisions, transcripts, refresh tokens, login attempts, audit log); the full 7-migration Alembic chain, applied for real against a live Postgres container, not just read; the consent ledger's append-only Postgres trigger AND all three `CHECK` constraints (`Note.status`, `Encounter.pipeline_status`, `ConsentLedgerEntry.event`) — all exercised by tests that run real SQL against real Postgres, not asserted from the ORM layer. Consent *enforcement* (server-side, at both `upload/complete` and the head of `transcribe_encounter`). RBAC enforcement (`require_role` attached to every clinical-write route). Refresh-token rotation with reuse detection, login rate limiting/lockout, two-step MFA enrollment. The full presigned-multipart upload flow (`init`/`parts`/`complete`), idempotent end to end, tested against real MinIO via testcontainers — not mocked — including a real presigned-URL PUT round trip. Encrypted transcript persistence, wired into both ends of the Celery chain. Real ASR integration (Groq-hosted Whisper large-v3, replacing the PRD's named ElevenLabs Scribe v2 — see the refresh log above and decision 0018) with a real (though never-run-against-a-live-key) HTTP call, turn-order-preserving parsing, and a regression test that builds a real httpx request rather than mocking the call away. A live server driven end-to-end with curl through login → patient match → encounter → consent; `/health` returns 200 from a freshly booted process this session.
 
-**Wired but hollow:** `generate_note` now loads the real persisted transcript instead of `transcript=[]` (Phase 1.2), but both `NoteGenerator` implementations (Luna, Haiku) still raise `NotImplementedError` — honest stubs, gated on `OPENAI_API_KEY`/`ANTHROPIC_API_KEY`, not silent ones. `Transcript.retention_expires_at` and `Encounter.audio_retention_expires_at` are both written on every relevant row and read by nothing (Phase 4.4 owns turning that into a policy — see its updated wording below).
+**Wired but hollow:** `generate_note` now loads the real persisted transcript instead of `transcript=[]` (Phase 1.2), but the sole `NoteGenerator` implementation (`HaikuNoteGenerator` — `LunaNoteGenerator` deleted, decision 0021, 2026-08-25) still raises `NotImplementedError` — an honest stub, gated on `ANTHROPIC_API_KEY`, not a silent one. `Transcript.retention_expires_at` and `Encounter.audio_retention_expires_at` are both written on every relevant row and read by nothing (Phase 4.4 owns turning that into a policy — see its updated wording below).
 
 **Absent entirely:** the grounding UI's data path (Phase 3); retention *enforcement* (the columns exist, no job reads them); the entire mobile client (still `apps/mobile`'s scaffold — this refresh didn't touch it); and — a genuine, currently-open gap against a written requirement, not an oversight — speaker diarization (P0-3), which the ASR vendor in use structurally cannot provide.
 
@@ -159,8 +169,8 @@ This choice largely determines how hard Phase 3 (grounding UI) is, so think abou
 
 ### 1.4 Real note generation ⚠️ 🧠
 
-- [ ] Implement `LunaNoteGenerator.generate` — single fused call (P0-4), APSO section order, hedged language, silence/low-confidence suppression.
-- [ ] Implement `HaikuNoteGenerator.generate` as the configured fallback.
+- [ ] ~~Implement `LunaNoteGenerator.generate`~~ — **OBSOLETE.** Decision 0021 (2026-08-25, the user's call): Haiku is the sole note generator; Luna is deleted, not kept as a dormant fallback. `luna.py` no longer exists.
+- [ ] Implement `HaikuNoteGenerator.generate` — single fused call (P0-4), APSO section order, hedged language, silence/low-confidence suppression. (No longer "the configured fallback" — it's the only provider. See decision 0021 for what that costs: P0-4's fallback-as-risk-mitigation no longer exists.)
 - [ ] Use structured output (JSON schema / tool call), not free-text parsing.
 - [ ] Pass word-level confidence into the prompt in a form the model can act on.
 - [ ] Store the prompt version alongside each generated note.

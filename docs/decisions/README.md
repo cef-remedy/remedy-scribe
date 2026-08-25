@@ -34,3 +34,4 @@ product/legal/risk fork the checklist flags for you is marked **STATUS: OPEN
 | [0018](0018-groq-whisper-instead-of-elevenlabs-scribe.md) | 1.3 | ASR vendor: Groq-hosted Whisper large-v3, not the PRD's named ElevenLabs Scribe v2 — **diarization capability lost** | Decided (user) |
 | [0019](0019-asr-quality-validation-plan.md) | 1.3 | ASR quality validation: two-person test audio, expectations set correctly (no diarization to find) | Decided (user) |
 | [0020](0020-mypy-baseline-and-real-httpx-bug.md) | cross-cutting | First-ever mypy run found a real httpx crash and an LSP violation | Decided (implementation) — **real bug found empirically** |
+| [0021](0021-haiku-only-luna-dropped.md) | planning update, ahead of 1.4 | Note generation: Haiku only, Luna dropped entirely — **loses P0-4's configured-fallback risk mitigation** | Decided (user) |

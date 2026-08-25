@@ -197,7 +197,7 @@ def test_consent_event_check_constraint(postgres_session):
 
 def test_note_status_check_constraint(postgres_session):
     encounter = _seed_encounter(postgres_session)
-    note = Note(encounter_id=encounter.id, note_generator_provider="luna")
+    note = Note(encounter_id=encounter.id, note_generator_provider="haiku")
     postgres_session.add(note)
     postgres_session.commit()
 

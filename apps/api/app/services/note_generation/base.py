@@ -33,14 +33,16 @@ class GeneratedNote:
     plan: GeneratedSection
     subjective: GeneratedSection
     objective: GeneratedSection
-    provider: str  # "luna" | "haiku" — stored on Note.note_generator_provider
+    provider: str  # "haiku" today (decision 0021 dropped "luna") — stored on Note.note_generator_provider
 
 
 class NoteGenerator(ABC):
-    """P0-4: "Claude Haiku 4.5 remains available as a configured fallback
-    if Luna underperforms in practice." This interface is what makes that
-    a config flag (NOTE_GENERATOR_PROVIDER) instead of a rebuild — see
-    get_note_generator() in __init__.py.
+    """P0-4 originally specified "Luna primary, Claude Haiku 4.5 configured
+    fallback." As of the 2026-08-25 planning update (docs/decisions/0021),
+    Haiku is the sole provider — Luna is dropped, not kept dormant. This
+    interface is what still makes the provider a config flag
+    (NOTE_GENERATOR_PROVIDER) rather than a rebuild, if a second real
+    provider ever exists — see get_note_generator() in __init__.py.
     """
 
     @abstractmethod

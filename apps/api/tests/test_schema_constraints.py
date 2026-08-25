@@ -37,7 +37,7 @@ def _seed_encounter_with_note(db) -> tuple[Encounter, Note]:
     db.commit()
     db.refresh(encounter)
 
-    note = Note(encounter_id=encounter.id, note_generator_provider="luna")
+    note = Note(encounter_id=encounter.id, note_generator_provider="haiku")
     db.add(note)
     db.commit()
     db.refresh(note)

@@ -3,8 +3,8 @@
 See docs/tech-stack.md for the rationale behind each externalized value.
 Nothing here should be hardcoded into a literal in application code —
 in particular AUDIO_RETENTION_DAYS and NOTE_GENERATOR_PROVIDER, which the
-PRD calls out explicitly as values, not code paths, to keep the Luna/Haiku
-swap and the retention policy operator-configurable.
+PRD calls out explicitly as values, not code paths, to keep the note-
+generator swap and the retention policy operator-configurable.
 """
 
 from functools import lru_cache
@@ -59,9 +59,13 @@ class Settings(BaseSettings):
     # PHI field-level encryption (app/core/security.py:EncryptedString)
     phi_encryption_key: str | None = None
 
-    # Note generation (PRD P0-4: Luna primary, Haiku 4.5 configured fallback)
-    note_generator_provider: Literal["luna", "haiku"] = "luna"
-    openai_api_key: str | None = None
+    # Note generation. PRD P0-4 originally specified "Luna primary, Haiku
+    # 4.5 configured fallback" — as of the 2026-08-25 planning update
+    # (docs/decisions/0021), Haiku is the sole provider; Luna is dropped,
+    # not kept dormant. The Literal only accepts today's one real option
+    # on purpose (see decision 0011's reasoning against listing values
+    # that don't exist yet) — extend it when a second provider is real.
+    note_generator_provider: Literal["haiku"] = "haiku"
     anthropic_api_key: str | None = None
 
     # ASR (Phase 1.3: Groq-hosted Whisper large-v3, not ElevenLabs Scribe v2 —

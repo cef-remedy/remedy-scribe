@@ -626,7 +626,7 @@
         </div>
         <div class="status hollow">
           <div class="status-head"><span class="status-dot"></span><span class="status-name">Wired but hollow</span></div>
-          <p><code>generate_note</code> now loads the real persisted transcript instead of <code>transcript=[]</code> — but both <code>NoteGenerator</code> implementations (Luna, Haiku) still raise <code>NotImplementedError</code>. Honest stubs, gated on API keys, not silent ones. <code>Transcript.retention_expires_at</code> and <code>Encounter.audio_retention_expires_at</code> are both written on every relevant row and read by nothing.</p>
+          <p><code>generate_note</code> now loads the real persisted transcript instead of <code>transcript=[]</code> — but the sole <code>NoteGenerator</code> implementation (<code>HaikuNoteGenerator</code> — <code>LunaNoteGenerator</code> deleted, decision 0021) still raises <code>NotImplementedError</code>. An honest stub, gated on <code>ANTHROPIC_API_KEY</code>, not a silent one. <code>Transcript.retention_expires_at</code> and <code>Encounter.audio_retention_expires_at</code> are both written on every relevant row and read by nothing.</p>
         </div>
         <div class="status absent">
           <div class="status-head"><span class="status-dot"></span><span class="status-name">Absent entirely</span></div>
@@ -811,13 +811,17 @@
 
       <h3><span class="h3-num">1.4</span>Real note generation<span class="tags"><span class="tag warn">Heads-up</span><span class="tag call">Your call</span><span class="tag learn">Understand first</span></span></h3>
       <ul class="tasks">
-        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Implement <code>LunaNoteGenerator.generate</code> — single fused call, APSO order, hedged language, silence suppression.</span></label></li>
-        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Implement <code>HaikuNoteGenerator.generate</code> as the configured fallback.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text"><s>Implement <code>LunaNoteGenerator.generate</code></s> — <strong>obsolete.</strong> Decision 0021 (the user's call): Haiku is the sole note generator; Luna is deleted, not kept dormant. <code>luna.py</code> no longer exists.</span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Implement <code>HaikuNoteGenerator.generate</code> — single fused call, APSO order, hedged language, silence suppression. No longer "the configured fallback" — the only provider. Decision 0021: this drops P0-4's fallback-as-risk-mitigation entirely.</span></label></li>
         <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Use structured output (JSON schema / tool call), not free-text parsing.</span></label></li>
         <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Pass word-level confidence into the prompt in a form the model can act on.</span></label></li>
         <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Store the prompt version alongside each generated note.</span></label></li>
         <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">Add a golden-transcript test suite: fixed transcript in, assertions on the note out.</span></label></li>
       </ul>
+      <div class="note warn">
+        <span class="note-label">Heads-up · Haiku only, planning update ahead of this phase</span>
+        <p>P0-4 originally specified "Luna primary, Haiku configured fallback" — a deliberate resilience feature: if the primary underperforms, flip a config flag rather than rebuild. As of 2026-08-25 (decision 0021, the user's call), Haiku is the <em>sole</em> provider; Luna's code is deleted, not kept dormant. That fallback mechanism no longer exists — if Haiku underperforms in alpha, there is no second real provider to flip to. A smaller finding surfaced alongside this: the local (uncommitted) <code>.env</code> still had <code>NOTE_GENERATOR_PROVIDER=luna</code> and a stale <code>ELEVENLABS_API_KEY</code>, invisible until now because <code>extra="ignore"</code> silently drops settings fields it doesn't recognize — only a narrowed <code>Literal</code> type caught it.</p>
+      </div>
       <div class="note warn">
         <span class="note-label">Heads-up</span>
         <p>"Generation is suppressed over silent or low-confidence windows" (P0-4) will not happen just because your system prompt says so. Models are strongly biased toward fluent, complete-looking clinical text. Hand it a transcript with a garbled 30-second stretch and it will smooth over the gap plausibly, and you won't be able to tell. Make suppression <em>mechanical</em> where you can: mark low-confidence spans explicitly in the input (<code>[INAUDIBLE 0.31]</code>), and validate the output for invented content rather than trusting instruction-following.</p>
