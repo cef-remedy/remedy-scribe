@@ -26,6 +26,7 @@ from app.models.encounter import Encounter, EncounterPipelineStatus
 from app.schemas.encounter import EncounterOut
 from app.schemas.upload import (
     PartUploadUrlResponse,
+    UploadedPart,
     UploadInitRequest,
     UploadInitResponse,
     UploadPartsStatusResponse,
@@ -56,6 +57,10 @@ def init_upload(
         # Idempotent retry: a phone on clinic wifi may retry init without
         # having seen the first response. Return the same session rather
         # than opening a second, orphaned one in S3.
+        # audio_object_key is always set alongside audio_upload_id (see the
+        # fresh-creation branch below) — this makes that coupling explicit
+        # for the type checker rather than leaving it an unverified assumption.
+        assert encounter.audio_object_key is not None
         return UploadInitResponse(
             object_key=encounter.audio_object_key,
             upload_id=encounter.audio_upload_id,
@@ -92,6 +97,7 @@ def get_part_upload_url(
     encounter = _get_encounter_or_404(db, encounter_id)
     if encounter.audio_upload_id is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "No upload in progress — call upload/init first")
+    assert encounter.audio_object_key is not None  # set alongside audio_upload_id
 
     settings = get_settings()
     url = storage.presign_part_upload(encounter.audio_object_key, encounter.audio_upload_id, part_number)
@@ -115,9 +121,10 @@ def list_upload_parts(
     encounter = _get_encounter_or_404(db, encounter_id)
     if encounter.audio_upload_id is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "No upload in progress — call upload/init first")
+    assert encounter.audio_object_key is not None  # set alongside audio_upload_id
 
     parts = storage.list_uploaded_parts(encounter.audio_object_key, encounter.audio_upload_id)
-    return UploadPartsStatusResponse(parts=parts)
+    return UploadPartsStatusResponse(parts=[UploadedPart(**p) for p in parts])
 
 
 @router.post("/complete", response_model=EncounterOut)
@@ -141,6 +148,7 @@ def complete_upload(
 
     if encounter.audio_upload_id is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "No upload in progress — call upload/init first")
+    assert encounter.audio_object_key is not None  # set alongside audio_upload_id
 
     try:
         assert_consent_valid(db, encounter_id)

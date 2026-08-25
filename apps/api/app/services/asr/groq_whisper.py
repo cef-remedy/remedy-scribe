@@ -40,13 +40,17 @@ class GroqWhisperProvider(ASRProvider):
 
     provider_name = "groq_whisper_large_v3"
 
-    @property
-    def model_version(self) -> str:
-        # A property, not a fixed class attribute: GROQ_WHISPER_MODEL is
-        # operator-configurable (e.g. swapping to a turbo variant), so
-        # what gets recorded per-transcript should reflect the setting
-        # actually used for that call, not a hardcoded string.
-        return get_settings().groq_whisper_model
+    def __init__(self) -> None:
+        # A plain instance attribute set fresh per instance, not a
+        # `@property` — GROQ_WHISPER_MODEL is operator-configurable (e.g.
+        # swapping to a turbo variant), so this needs to reflect the
+        # setting at call time rather than being hardcoded, but
+        # `ASRProvider.model_version` is a writable class attribute
+        # (`= "unknown"`); overriding it with a read-only property is an
+        # LSP violation mypy correctly rejects. get_asr_provider() already
+        # returns a fresh instance per call, so "set once in __init__" is
+        # equivalent to "read live from settings" in practice.
+        self.model_version = get_settings().groq_whisper_model
 
     def transcribe(self, audio_object_key: str) -> list[TranscriptSegment]:
         settings = get_settings()
@@ -60,15 +64,23 @@ class GroqWhisperProvider(ASRProvider):
             GROQ_TRANSCRIPTIONS_ENDPOINT,
             headers={"Authorization": f"Bearer {settings.groq_api_key}"},
             files={"file": (filename, audio_bytes)},
-            data=[
-                ("model", settings.groq_whisper_model),
-                ("response_format", "verbose_json"),
-                # Repeated form field, not a single JSON-array value — this
-                # is how OpenAI's (and Groq's compatible) API expects a
-                # multi-valued field in multipart/form-data.
-                ("timestamp_granularities[]", "segment"),
-                ("timestamp_granularities[]", "word"),
-            ],
+            # ⚠️ Found by mypy, then confirmed to be a real crash, not a
+            # type-checker nitpick: a *list* of tuples here (the first
+            # version of this code) raises TypeError at request-build
+            # time as soon as `files` is also present — httpx's
+            # multipart encoder requires `data` to be a mapping. A repeated
+            # form field (Groq/OpenAI's documented way to pass multiple
+            # `timestamp_granularities[]` values) is a dict value that's a
+            # *list*, not a list of `(key, value)` tuples. The mocked-httpx
+            # unit test never caught this because it replaced httpx.post
+            # entirely, bypassing httpx's real request-encoding logic —
+            # exactly the class of gap a mock hides. See
+            # tests/test_groq_whisper.py's real-encoding test.
+            data={
+                "model": settings.groq_whisper_model,
+                "response_format": "verbose_json",
+                "timestamp_granularities[]": ["segment", "word"],
+            },
             # Whisper transcription of a full consult can genuinely take
             # a while server-side; this is a slow-but-real dependency, not
             # an unreachable one (contrast storage.py's short timeouts for

@@ -22,3 +22,4 @@ these files explain them, not duplicate them.
 | 1.1 | [1.1-upload-path.md](1.1-upload-path.md) | Presigned S3 multipart upload (init/parts/complete), real MinIO-backed tests, two bugs found by running it |
 | 1.2 | [1.2-transcript-persistence.md](1.2-transcript-persistence.md) | Encrypted JSON transcript storage, wired into both ends of the Celery chain |
 | 1.3 | [1.3-real-asr-integration.md](1.3-real-asr-integration.md) | Groq-hosted Whisper large-v3 (not the PRD's ElevenLabs Scribe v2) — **diarization capability lost**, turn order preserved by construction |
+| — | [audit-2026-08-25-checklist-refresh.md](audit-2026-08-25-checklist-refresh.md) | `/production-checklist` refresh: mypy baseline established, a real httpx crash found and fixed, ASR vendor references brought current |

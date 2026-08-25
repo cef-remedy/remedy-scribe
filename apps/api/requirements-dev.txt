@@ -2,6 +2,8 @@
 pytest==8.3.3
 pytest-asyncio==0.24.0
 mypy==1.11.2
+types-python-jose==3.5.0.20260408
+types-passlib==1.7.7.20260211
 ruff==0.6.8
 # Phase 0.5: Postgres-backed test path (tests/test_postgres_specific.py).
 # Spins up a real, disposable Postgres and runs actual Alembic migrations

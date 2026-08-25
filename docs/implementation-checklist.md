@@ -1,7 +1,26 @@
+<!-- artifact: https://claude.ai/code/artifact/e0d038a9-f414-4b93-bc0a-87391d3b78cf (docs/implementation-checklist.html) -->
 # Remedy Scribe — Production Implementation Checklist
 
 **Purpose:** everything between the current scaffold and a system that can legally and safely record real consultations in a Remedy clinic.
 **Companion docs:** `remedy-scribe-prd.md` (what/why) · `remedy-scribe-roadmap.md` (when) · `docs/tech-stack.md` (with what)
+
+---
+
+## Refresh log — 2026-08-25
+
+**Progress: 28/120, unchanged from the last run** (this refresh re-verified ground truth and audited existing code; it didn't advance any new checklist item). Full audit trail per subphase lives in `docs/progress/` and `docs/decisions/`.
+
+**Re-verified this run, all fresh (not carried over from memory):** full test suite — **91 passing**, up from the 90 last reported, because this run's audit added one regression test (see below). `ruff check` — clean. `mypy` — **clean, for the first time this project has run it** (56 source files; previously never run — Phase 5.3's "type-check (mypy)" item was still unchecked and there was no config at all). Alembic's 7-migration chain resolves to a single head and applies cleanly end-to-end against a real Postgres container (exercised by `tests/test_postgres_specific.py`, not just read). App boots and `/health` returns `200 {"status":"ok",...}` against a live process.
+
+**Two real, previously-undiscovered bugs found and fixed by this audit, not by reading:**
+1. **`GroqWhisperProvider.transcribe` would have crashed on its first real call.** It passed `data` to `httpx.post` as a list of `(key, value)` tuples alongside `files=`; httpx's multipart encoder requires `data` to be a mapping when `files` is also present, and raises `TypeError` immediately. Invisible to the existing test suite because that test mocked `httpx.post` entirely, bypassing httpx's real request-encoding logic — exactly the class of gap a mock hides (gap-audit class 5, "guarantees your tests never construct," generalized past the DB layer). Fixed (`data={"timestamp_granularities[]": [...], ...}`, the dict-with-list-value form httpx actually expects for repeated multipart fields) and given a dedicated regression test that builds a real httpx request (no network) instead of mocking the call away.
+2. **`ASRProvider.model_version` couldn't be a `@property` on a subclass** — mypy caught the LSP violation (overriding a writable base-class attribute with a read-only property) on its first run. Fixed by setting it as a plain instance attribute in `GroqWhisperProvider.__init__` instead.
+
+**One confirmed environment-class limitation, not a bug in this codebase:** MinIO (`RELEASE.2022-12-02`, the version pinned in `infra/docker-compose.yml` and used by the test containers) accepts `PutBucketEncryption` and the `AbortIncompleteMultipartUpload` lifecycle action without error, but doesn't actually enforce either — confirmed by inspecting raw API responses directly, not assumed. Both are correct, standard S3 API calls that a real AWS bucket (this system's actual deploy target) accepts and enforces; see decision 0014.
+
+**One requirement-coverage gap surfaced by the reverse-traceability pass (Step 2):** `remedy-scribe-prd.md`'s P0-3 explicitly requires "speaker diarization enabled." Phase 1.3 implemented ASR with Groq-hosted Whisper instead of the PRD's named ElevenLabs Scribe v2 (the user's explicit call) — Whisper has no diarization mechanism at all, so this half of P0-3 currently has no code behind it anywhere in the system, and won't until one of decision 0018's three options is picked. Not a defect in what was built; a real, currently-open gap against a written P0 requirement, flagged here so it isn't lost between now and Phase 1.4.
+
+**Two small, real gap-audit findings, both cheap, both fixed:** `app/models/patient.py` and `app/services/note_generation/haiku.py` each had one unused import (ruff `F401`) — pre-existing, unrelated to any phase's active work, fixed in passing. `mypy.ini` added (didn't exist before) so botocore/celery's missing type stubs don't drown out real findings on the next run; `types-python-jose`/`types-passlib` added to `requirements-dev.txt` to resolve two more for real instead of suppressing them.
 
 ---
 
@@ -20,15 +39,15 @@
 
 ## Current state (verified, not assumed)
 
-What actually runs today, confirmed by executing it — not by reading the README:
+What actually runs today, confirmed by executing it this session — not by reading the README, and not carried over from an earlier run without re-checking:
 
-**Real and tested:** the data model (clinicians, patients, encounters, consent ledger, notes, revisions, audit log); Alembic migrations against live Postgres; the four-state note lifecycle with skip-prevention; patient fuzzy-match + name-and-birthdate dedup; JWT + TOTP login; the consent ledger's append-only Postgres trigger (verified by hand: `UPDATE` and `DELETE` both raise). 9 passing tests. A live server driven end-to-end with curl through login → patient match → encounter → consent.
+**Real and tested (91 passing tests, `ruff` clean, `mypy` clean):** the data model (clinicians, patients, encounters, consent ledger, notes, revisions, transcripts, refresh tokens, login attempts, audit log); the full 7-migration Alembic chain, applied for real against a live Postgres container, not just read; the consent ledger's append-only Postgres trigger AND all three `CHECK` constraints (`Note.status`, `Encounter.pipeline_status`, `ConsentLedgerEntry.event`) — all exercised by tests that run real SQL against real Postgres, not asserted from the ORM layer. Consent *enforcement* (server-side, at both `upload/complete` and the head of `transcribe_encounter`). RBAC enforcement (`require_role` attached to every clinical-write route). Refresh-token rotation with reuse detection, login rate limiting/lockout, two-step MFA enrollment. The full presigned-multipart upload flow (`init`/`parts`/`complete`), idempotent end to end, tested against real MinIO via testcontainers — not mocked — including a real presigned-URL PUT round trip. Encrypted transcript persistence, wired into both ends of the Celery chain. Real ASR integration (Groq-hosted Whisper large-v3, replacing the PRD's named ElevenLabs Scribe v2 — see the refresh log above and decision 0018) with a real (though never-run-against-a-live-key) HTTP call, turn-order-preserving parsing, and a regression test that builds a real httpx request rather than mocking the call away. A live server driven end-to-end with curl through login → patient match → encounter → consent; `/health` returns 200 from a freshly booted process this session.
 
-**Wired but hollow:** the Celery chain exists and is idempotent, but `transcribe_encounter` throws away its own output (`_ = segments`) and `generate_note` always calls the model with `transcript=[]`. Both provider interfaces (`ASRProvider`, `NoteGenerator`) are real; both implementations raise `NotImplementedError`.
+**Wired but hollow:** `generate_note` now loads the real persisted transcript instead of `transcript=[]` (Phase 1.2), but both `NoteGenerator` implementations (Luna, Haiku) still raise `NotImplementedError` — honest stubs, gated on `OPENAI_API_KEY`/`ANTHROPIC_API_KEY`, not silent ones. `Transcript.retention_expires_at` and `Encounter.audio_retention_expires_at` are both written on every relevant row and read by nothing (Phase 4.4 owns turning that into a policy — see its updated wording below).
 
-**Absent entirely:** any upload path (no endpoint, no S3 client — `boto3` is in `requirements.txt` and imported nowhere); transcript persistence; the grounding UI's data; retention enforcement; consent *enforcement*; RBAC enforcement; and the entire mobile client (72 graph nodes under `apps/mobile`, every one of them `App.tsx` boilerplate or config).
+**Absent entirely:** the grounding UI's data path (Phase 3); retention *enforcement* (the columns exist, no job reads them); the entire mobile client (still `apps/mobile`'s scaffold — this refresh didn't touch it); and — a genuine, currently-open gap against a written requirement, not an oversight — speaker diarization (P0-3), which the ASR vendor in use structurally cannot provide.
 
-That last line is the honest headline: **the doctor-facing app does not exist yet.** Everything below is sequenced around that.
+That last line is still the honest headline for the doctor-facing side: **the mobile app does not exist yet.** The server side has moved substantially since the last "current state" was written — Phase 0 is fully closed, and 1.1–1.3 of Phase 1 are done — but nothing here is usable by an actual doctor until Phase 2 exists.
 
 ---
 
@@ -134,7 +153,7 @@ This choice largely determines how hard Phase 3 (grounding UI) is, so think abou
 
 ⚠️ **Heads-up — there is a real bug in the stub I wrote.** `_parse_response` groups every word by speaker across the entire recording, producing one giant segment per speaker. That destroys turn order: you get "everything the doctor said" then "everything the patient said," instead of the actual back-and-forth. A note generated from that will mangle who reported which symptom. Segments must be *turns* — split when the speaker label changes. Worth reading that function and seeing the bug yourself before fixing it; it's a good example of code that looks reasonable and is semantically wrong.
 
-⚠️ **Heads-up — diarization gives you anonymous labels.** Scribe returns `speaker_0`, `speaker_1` — not "doctor" and "patient." Mapping them is your problem, and getting it backwards inverts Subjective content (patient's reported symptoms become the doctor's words). Heuristics that actually work: the doctor speaks first (they start the recording), the doctor speaks the consent script, the doctor has more total speech time. None are reliable alone. Consider having the consent script itself serve as the doctor's voice fingerprint, since you know who reads it.
+⚠️ **Heads-up — superseded, kept for the reasoning.** This originally warned that Scribe returns anonymous `speaker_0`/`speaker_1` labels you'd have to map to doctor/patient yourself. That problem no longer exists in the form described here — the ASR vendor in use (Groq-hosted Whisper, decision 0018) has no speaker labels at all, anonymous or otherwise, so there's nothing to map. The actual heuristics below (doctor speaks first, doctor speaks the consent script, doctor has more speech time) are gone as a *mapping* tool but survive as a **content-inference** tool: if a diarization step is ever added back (decision 0018's options), or if Phase 1.4's note generation has to infer speaker roles from undiarized text alone, these are the same signals to reach for either way.
 
 🧠 **Your call — how do you validate ASR quality with no bake-off?** The roadmap explicitly dropped the vendor bake-off and accepted this risk, making internal alpha the first real test. So decide now what you'll measure and how: a small set of consented recordings hand-transcribed as ground truth? Clinically-weighted entity error rate on drug names and doses (as the PRD's success metrics suggest)? Doctor-reported "did you have to fix a name/dose" flag on each note? Pick something cheap and start collecting from day one of alpha — the risk register says this surfaces via edit burden, and edit burden is only measurable if you instrumented it before the first note.
 
@@ -201,7 +220,7 @@ This is the largest phase and currently 0% done. Everything above is invisible t
 
 ⚠️ **Heads-up:** a 30-minute consultation is a big file, and battery/thermal behavior over a full clinic day is a real constraint nobody models in advance. Test an actual 8-hour day of intermittent recording on a real mid-range Android phone — the kind a doctor actually carries, not a flagship. The PRD lists "what devices do doctors actually carry" as an open question; answer it before you tune bitrate.
 
-🧠 **Your call — audio format and bitrate.** You're trading ASR accuracy against file size against upload time on clinic wifi. Speech at 16 kHz mono in a compressed format (AAC/Opus) is usually plenty for ASR and dramatically smaller than uncompressed WAV. But verify against Scribe's documented input expectations before committing, and test whether aggressive compression measurably hurts Taglish accuracy — code-switched speech may be less robust to compression artifacts than monolingual English.
+🧠 **Your call — audio format and bitrate.** You're trading ASR accuracy against file size against upload time on clinic wifi. Speech at 16 kHz mono in a compressed format (AAC/Opus) is usually plenty for ASR and dramatically smaller than uncompressed WAV. But verify against Whisper's documented input expectations before committing (Groq's hosted large-v3, decision 0018 — not Scribe, since the ASR vendor changed in 1.3), and test whether aggressive compression measurably hurts Taglish accuracy — code-switched speech may be less robust to compression artifacts than monolingual English.
 
 ### 2.3 Consent flow (P0-1)
 
@@ -302,8 +321,8 @@ Also worth thinking through: a mistyped birthdate currently means dedup silently
 
 ### 4.4 Retention enforcement ⚠️
 
-- [ ] Implement the job that actually deletes expired audio. `audio_retention_expires_at` is set on every encounter and **nothing reads it** — retention is currently a column, not a policy.
-- [ ] Extend deletion to transcripts and note revisions, not just audio.
+- [ ] Implement the job that actually deletes expired audio. `audio_retention_expires_at` is set on every encounter and **nothing reads it** — retention is currently a column, not a policy. (As of Phase 1.2, `Transcript.retention_expires_at` is in the exact same state — set on every transcript, read by nothing. Two columns now waiting on this one job, not one.)
+- [ ] Extend deletion to transcripts (`Transcript.retention_expires_at` already exists — see above) and note revisions, not just audio.
 - [ ] Log every deletion to the audit trail.
 - [ ] Handle the withdrawal case as an immediate-deletion path.
 
@@ -338,7 +357,7 @@ Also worth thinking through: a mistyped birthdate currently means dedup silently
 
 ### 5.3 CI/CD
 
-- [ ] CI: lint (`ruff`), type-check (`mypy`), test on **Postgres** (see 0.5), build the mobile bundle.
+- [ ] CI: lint (`ruff`), type-check (`mypy`), test on **Postgres** (see 0.5), build the mobile bundle. (`ruff` and `mypy` both run clean locally as of the 2026-08-25 refresh — `apps/api/mypy.ini` now exists — so this item is now "wire the existing green checks into CI," not "get them green.")
 - [ ] Migration safety check — fail CI if a migration is missing for a model change.
 - [ ] Staging environment with realistic synthetic data (never production PHI).
 - [ ] Mobile release pipeline (EAS Build, internal distribution for pilot doctors).

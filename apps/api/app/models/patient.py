@@ -1,6 +1,6 @@
 from datetime import date
 
-from sqlalchemy import Date, String
+from sqlalchemy import Date
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.security import EncryptedString

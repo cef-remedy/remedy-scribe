@@ -70,7 +70,7 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
         clinician is not None
         and clinician.is_active
         and verify_password(payload.password, clinician.hashed_password)
-        and bool(clinician.mfa_secret)
+        and clinician.mfa_secret is not None
         and verify_mfa_code(clinician.mfa_secret, payload.mfa_code)
     )
     record_login_attempt(db, email=payload.email, ip_address=ip_address, successful=credentials_valid)
@@ -78,6 +78,11 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     if not credentials_valid:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials or MFA code")
 
+    # credentials_valid's AND-chain already proved clinician is not None (and
+    # has an mfa_secret) — mypy can't trace that through a stored boolean, so
+    # this makes the already-true invariant explicit rather than leaving it
+    # for the type checker to (wrongly) flag as unverified.
+    assert clinician is not None
     access_token = create_access_token(subject=clinician.id, extra_claims={"role": clinician.role})
     refresh_token, _ = issue_refresh_token(db, clinician.id)
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)

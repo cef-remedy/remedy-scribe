@@ -181,11 +181,44 @@ def test_transcribe_downloads_audio_and_posts_to_groq(monkeypatch):
 
     assert captured["headers"]["Authorization"] == "Bearer test-key"
     assert captured["files"]["file"][0] == "y.m4a"
-    assert ("model", "whisper-large-v3") in captured["data"]
+    assert captured["data"]["model"] == "whisper-large-v3"
+    assert captured["data"]["timestamp_granularities[]"] == ["segment", "word"]
     assert len(segments) == 1
     assert segments[0].words[0].text == "hi"
 
     get_settings.cache_clear()
+
+
+def test_the_multipart_data_shape_actually_encodes_without_crashing():
+    """The regression test for a real bug: the first version of
+    `transcribe()` passed `data=[("model", ...), ("timestamp_granularities[]",
+    "segment"), ...]` — a list of tuples — which raises `TypeError` inside
+    httpx's own multipart encoder as soon as `files` is also present
+    (confirmed by actually calling this, not by reading docs). The test
+    above mocks `httpx.post` entirely, so it could not and did not catch
+    this — it only proves *our* code passes the right-looking arguments,
+    not that httpx accepts them. This test uses real httpx request-
+    building (no network) against the exact `data=` shape
+    `groq_whisper.py` sends, so a future edit back to the broken shape
+    fails here instead of at the first real API call.
+    """
+    client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json={})))
+
+    request = client.build_request(
+        "POST",
+        "https://api.groq.com/openai/v1/audio/transcriptions",
+        files={"file": ("a.m4a", b"fake-bytes")},
+        data={
+            "model": "whisper-large-v3",
+            "response_format": "verbose_json",
+            "timestamp_granularities[]": ["segment", "word"],
+        },
+    )
+    body = request.read().decode("utf-8", errors="replace")
+
+    assert body.count('name="timestamp_granularities[]"') == 2
+    assert 'name="model"' in body
+    assert 'filename="a.m4a"' in body
 
 
 def test_transcribe_raises_on_http_error(monkeypatch):
