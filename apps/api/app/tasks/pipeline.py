@@ -17,6 +17,7 @@ from app.models.note import Note
 from app.services.asr import get_asr_provider
 from app.services.consent import ConsentNotValidError, assert_consent_valid
 from app.services.note_generation import get_note_generator
+from app.services.transcripts import load_transcript, persist_transcript
 from app.tasks.celery_app import celery_app
 
 
@@ -50,11 +51,7 @@ def transcribe_encounter(self, encounter_id: str) -> str:
 
         provider = get_asr_provider()
         segments = provider.transcribe(encounter.audio_object_key)
-
-        # TODO once persisted: store `segments` (transcript text + word
-        # timings/confidence) against the encounter for generate_note and
-        # for the grounding UI (P0-7) to resolve spans against.
-        _ = segments
+        persist_transcript(db, encounter_id, provider_name=provider.provider_name, segments=segments)
 
         encounter.pipeline_status = EncounterPipelineStatus.TRANSCRIBED
         db.add(encounter)
@@ -91,9 +88,7 @@ def generate_note(self, encounter_id: str) -> str:
             return existing.id  # already generated — redelivered message, no-op
 
         generator = get_note_generator()
-        # TODO once transcript persistence lands: load the stored segments
-        # for this encounter instead of an empty list.
-        generated = generator.generate(transcript=[])
+        generated = generator.generate(transcript=load_transcript(db, encounter_id))
 
         note = Note(
             encounter_id=encounter_id,

@@ -29,3 +29,5 @@ product/legal/risk fork the checklist flags for you is marked **STATUS: OPEN
 | [0013](0013-presigned-multipart-upload-design.md) | 1.1 | Presigned S3 multipart protocol (user's call); server-owned object key; S3 `ListParts` as per-chunk state | Decided (user + implementation) |
 | [0014](0014-bucket-lifecycle-rule-shape-and-minio-limitation.md) | 1.1 | Lifecycle rule must combine both actions in one rule; MinIO silently drops the abort action | Decided (implementation) — **bug found empirically** |
 | [0015](0015-startup-bucket-provisioning-off-in-tests.md) | 1.1 | Short boto3 timeouts; bucket provisioning disabled in tests | Decided (implementation) — **perf bug found empirically** |
+| [0016](0016-transcript-storage-shape.md) | 1.2 | Encrypted JSON blob (user's call); segment-level, not sentence-level, granularity | Decided (user + implementation) |
+| [0017](0017-transcript-scope-boundary-with-phase-1.3.md) | 1.2 | `asr_provider` now, `asr_model_version` deferred to 1.3; retention clock added now | Decided (implementation) |

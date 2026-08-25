@@ -16,6 +16,7 @@ ciphertext at rest) stays the same either way.
 """
 
 import hashlib
+import json
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -23,10 +24,19 @@ import pyotp
 from cryptography.fernet import Fernet
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from sqlalchemy import String
+from sqlalchemy import String, Text
 from sqlalchemy.types import TypeDecorator
 
 from app.core.config import get_settings
+
+
+def _fernet_from_settings() -> Fernet:
+    key = get_settings().phi_encryption_key
+    if not key:
+        raise RuntimeError(
+            "PHI_ENCRYPTION_KEY is not set — refusing to read/write an encrypted PHI column without it."
+        )
+    return Fernet(key.encode())
 
 _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -99,21 +109,45 @@ class EncryptedString(TypeDecorator):
     impl = String
     cache_ok = True
 
-    def _fernet(self) -> Fernet:
-        key = get_settings().phi_encryption_key
-        if not key:
-            raise RuntimeError(
-                "PHI_ENCRYPTION_KEY is not set — refusing to read/write an "
-                "encrypted PHI column without it."
-            )
-        return Fernet(key.encode())
-
     def process_bind_param(self, value: str | None, dialect) -> str | None:
         if value is None:
             return None
-        return self._fernet().encrypt(value.encode()).decode()
+        return _fernet_from_settings().encrypt(value.encode()).decode()
 
     def process_result_value(self, value: str | None, dialect) -> str | None:
         if value is None:
             return None
-        return self._fernet().decrypt(value.encode()).decode()
+        return _fernet_from_settings().decrypt(value.encode()).decode()
+
+
+class EncryptedJSON(TypeDecorator):
+    """The same guarantee as EncryptedString, generalized to structured
+    data: JSON-serialize, then Fernet-encrypt: Text, not String, since a
+    20-40 minute consult's word-level transcript can run to tens of KB.
+
+    Used for Transcript.segments (Phase 1.2) — the transcript is PHI,
+    arguably more sensitive than the note itself (verbatim, including
+    what the doctor chose not to write down), so it gets the identical
+    encryption-at-rest treatment as everything else PHI in this schema.
+
+    A note on "JSONB" in the Phase 1.2 decision: that was about *shape*
+    (one row holding the whole structure, vs. a row-per-word table) —
+    not literally Postgres's native JSONB type. Once the payload is
+    encrypted, the column is opaque ciphertext regardless of declared
+    type, so native JSON path queries are off the table either way; this
+    stores as plain Text, identically on Postgres and SQLite, same as
+    EncryptedString already does for the same reason.
+    """
+
+    impl = Text
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        return _fernet_from_settings().encrypt(json.dumps(value).encode()).decode()
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        return json.loads(_fernet_from_settings().decrypt(value.encode()).decode())

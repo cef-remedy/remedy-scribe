@@ -20,3 +20,4 @@ these files explain them, not duplicate them.
 | 0.4 | [0.4-type-consistency-drift.md](0.4-type-consistency-drift.md) | `pipeline_status`/`event` enums with real DB `CHECK` constraints; `confirm_upload` body fix |
 | 0.5 | [0.5-postgres-test-path.md](0.5-postgres-test-path.md) | testcontainers-backed Postgres test path; the append-only trigger and CHECK constraints, verified for real |
 | 1.1 | [1.1-upload-path.md](1.1-upload-path.md) | Presigned S3 multipart upload (init/parts/complete), real MinIO-backed tests, two bugs found by running it |
+| 1.2 | [1.2-transcript-persistence.md](1.2-transcript-persistence.md) | Encrypted JSON transcript storage, wired into both ends of the Celery chain |

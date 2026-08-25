@@ -30,6 +30,12 @@ class ASRProvider(ABC):
     never touches call sites — only tasks/pipeline.py calls this.
     """
 
+    #: Phase 1.2: stored on Transcript.asr_provider so a persisted
+    #: transcript records what produced it. Deliberately just a name —
+    #: 1.3 owns recording an actual *model version* string, since that
+    #: only means something once the real API call exists to report one.
+    provider_name: str = "unknown"
+
     @abstractmethod
     def transcribe(self, audio_object_key: str) -> list[TranscriptSegment]:
         """Fetch the audio from object storage and return diarized,

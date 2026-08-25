@@ -10,6 +10,7 @@ from app.models.login_attempt import LoginAttempt
 from app.models.note import Note, NoteRevision, NoteStatus
 from app.models.patient import Patient
 from app.models.refresh_token import RefreshToken
+from app.models.transcript import Transcript
 
 __all__ = [
     "AuditLog",
@@ -22,4 +23,5 @@ __all__ = [
     "NoteStatus",
     "Patient",
     "RefreshToken",
+    "Transcript",
 ]

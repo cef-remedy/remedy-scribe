@@ -112,9 +112,9 @@ For learning value, rolling your own once is genuinely instructive. For a 4–8 
 
 ### 1.2 Transcript persistence 🧠
 
-- [ ] Add a transcript model/table (or object-storage document) holding: full text, per-word timings, per-word confidence, and speaker labels.
-- [ ] Make `transcribe_encounter` actually persist its output. It currently computes `segments` and discards them with `_ = segments`.
-- [ ] Make `generate_note` load the persisted transcript instead of passing `transcript=[]`.
+- [x] Add a transcript model/table (or object-storage document) holding: full text, per-word timings, per-word confidence, and speaker labels.
+- [x] Make `transcribe_encounter` actually persist its output. It currently computes `segments` and discards them with `_ = segments`.
+- [x] Make `generate_note` load the persisted transcript instead of passing `transcript=[]`.
 
 🧠 **Your call — where does the transcript live?** Options:
 - **Postgres `JSONB` column.** Queryable, transactional with the note, encrypted with your existing `EncryptedString` approach if you wrap it. Cost: word-level data for a 20-minute consult is large; you'll be loading megabytes to render one note.

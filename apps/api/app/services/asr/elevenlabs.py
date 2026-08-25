@@ -15,6 +15,8 @@ class ElevenLabsScribeProvider(ASRProvider):
     output so tasks/pipeline.py has a real contract to code against now.
     """
 
+    provider_name = "elevenlabs_scribe_v2"
+
     def transcribe(self, audio_object_key: str) -> list[TranscriptSegment]:
         settings = get_settings()
         if not settings.elevenlabs_api_key:
