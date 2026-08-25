@@ -17,6 +17,14 @@ class TranscriptWord:
 class TranscriptSegment:
     speaker: str
     words: list[TranscriptWord]
+    #: Stable citation ID ("seg0", "seg1", ...) — Phase 1.4's note
+    #: generator cites these directly rather than being asked for
+    #: transcript character offsets (an LLM asked to count characters
+    #: produces confident, wrong numbers). None here, before persistence
+    #: — assigned by app/services/transcripts.py at persist time, since
+    #: an ASR provider has no reason to know it. Populated whenever this
+    #: dataclass is reconstructed from a persisted Transcript row.
+    id: str | None = None
 
     @property
     def text(self) -> str:

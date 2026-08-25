@@ -4,6 +4,8 @@ and discarded them (`_ = segments`), and `generate_note` always passed
 `transcript=[]`.
 """
 
+import dataclasses
+
 from sqlalchemy import text
 
 from app.core.security import EncryptedJSON
@@ -63,13 +65,21 @@ def _seed_encounter(db) -> tuple[Encounter, Clinician]:
 # --- the (de)serialization round trip ---------------------------------
 
 
+def _with_ids(segments, ids):
+    """`_SAMPLE_SEGMENTS` are constructed with `id=None` — persistence is
+    what actually assigns "seg0", "seg1", ... (Phase 1.4), so a round
+    trip is expected to add that, not preserve `None`.
+    """
+    return [dataclasses.replace(seg, id=i) for seg, i in zip(segments, ids, strict=True)]
+
+
 def test_persist_and_load_round_trips_segments(db):
     encounter, _clinician = _seed_encounter(db)
 
     persist_transcript(db, encounter.id, provider_name="groq_whisper_large_v3", segments=_SAMPLE_SEGMENTS)
     loaded = load_transcript(db, encounter.id)
 
-    assert loaded == _SAMPLE_SEGMENTS
+    assert loaded == _with_ids(_SAMPLE_SEGMENTS, ["seg0", "seg1"])
     assert loaded[0].text == "Ano po ang"  # TranscriptSegment.text survives reconstruction
 
 
@@ -86,7 +96,7 @@ def test_persist_transcript_upserts_rather_than_duplicating(db):
 
     rows = db.query(Transcript).filter(Transcript.encounter_id == encounter.id).all()
     assert len(rows) == 1
-    assert load_transcript(db, encounter.id) == _SAMPLE_SEGMENTS
+    assert load_transcript(db, encounter.id) == _with_ids(_SAMPLE_SEGMENTS, ["seg0", "seg1"])
 
 
 def test_each_segment_gets_a_stable_id(db):
@@ -146,7 +156,7 @@ def test_transcribe_encounter_persists_the_transcript(db, monkeypatch):
     transcript = db.query(Transcript).filter(Transcript.encounter_id == encounter.id).one()
     assert transcript.asr_provider == "fake-asr"
     assert transcript.asr_model_version == "fake-model-v1"
-    assert load_transcript(db, encounter.id) == _SAMPLE_SEGMENTS
+    assert load_transcript(db, encounter.id) == _with_ids(_SAMPLE_SEGMENTS, ["seg0", "seg1"])
 
 
 class _RecordingNoteGenerator:
@@ -159,7 +169,9 @@ class _RecordingNoteGenerator:
     def generate(self, transcript: list[TranscriptSegment]) -> GeneratedNote:
         type(self).last_transcript = transcript
         empty = GeneratedSection(text="")
-        return GeneratedNote(assessment=empty, plan=empty, subjective=empty, objective=empty, provider="fake")
+        return GeneratedNote(
+            assessment=empty, plan=empty, subjective=empty, objective=empty, provider="fake", prompt_version="fake-v0"
+        )
 
 
 def test_generate_note_loads_the_persisted_transcript_not_empty(db, monkeypatch):
@@ -170,6 +182,6 @@ def test_generate_note_loads_the_persisted_transcript_not_empty(db, monkeypatch)
 
     generate_note(encounter.id)
 
-    assert _RecordingNoteGenerator.last_transcript == _SAMPLE_SEGMENTS
+    assert _RecordingNoteGenerator.last_transcript == _with_ids(_SAMPLE_SEGMENTS, ["seg0", "seg1"])
     note = db.query(Note).filter(Note.encounter_id == encounter.id).one()
     assert note.note_generator_provider == "fake"

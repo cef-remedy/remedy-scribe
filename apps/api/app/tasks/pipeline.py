@@ -99,6 +99,8 @@ def generate_note(self, encounter_id: str) -> str:
             subjective=generated.subjective.text,
             objective=generated.objective.text,
             note_generator_provider=generated.provider,
+            prompt_version=generated.prompt_version,
+            source_spans=generated.source_spans_json(),
         )
         db.add(note)
         encounter.pipeline_status = EncounterPipelineStatus.NOTE_GENERATED

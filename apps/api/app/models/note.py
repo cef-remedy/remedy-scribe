@@ -36,9 +36,15 @@ class Note(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     the grounding UI (P0-7) and edit-burden diffing (Success Metrics) can
     address a section independently.
 
-    `assessment_source_spans` etc. hold JSON-encoded transcript-offset
-    references — "every generated line is traceable back to its source
-    transcript passage" (P0-4) — consumed by the grounding UI (P0-7).
+    `source_spans` holds JSON-encoded references from each section's text
+    back to the transcript segment(s) it cites — "every generated line is
+    traceable back to its source transcript passage" (P0-4) — consumed by
+    the grounding UI (P0-7). Shape and reasoning: see
+    app/services/note_generation/base.py:SourceSpan/GeneratedNote.source_spans_json.
+
+    `prompt_version` (Phase 1.4) matters more than it looks: when edit
+    burden jumps, "did we change the prompt?" needs to be answerable from
+    the data, not from memory.
     """
 
     __tablename__ = "notes"
@@ -66,10 +72,11 @@ class Note(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     subjective: Mapped[str] = mapped_column(EncryptedString(4096), nullable=False, default="")
     objective: Mapped[str] = mapped_column(EncryptedString(4096), nullable=False, default="")
 
-    # JSON-encoded {section: [{start, end, transcript_start_ms, transcript_end_ms}, ...]}
+    # JSON-encoded {section: {"suppressed": bool, "spans": [{text_start, text_end, segment_ids}, ...]}}
     source_spans: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
 
     note_generator_provider: Mapped[str] = mapped_column(String(16), nullable=False)  # "haiku" (decision 0021)
+    prompt_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     # Signing (P0-5): captured at the moment status -> SIGNED.
     signed_by_clinician_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("clinicians.id"), nullable=True)

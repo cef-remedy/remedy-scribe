@@ -67,6 +67,12 @@ class Settings(BaseSettings):
     # that don't exist yet) — extend it when a second provider is real.
     note_generator_provider: Literal["haiku"] = "haiku"
     anthropic_api_key: str | None = None
+    anthropic_model: str = "claude-haiku-4-5-20251001"
+    # Phase 1.4: a word whose ASR confidence falls below this is replaced
+    # with an explicit [INAUDIBLE] marker before the transcript ever
+    # reaches the prompt — mechanical suppression, not an instruction the
+    # model can politely ignore. See app/services/note_generation/haiku.py.
+    note_generation_low_confidence_threshold: float = 0.5
 
     # ASR (Phase 1.3: Groq-hosted Whisper large-v3, not ElevenLabs Scribe v2 —
     # a deliberate switch away from the PRD's named vendor; see

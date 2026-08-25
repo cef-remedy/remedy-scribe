@@ -21,12 +21,19 @@ from app.services.asr.base import TranscriptSegment, TranscriptWord
 
 
 def _segments_to_json(segments: list[TranscriptSegment]) -> list[dict]:
-    return [{"id": f"seg{i}", **dataclasses.asdict(segment)} for i, segment in enumerate(segments)]
+    # The explicit "id" override must come *after* the ** spread: as of
+    # Phase 1.4, TranscriptSegment itself carries an `id` field (usually
+    # None pre-persistence), and dataclasses.asdict() would include that
+    # None — placed first, the spread would silently overwrite the real
+    # "seg{i}" id with None. Dict literals resolve duplicate keys to the
+    # last one written, so ordering here isn't cosmetic.
+    return [{**dataclasses.asdict(segment), "id": f"seg{i}"} for i, segment in enumerate(segments)]
 
 
 def _json_to_segments(data: list[dict]) -> list[TranscriptSegment]:
     return [
-        TranscriptSegment(speaker=seg["speaker"], words=[TranscriptWord(**w) for w in seg["words"]]) for seg in data
+        TranscriptSegment(id=seg["id"], speaker=seg["speaker"], words=[TranscriptWord(**w) for w in seg["words"]])
+        for seg in data
     ]
 
 

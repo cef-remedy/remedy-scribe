@@ -17,6 +17,7 @@ class NoteOut(BaseModel):
     subjective: str
     objective: str
     note_generator_provider: str
+    prompt_version: str | None
     signed_by_clinician_id: str | None
     signed_prc_license_number: str | None
     signed_at: datetime | None
