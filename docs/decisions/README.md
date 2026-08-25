@@ -25,3 +25,4 @@ product/legal/risk fork the checklist flags for you is marked **STATUS: OPEN
 | [0009](0009-mfa-enrollment-bootstrap-scope.md) | 0.3 | MFA self-service enrollment scoped to first-time setup only | Decided (implementation) — **gap flagged for pilot** |
 | [0010](0010-enum-check-constraints-needed-explicit-flags.md) | 0.4 | `Note.status` had no real DB constraint; enum CHECK constraints need explicit `values_callable` too | Decided (implementation) — **bug found empirically** |
 | [0011](0011-encounter-pipeline-status-enum-membership.md) | 0.4 | `EncounterPipelineStatus` scoped to today's 5 values, not Phase 1.5's future ones | Decided (implementation) |
+| [0012](0012-postgres-test-path-testcontainers-and-subprocess-migrations.md) | 0.5 | testcontainers over a CI service container; migrations run as a real subprocess, not in-process | Decided (implementation) |

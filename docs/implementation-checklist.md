@@ -78,8 +78,8 @@ Do this first. These are not new features; they are places where the scaffold cu
 
 ### 0.5 Close the test-vs-production divergence ⚠️
 
-- [ ] Add a Postgres-backed test path (testcontainers, or a CI service container) for the tests that depend on Postgres-specific behavior.
-- [ ] Write a test proving the consent ledger rejects `UPDATE` and `DELETE`.
+- [x] Add a Postgres-backed test path (testcontainers, or a CI service container) for the tests that depend on Postgres-specific behavior.
+- [x] Write a test proving the consent ledger rejects `UPDATE` and `DELETE`.
 
 ⚠️ **Heads-up — this one is sharp.** The test suite runs on SQLite via `Base.metadata.create_all()`. The append-only consent trigger lives in an Alembic migration. **Migrations never run in the test suite, so the trigger is never exercised by a single test.** I verified it manually with `psql`, which is why I know it works — but manual verification is not a regression test. Someone could drop that migration tomorrow and every test would still pass. Any guarantee implemented in SQL rather than Python is currently untested by construction.
 

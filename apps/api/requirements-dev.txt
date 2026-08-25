@@ -3,3 +3,9 @@ pytest==8.3.3
 pytest-asyncio==0.24.0
 mypy==1.11.2
 ruff==0.6.8
+# Phase 0.5: Postgres-backed test path (tests/test_postgres_specific.py).
+# Spins up a real, disposable Postgres and runs actual Alembic migrations
+# against it -- SQLite's Base.metadata.create_all() silently skips
+# raw-SQL migrations (the consent ledger's append-only trigger, 0.4's
+# CHECK constraints), so this is the only place those are exercised.
+testcontainers[postgres]==4.8.2

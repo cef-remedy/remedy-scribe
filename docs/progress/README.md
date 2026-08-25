@@ -18,3 +18,4 @@ these files explain them, not duplicate them.
 | 0.2 | [0.2-rbac-enforcement.md](0.2-rbac-enforcement.md) | `require_role` actually attached to routes; new audit-log read endpoint |
 | 0.3 | [0.3-auth-hardening.md](0.3-auth-hardening.md) | Refresh-token rotation/revocation, MFA enrollment, login rate limiting/lockout |
 | 0.4 | [0.4-type-consistency-drift.md](0.4-type-consistency-drift.md) | `pipeline_status`/`event` enums with real DB `CHECK` constraints; `confirm_upload` body fix |
+| 0.5 | [0.5-postgres-test-path.md](0.5-postgres-test-path.md) | testcontainers-backed Postgres test path; the append-only trigger and CHECK constraints, verified for real |
