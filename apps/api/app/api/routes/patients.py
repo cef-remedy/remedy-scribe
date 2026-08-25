@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_clinician, get_db
+from app.api.deps import get_db, require_role
 from app.models.clinician import Clinician
 from app.schemas.patient import PatientLookupRequest, PatientMatchResult, PatientOut
 from app.services import audit
@@ -14,7 +14,9 @@ router = APIRouter(prefix="/patients", tags=["patients"])
 def match(
     payload: PatientLookupRequest,
     db: Session = Depends(get_db),
-    clinician: Clinician = Depends(get_current_clinician),
+    # RBAC (0.2): patient search/match is a doctor action, part of the
+    # same recording/identity workflow as encounters.
+    clinician: Clinician = Depends(require_role("doctor")),
 ) -> PatientMatchResult:
     """P0-6: exact match links silently; near match needs a one-tap
     confirmation (client calls POST /patients with the confirmed name if
@@ -28,7 +30,7 @@ def match(
 def create(
     payload: PatientLookupRequest,
     db: Session = Depends(get_db),
-    clinician: Clinician = Depends(get_current_clinician),
+    clinician: Clinician = Depends(require_role("doctor")),
 ) -> PatientOut:
     """Creates a new record (P0-6: "no match creates a new record with
     name + birthdate"). Callers should have already called /match and

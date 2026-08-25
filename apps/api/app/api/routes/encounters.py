@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_clinician, get_db
+from app.api.deps import get_db, require_role
 from app.core.config import get_settings
 from app.models.clinician import Clinician
 from app.models.encounter import Encounter
@@ -17,7 +17,8 @@ router = APIRouter(prefix="/encounters", tags=["encounters"])
 def start_or_resume(
     payload: EncounterCreate,
     db: Session = Depends(get_db),
-    clinician: Clinician = Depends(get_current_clinician),
+    # RBAC (0.2): starting/resuming a recording is a doctor action.
+    clinician: Clinician = Depends(require_role("doctor")),
 ) -> EncounterOut:
     """Get-or-create on upload_idempotency_key (P0-2: "an idempotency key
     that prevents duplicate notes from a retried upload"). A retry with
@@ -45,7 +46,8 @@ def start_or_resume(
 @router.get("/loose", response_model=list[EncounterOut])
 def list_loose_sessions(
     db: Session = Depends(get_db),
-    clinician: Clinician = Depends(get_current_clinician),
+    # RBAC (0.2): the loose-sessions tray is a doctor's own worklist.
+    clinician: Clinician = Depends(require_role("doctor")),
 ) -> list[EncounterOut]:
     """P0-6: "a persistent 'loose sessions' tray with a one-tap linking
     action" — every encounter with no patient linked yet.
@@ -59,7 +61,8 @@ def link_patient(
     encounter_id: str,
     payload: EncounterLinkPatient,
     db: Session = Depends(get_db),
-    clinician: Clinician = Depends(get_current_clinician),
+    # RBAC (0.2): linking a loose session to a patient is a doctor action.
+    clinician: Clinician = Depends(require_role("doctor")),
 ) -> EncounterOut:
     encounter = db.get(Encounter, encounter_id)
     if encounter is None:
@@ -77,7 +80,9 @@ def confirm_upload(
     encounter_id: str,
     audio_object_key: str,
     db: Session = Depends(get_db),
-    clinician: Clinician = Depends(get_current_clinician),
+    # RBAC (0.2): confirming an upload is a doctor action, part of the
+    # same recording workflow as start_or_resume.
+    clinician: Clinician = Depends(require_role("doctor")),
 ) -> EncounterOut:
     """Called once the final chunk lands in object storage. Sets the
     retention clock (Compliance story: retention duration is configurable)

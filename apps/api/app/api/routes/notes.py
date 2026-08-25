@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_clinician, get_db
+from app.api.deps import get_current_clinician, get_db, require_role
 from app.models.clinician import Clinician
 from app.models.note import Note
 from app.schemas.note import NoteOut, NoteSectionUpdate, NoteTransitionRequest
@@ -22,6 +22,11 @@ def _get_note_or_404(db: Session, note_id: str) -> Note:
 def get_note(
     note_id: str,
     db: Session = Depends(get_db),
+    # RBAC (0.2): reads are deliberately open to any authenticated
+    # clinician (doctor for continuity of care across colleagues,
+    # compliance for review sampling) — need-to-know is enforced by
+    # making every read accountable via audit.record below, not by
+    # blocking. See docs/decisions/0004-note-read-access-scope.md.
     clinician: Clinician = Depends(get_current_clinician),
 ) -> NoteOut:
     note = _get_note_or_404(db, note_id)
@@ -34,7 +39,10 @@ def edit_section(
     note_id: str,
     payload: NoteSectionUpdate,
     db: Session = Depends(get_db),
-    clinician: Clinician = Depends(get_current_clinician),
+    # RBAC (0.2): only the treating doctor edits clinical content —
+    # compliance is read/audit-only, admin is a system role, neither
+    # writes PHI clinical text.
+    clinician: Clinician = Depends(require_role("doctor")),
 ) -> NoteOut:
     """P0-5: "Doctor can freely edit any section before signing; edits are
     tracked for the edit-burden metric." Every edit writes a NoteRevision
@@ -69,7 +77,11 @@ def transition_note(
     note_id: str,
     payload: NoteTransitionRequest,
     db: Session = Depends(get_db),
-    clinician: Clinician = Depends(get_current_clinician),
+    # RBAC (0.2): filing/authenticating/signing are doctor actions;
+    # signing in particular binds a PRC license number to a real
+    # clinician identity, which only "doctor" accounts should be able
+    # to attest to.
+    clinician: Clinician = Depends(require_role("doctor")),
 ) -> NoteOut:
     """Drives the P0-5 state machine one step at a time. Signing
     (to_status == "signed") additionally requires prc_license_number and

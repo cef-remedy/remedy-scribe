@@ -51,9 +51,9 @@ Do this first. These are not new features; they are places where the scaffold cu
 
 ### 0.2 Actually enforce RBAC ⚠️
 
-- [ ] Apply `require_role(...)` to routes. Right now it is defined in `app/api/deps.py` and used on **zero** endpoints.
-- [ ] Decide per-route: who can read a note? Only the authoring clinician, or any clinician in the clinic?
-- [ ] Test: a `compliance`-role token must not be able to `PATCH` a note; a `doctor` token must not be able to read the audit log.
+- [x] Apply `require_role(...)` to routes. Right now it is defined in `app/api/deps.py` and used on **zero** endpoints.
+- [x] Decide per-route: who can read a note? Only the authoring clinician, or any clinician in the clinic?
+- [x] Test: a `compliance`-role token must not be able to `PATCH` a note; a `doctor` token must not be able to read the audit log.
 
 ⚠️ **Heads-up:** a dependency that is written but never attached is worse than one that doesn't exist — it reads like coverage in a code review and provides none. Grep for `require_role` before you trust the docstring in `models/clinician.py` that says role "drives" access control. It currently drives nothing.
 

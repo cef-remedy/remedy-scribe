@@ -3,7 +3,7 @@ import json
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_clinician, get_db
+from app.api.deps import get_db, require_role
 from app.models.clinician import Clinician
 from app.models.consent import ConsentLedgerEntry
 from app.schemas.consent import ConsentEntryCreate, ConsentEntryOut
@@ -15,7 +15,10 @@ router = APIRouter(prefix="/consent", tags=["consent"])
 def record_consent_event(
     payload: ConsentEntryCreate,
     db: Session = Depends(get_db),
-    clinician: Clinician = Depends(get_current_clinician),
+    # RBAC (0.2): consent is captured by the clinician running the
+    # recording — not a compliance/admin action, so it's scoped to
+    # "doctor" like the rest of the recording workflow.
+    clinician: Clinician = Depends(require_role("doctor")),
 ) -> ConsentEntryOut:
     """P0-1: appends one row to the immutable consent ledger. Never
     updates a prior row — "given", "declined", and "withdrawn" are each

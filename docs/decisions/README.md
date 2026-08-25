@@ -17,3 +17,5 @@ product/legal/risk fork the checklist flags for you is marked **STATUS: OPEN
 | [0001](0001-consent-ledger-read-model.md) | 0.1 | How `assert_consent_valid` reads "current" consent state from an append-only ledger | Decided (implementation) |
 | [0002](0002-consent-violation-is-terminal-not-retried.md) | 0.1 | What the pipeline does when consent is invalid at task time | Decided (implementation) |
 | [0003](0003-mid-visit-reconsent-detection.md) | 0.1 / 2.3 | Manual flag vs. diarization-based detection for mid-visit re-consent | **OPEN — your call** |
+| [0004](0004-note-read-access-scope.md) | 0.2 | Note reads: authoring clinician only, or any clinician in the clinic | Decided (implementation) |
+| [0005](0005-rbac-role-policy-and-audit-log-endpoint.md) | 0.2 | Per-route role policy (`doctor` vs `admin` for clinical writes); adding a minimal audit-log endpoint early | Decided (implementation) |
