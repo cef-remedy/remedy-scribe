@@ -2,3 +2,9 @@
 # language-specific ignores (apps/api/.gitignore, apps/mobile/.gitignore).
 .DS_Store
 *.log
+
+# graphify's generated index/cache — regenerable, not source.
+graphify-out/
+
+# impeccable skill's local hook cache — regenerable, not source.
+.impeccable/

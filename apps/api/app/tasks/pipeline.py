@@ -15,6 +15,7 @@ from app.db.session import SessionLocal
 from app.models.encounter import Encounter
 from app.models.note import Note
 from app.services.asr import get_asr_provider
+from app.services.consent import ConsentNotValidError, assert_consent_valid
 from app.services.note_generation import get_note_generator
 from app.tasks.celery_app import celery_app
 
@@ -38,6 +39,12 @@ def transcribe_encounter(self, encounter_id: str) -> str:
         if encounter.pipeline_status in ("transcribed", "note_generated"):
             return encounter_id  # already done — redelivered message, no-op
 
+        # Re-checked here, not just at confirm_upload: consent can be
+        # withdrawn in the gap between "upload confirmed" and "this task
+        # actually runs" (queue backlog, retry delay, worker restart).
+        # A withdrawal must stop the pipeline at the next checkpoint.
+        assert_consent_valid(db, encounter_id)
+
         if not encounter.audio_object_key:
             raise ValueError(f"Encounter {encounter_id} has no uploaded audio yet")
 
@@ -52,6 +59,17 @@ def transcribe_encounter(self, encounter_id: str) -> str:
         encounter.pipeline_status = "transcribed"
         db.add(encounter)
         db.commit()
+        return encounter_id
+    except ConsentNotValidError:
+        # Not transient — retrying won't make a withdrawn/absent consent
+        # valid again. Stop here, terminally, rather than burning retries
+        # or (worse) transcribing PHI we're no longer allowed to hold.
+        db.rollback()
+        encounter = db.get(Encounter, encounter_id)
+        if encounter is not None:
+            encounter.pipeline_status = "blocked_no_consent"
+            db.add(encounter)
+            db.commit()
         return encounter_id
     except Exception as exc:  # noqa: BLE001 - retry any transient provider failure
         db.rollback()

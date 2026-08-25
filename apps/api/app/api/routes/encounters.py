@@ -8,6 +8,7 @@ from app.core.config import get_settings
 from app.models.clinician import Clinician
 from app.models.encounter import Encounter
 from app.schemas.encounter import EncounterCreate, EncounterLinkPatient, EncounterOut
+from app.services.consent import ConsentNotValidError, assert_consent_valid
 
 router = APIRouter(prefix="/encounters", tags=["encounters"])
 
@@ -86,6 +87,13 @@ def confirm_upload(
     encounter = db.get(Encounter, encounter_id)
     if encounter is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Encounter not found")
+
+    try:
+        assert_consent_valid(db, encounter_id)
+    except ConsentNotValidError as exc:
+        # 409, not 403: the clinician is allowed to be here, the ledger
+        # just doesn't currently support recording this encounter.
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
 
     settings = get_settings()
     encounter.audio_object_key = audio_object_key

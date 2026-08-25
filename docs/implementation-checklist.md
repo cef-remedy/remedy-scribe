@@ -38,10 +38,10 @@ Do this first. These are not new features; they are places where the scaffold cu
 
 ### 0.1 Enforce the consent gate server-side ⚠️ 🧠
 
-- [ ] Add a service function `assert_consent_valid(db, encounter_id)` that checks the ledger for a `given` event with no later `withdrawn` event for that encounter.
-- [ ] Call it in `confirm_upload` before setting `audio_object_key`, and again at the head of `transcribe_encounter`.
-- [ ] Return `409` (not `403`) when absent — this is a state problem, not a permissions problem.
-- [ ] Test: an encounter with no consent row must not be able to reach the pipeline.
+- [x] Add a service function `assert_consent_valid(db, encounter_id)` that checks the ledger for a `given` event with no later `withdrawn` event for that encounter.
+- [x] Call it in `confirm_upload` before setting `audio_object_key`, and again at the head of `transcribe_encounter`.
+- [x] Return `409` (not `403`) when absent — this is a state problem, not a permissions problem.
+- [x] Test: an encounter with no consent row must not be able to reach the pipeline.
 
 ⚠️ **Heads-up:** right now nothing server-side stops an encounter from being uploaded and transcribed with **zero** consent records. P0-1 says recording is blocked without consent, and today that rule lives only in the client — which is exactly where a legal control must *not* live, because the client is the part an attacker or a bug controls. This is the single most important gap in the current codebase.
 
