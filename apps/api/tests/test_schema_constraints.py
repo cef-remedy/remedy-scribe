@@ -94,22 +94,8 @@ def test_db_accepts_every_valid_pipeline_status(db):
         db.commit()
 
 
-def test_confirm_upload_rejects_the_old_query_param_contract(db, client):
-    """Locks in the 0.4 contract change: audio_object_key must now be a
-    JSON body field. A bare query param with no body is a validation
-    error (422), not a silent success — guards against ever drifting
-    back to the query-param version by accident.
-    """
-    from app.core.security import create_access_token
-
-    encounter, _note = _seed_encounter_with_note(db)
-    clinician = db.get(Clinician, encounter.clinician_id)
-    token = create_access_token(subject=clinician.id, extra_claims={"role": clinician.role})
-
-    response = client.post(
-        f"/api/v1/encounters/{encounter.id}/confirm-upload",
-        params={"audio_object_key": "s3://bucket/key"},  # old contract — should no longer work
-        headers={"Authorization": f"Bearer {token}"},
-    )
-
-    assert response.status_code == 422
+# The 0.4 regression test that used to live here (locking in
+# confirm_upload's query-param -> JSON-body contract change) no longer
+# applies: Phase 1.1 removed `POST /confirm-upload` entirely, replacing
+# it with app/api/routes/uploads.py's init/parts/complete flow, which
+# never had a query-param version to regress to. See docs/decisions/0013.

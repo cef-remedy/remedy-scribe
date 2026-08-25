@@ -1,7 +1,9 @@
 """Phase 0.1: the consent gate must be enforced server-side, not just in
 the mobile client's UI. These tests exercise both enforcement points —
-`confirm_upload` and the head of `transcribe_encounter` — against an
-encounter that has no (or no longer active) consent record.
+`POST /upload/complete` (Phase 1.1 renamed this from `confirm_upload`;
+the check itself, and where it sits in the flow, didn't move) and the
+head of `transcribe_encounter` — against an encounter that has no (or no
+longer active) consent record.
 """
 
 import pytest
@@ -79,43 +81,56 @@ def test_re_given_after_withdrawn_passes(db):
     assert_consent_valid(db, encounter.id)  # must not raise
 
 
-# --- enforcement point 1: confirm_upload -----------------------------------
+# --- enforcement point 1: POST /upload/complete ----------------------------
 
 
-def test_confirm_upload_rejects_encounter_with_no_consent(db, client):
+def test_upload_complete_rejects_encounter_with_no_consent(db, client):
     encounter, clinician = _seed_encounter(db)
+    encounter.audio_object_key = "encounters/x/audio/y.m4a"
+    encounter.audio_upload_id = "upload-1"  # simulates a completed upload/init
+    db.add(encounter)
+    db.commit()
     token = create_access_token(subject=clinician.id, extra_claims={"role": clinician.role})
 
+    # Consent is checked before storage.complete_multipart_upload is ever
+    # called, so this doesn't need storage mocked — an invalid-consent
+    # encounter never reaches S3 at all.
     response = client.post(
-        f"/api/v1/encounters/{encounter.id}/confirm-upload",
-        json={"audio_object_key": "s3://bucket/key"},
+        f"/api/v1/encounters/{encounter.id}/upload/complete",
         headers={"Authorization": f"Bearer {token}"},
     )
 
     assert response.status_code == 409
     db.refresh(encounter)
-    assert encounter.audio_object_key is None
     assert encounter.pipeline_status == "recording"  # never advanced to "uploaded"
+    assert encounter.audio_upload_id == "upload-1"  # untouched — nothing was finalized
 
 
-def test_confirm_upload_succeeds_once_consent_given(db, client, monkeypatch):
-    # Don't let this test depend on a live Celery broker — confirm_upload
-    # kicks off run_pipeline as its last step, which is out of scope here.
+def test_upload_complete_succeeds_once_consent_given(db, client, monkeypatch):
+    # Don't let this test depend on a live Celery broker or real S3/MinIO
+    # — both are out of scope for a consent-gate test. storage.py's real
+    # mechanics are covered by tests/test_storage_specific.py instead.
     monkeypatch.setattr("app.tasks.pipeline.run_pipeline", lambda encounter_id: None)
+    monkeypatch.setattr("app.services.storage.complete_multipart_upload", lambda key, upload_id: {})
+    monkeypatch.setattr("app.services.storage.head_object", lambda key: {"ContentLength": 123})
 
     encounter, clinician = _seed_encounter(db)
+    encounter.audio_object_key = "encounters/x/audio/y.m4a"
+    encounter.audio_upload_id = "upload-1"
+    db.add(encounter)
     db.add(_ledger_entry(encounter.id, "given"))
     db.commit()
     token = create_access_token(subject=clinician.id, extra_claims={"role": clinician.role})
 
     response = client.post(
-        f"/api/v1/encounters/{encounter.id}/confirm-upload",
-        json={"audio_object_key": "s3://bucket/key"},
+        f"/api/v1/encounters/{encounter.id}/upload/complete",
         headers={"Authorization": f"Bearer {token}"},
     )
 
     assert response.status_code == 200
     assert response.json()["pipeline_status"] == "uploaded"
+    db.refresh(encounter)
+    assert encounter.audio_upload_id is None  # consumed on completion
 
 
 # --- enforcement point 2: transcribe_encounter (defense in depth) ---------

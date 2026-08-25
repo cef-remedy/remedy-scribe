@@ -24,11 +24,21 @@ class Settings(BaseSettings):
     # Redis (Celery broker + cache)
     redis_url: str = "redis://localhost:6379/0"
 
-    # Object storage
+    # Object storage (Phase 1.1: presigned S3 multipart upload)
     s3_endpoint_url: str = "http://localhost:9000"
     s3_bucket: str = "remedy-scribe-audio"
     s3_access_key: str = "remedy"
     s3_secret_key: str = "remedy-dev-secret"
+    s3_presigned_url_expires_seconds: int = 900  # 15 min per part-upload URL
+    # The orphan-upload reaper: how long an incomplete multipart upload
+    # survives before the bucket lifecycle rule aborts it automatically.
+    s3_abort_incomplete_upload_after_days: int = 2
+    # Off in tests (tests/conftest.py) — every TestClient instantiation
+    # re-fires the FastAPI startup event, and with no object store
+    # actually running, ~50 tests x a handful of network calls each
+    # turns into minutes of nothing but connection failures. On by
+    # default everywhere else.
+    s3_provision_bucket_on_startup: bool = True
 
     # Auth
     jwt_secret: str = "change-me-in-every-environment"

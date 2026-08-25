@@ -53,7 +53,14 @@ class Encounter(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     clinician_id: Mapped[str] = mapped_column(String(36), ForeignKey("clinicians.id"), nullable=False)
 
     upload_idempotency_key: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
-    audio_object_key: Mapped[str | None] = mapped_column(String(512), nullable=True)  # S3 key, set once uploaded
+    audio_object_key: Mapped[str | None] = mapped_column(String(512), nullable=True)  # S3 key, server-generated (1.1)
+    # S3 multipart UploadId (Phase 1.1) — set at upload/init, cleared at
+    # upload/complete. Its presence is what makes both endpoints
+    # idempotent: init returns the existing key/upload_id on retry
+    # instead of orphaning a second S3-side session, and complete treats
+    # a missing upload_id (already-completed encounter) as a no-op
+    # rather than re-calling S3 with a since-consumed UploadId.
+    audio_upload_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     audio_deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     audio_retention_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

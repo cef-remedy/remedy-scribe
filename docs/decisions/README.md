@@ -26,3 +26,6 @@ product/legal/risk fork the checklist flags for you is marked **STATUS: OPEN
 | [0010](0010-enum-check-constraints-needed-explicit-flags.md) | 0.4 | `Note.status` had no real DB constraint; enum CHECK constraints need explicit `values_callable` too | Decided (implementation) — **bug found empirically** |
 | [0011](0011-encounter-pipeline-status-enum-membership.md) | 0.4 | `EncounterPipelineStatus` scoped to today's 5 values, not Phase 1.5's future ones | Decided (implementation) |
 | [0012](0012-postgres-test-path-testcontainers-and-subprocess-migrations.md) | 0.5 | testcontainers over a CI service container; migrations run as a real subprocess, not in-process | Decided (implementation) |
+| [0013](0013-presigned-multipart-upload-design.md) | 1.1 | Presigned S3 multipart protocol (user's call); server-owned object key; S3 `ListParts` as per-chunk state | Decided (user + implementation) |
+| [0014](0014-bucket-lifecycle-rule-shape-and-minio-limitation.md) | 1.1 | Lifecycle rule must combine both actions in one rule; MinIO silently drops the abort action | Decided (implementation) — **bug found empirically** |
+| [0015](0015-startup-bucket-provisioning-off-in-tests.md) | 1.1 | Short boto3 timeouts; bucket provisioning disabled in tests | Decided (implementation) — **perf bug found empirically** |

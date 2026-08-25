@@ -8,4 +8,8 @@ ruff==0.6.8
 # against it -- SQLite's Base.metadata.create_all() silently skips
 # raw-SQL migrations (the consent ledger's append-only trigger, 0.4's
 # CHECK constraints), so this is the only place those are exercised.
-testcontainers[postgres]==4.8.2
+# Phase 1.1: [minio] extra adds the same real-backend testing for
+# app/services/storage.py's presigned-multipart mechanics
+# (tests/test_storage_specific.py) -- mocking boto3 would prove nothing
+# about whether a minted URL can actually be PUT to.
+testcontainers[postgres,minio]==4.8.2

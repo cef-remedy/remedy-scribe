@@ -30,14 +30,3 @@ class EncounterLinkPatient(BaseModel):
     """One-tap linking action for a loose session (P0-6)."""
 
     patient_id: str
-
-
-class ConfirmUploadRequest(BaseModel):
-    """Phase 0.4: was a bare `audio_object_key: str` route parameter,
-    which FastAPI resolves as a query parameter — an S3 object key
-    riding along in the URL/query string (and so in access logs,
-    proxies, browser history) rather than the request body where a
-    write payload belongs.
-    """
-
-    audio_object_key: str

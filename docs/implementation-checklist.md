@@ -93,11 +93,11 @@ Goal: audio recorded on a device ends up as a structured note in Postgres, with 
 
 ### 1.1 Upload path 🧠 📚
 
-- [ ] Implement an S3/MinIO client module (`app/services/storage.py`) — `boto3` is already a declared dependency and currently unused.
-- [ ] Implement chunked, resumable upload. Endpoints, roughly: `POST /encounters/{id}/upload/init` → `PUT /encounters/{id}/upload/chunk/{n}` → `POST /encounters/{id}/upload/complete`.
-- [ ] Persist per-chunk state so a resumed upload skips what already landed.
-- [ ] Enforce the idempotency key across the whole flow, not just encounter creation.
-- [ ] Server-side encryption at rest on the bucket, plus a lifecycle policy keyed to `AUDIO_RETENTION_DAYS`.
+- [x] Implement an S3/MinIO client module (`app/services/storage.py`) — `boto3` is already a declared dependency and currently unused.
+- [x] Implement chunked, resumable upload. Endpoints, roughly: `POST /encounters/{id}/upload/init` → `PUT /encounters/{id}/upload/chunk/{n}` → `POST /encounters/{id}/upload/complete`. (Presigned multipart shape: `POST .../upload/init` → `POST .../upload/parts/{n}` mints a presigned URL the device PUTs to directly → `POST .../upload/complete`.)
+- [x] Persist per-chunk state so a resumed upload skips what already landed. (S3's own `ListParts` is the persisted state — `GET .../upload/parts` — rather than a mirrored Postgres table; see decision 0013.)
+- [x] Enforce the idempotency key across the whole flow, not just encounter creation. (`upload/init` and `upload/complete` are both idempotent on retry — see docs/progress/1.1.)
+- [x] Server-side encryption at rest on the bucket, plus a lifecycle policy keyed to `AUDIO_RETENTION_DAYS`.
 
 🧠 **Your call — build the upload protocol or adopt one?** Three real options:
 - **S3 multipart with presigned URLs.** The device uploads directly to object storage; your API only mints URLs and gets a completion callback. Cheapest to run, least bandwidth through your server, natively resumable. Cost: presigned-URL scoping is easy to get subtly wrong, and your API no longer sees the bytes (so it can't enforce anything about them).

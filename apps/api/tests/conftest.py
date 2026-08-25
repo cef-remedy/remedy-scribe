@@ -12,6 +12,14 @@ _DB_PATH = Path(__file__).parent / "test.db"
 os.environ["DATABASE_URL"] = f"sqlite:///{_DB_PATH}"
 os.environ.setdefault("PHI_ENCRYPTION_KEY", Fernet.generate_key().decode())
 os.environ.setdefault("JWT_SECRET", "test-secret")
+# Phase 1.1: the `client` fixture below re-fires FastAPI's startup event
+# on every single test (a fresh TestClient each time) — with no real S3
+# endpoint running, that's ~50 tests x several failed network calls
+# each, easily minutes of nothing but connection failures. Route-level
+# upload tests monkeypatch app.services.storage directly instead; the
+# real bucket-provisioning path is exercised for real in
+# tests/test_storage_specific.py against an actual MinIO container.
+os.environ["S3_PROVISION_BUCKET_ON_STARTUP"] = "false"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

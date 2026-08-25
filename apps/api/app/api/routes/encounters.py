@@ -1,14 +1,10 @@
-from datetime import datetime, timedelta, timezone
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, require_role
-from app.core.config import get_settings
 from app.models.clinician import Clinician
 from app.models.encounter import Encounter, EncounterPipelineStatus
-from app.schemas.encounter import ConfirmUploadRequest, EncounterCreate, EncounterLinkPatient, EncounterOut
-from app.services.consent import ConsentNotValidError, assert_consent_valid
+from app.schemas.encounter import EncounterCreate, EncounterLinkPatient, EncounterOut
 
 router = APIRouter(prefix="/encounters", tags=["encounters"])
 
@@ -75,40 +71,9 @@ def link_patient(
     return EncounterOut.model_validate(encounter)
 
 
-@router.post("/{encounter_id}/confirm-upload", response_model=EncounterOut)
-def confirm_upload(
-    encounter_id: str,
-    payload: ConfirmUploadRequest,
-    db: Session = Depends(get_db),
-    # RBAC (0.2): confirming an upload is a doctor action, part of the
-    # same recording workflow as start_or_resume.
-    clinician: Clinician = Depends(require_role("doctor")),
-) -> EncounterOut:
-    """Called once the final chunk lands in object storage. Sets the
-    retention clock (Compliance story: retention duration is configurable)
-    and kicks off the transcribe -> generate_note pipeline. Local audio on
-    the device is only safe to delete once this call succeeds (P0-2).
-    """
-    encounter = db.get(Encounter, encounter_id)
-    if encounter is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Encounter not found")
-
-    try:
-        assert_consent_valid(db, encounter_id)
-    except ConsentNotValidError as exc:
-        # 409, not 403: the clinician is allowed to be here, the ledger
-        # just doesn't currently support recording this encounter.
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
-
-    settings = get_settings()
-    encounter.audio_object_key = payload.audio_object_key
-    encounter.audio_retention_expires_at = datetime.now(timezone.utc) + timedelta(days=settings.audio_retention_days)
-    encounter.pipeline_status = EncounterPipelineStatus.UPLOADED
-    db.add(encounter)
-    db.commit()
-    db.refresh(encounter)
-
-    from app.tasks.pipeline import run_pipeline  # deferred import: avoids a hard Celery/Redis dependency at import time for routes that never touch the pipeline
-
-    run_pipeline(encounter.id)
-    return EncounterOut.model_validate(encounter)
+# Upload confirmation used to live here as `POST /{encounter_id}/confirm-upload`,
+# taking a client-supplied `audio_object_key` on faith. Phase 1.1 replaced it
+# with the real upload flow in app/api/routes/uploads.py — the server now
+# generates the object key itself and only accepts an upload as complete
+# once it has verified the object actually exists in storage. See
+# docs/decisions/0013.
