@@ -163,3 +163,51 @@ code {
 }
 .queue-meta .bad { color: var(--error); font-weight: 600; }
 .queue-error { font-size: .85rem; margin: .4rem 0 0; color: var(--error); }
+
+
+/* --- patient picker (2.5) ----------------------------------------------- */
+.picker label { display: block; font-size: .85rem; color: var(--ink2); margin: .75rem 0 .25rem; }
+.picker input {
+  width: 100%; font: inherit; padding: .55rem .7rem; border-radius: 7px;
+  border: 1px solid var(--rule); background: var(--bg); color: var(--ink);
+}
+.candidates h3 { font-size: .85rem; margin: 1rem 0 .25rem; }
+.candidates ul { list-style: none; padding: 0; margin: .5rem 0 0; }
+.candidates li { margin-bottom: .4rem; }
+.candidate {
+  width: 100%; margin: 0; text-align: left; background: var(--bg); color: var(--ink);
+  border: 1px solid var(--rule); display: flex; gap: .75rem; align-items: baseline;
+  flex-wrap: wrap; font-weight: 400;
+}
+.candidate:hover { border-color: var(--accent); }
+.candidate-name { font-weight: 600; }
+/* Birthdate is the discriminator between similar names, so it is not
+   demoted to fine print. */
+.candidate-dob { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .85rem; color: var(--ink2); }
+.candidate-tag {
+  margin-left: auto; font-size: .7rem; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--accent);
+}
+.picker-create { margin-top: 1rem; }
+
+/* --- note review (2.6) -------------------------------------------------- */
+textarea {
+  width: 100%; font: inherit; line-height: 1.55; padding: .6rem .7rem;
+  border-radius: 7px; border: 1px solid var(--rule);
+  background: var(--bg); color: var(--ink); resize: vertical;
+}
+textarea:disabled { opacity: .75; cursor: not-allowed; }
+.prior { background: var(--card2); }
+.prior-text { font-family: inherit; white-space: pre-wrap; }
+
+/* The signing ceremony is visually separated from the ordinary "next step"
+   buttons on purpose: it is irreversible and it transfers accountability
+   from the model to the clinician. It should not look like a Save button. */
+.ceremony { border: 2px solid var(--accent); background: var(--card); }
+.ceremony h2 { font-size: 1.1rem; color: var(--accent); }
+.ceremony p { font-size: .95rem; }
+
+.loose { list-style: none; padding: 0; }
+.loose > li { border: 1px solid var(--rule); border-radius: 8px; padding: .6rem .8rem; margin-bottom: .5rem; }
+.loose-head { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; }
+.loose-head .ghost { margin: 0 0 0 auto; padding: .25rem .6rem; font-size: .8rem; }

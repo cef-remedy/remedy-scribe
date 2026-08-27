@@ -11,6 +11,8 @@ import { useOnlineStatus } from "../lib/offline";
 import { Banner, OfflineBanner } from "../components/Banner";
 import { QueueStatus } from "../components/QueueStatus";
 import { useQueue } from "../lib/queue/useQueue";
+import { PatientPicker } from "../components/PatientPicker";
+import { linkEncounterToPatient } from "../lib/patients";
 import { estimatedBytesPerMinute, TARGET_BITS_PER_SECOND } from "../lib/audio-config";
 
 type Encounter = { id: string; pipeline_status: string; created_at: string };
@@ -19,6 +21,8 @@ export function Home() {
   const { signOut } = useAuth();
   const online = useOnlineStatus();
   const { entries, storage, retry, uploadNow } = useQueue();
+  const [linking, setLinking] = useState<string | null>(null);
+  const [linkError, setLinkError] = useState<string | null>(null);
   const [loose, setLoose] = useState<Encounter[] | null>(null);
   const [failed, setFailed] = useState<Encounter[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -72,14 +76,44 @@ export function Home() {
         ) : loose.length === 0 ? (
           <p className="muted">None.</p>
         ) : (
-          <ul>
+          <ul className="loose">
             {loose.map((e) => (
               <li key={e.id}>
-                <code>{e.id.slice(0, 8)}</code> — {e.pipeline_status}
+                <div className="loose-head">
+                  <code>{e.id.slice(0, 8)}</code>
+                  <span className="muted">{e.pipeline_status}</span>
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => {
+                      setLinkError(null);
+                      setLinking(linking === e.id ? null : e.id);
+                    }}
+                  >
+                    {linking === e.id ? "Cancel" : "Link to patient"}
+                  </button>
+                </div>
+                {/* P0-6's one-tap linking action. Recording was never blocked
+                    on identity, so this is where identity catches up. */}
+                {linking === e.id && (
+                  <PatientPicker
+                    autoLinkExact={false}
+                    onPicked={async (p) => {
+                      const ok = await linkEncounterToPatient(e.id, p.id);
+                      if (!ok) {
+                        setLinkError("Could not link that patient. Try again.");
+                        return;
+                      }
+                      setLinking(null);
+                      setLoose((prev) => (prev ?? []).filter((x) => x.id !== e.id));
+                    }}
+                  />
+                )}
               </li>
             ))}
           </ul>
         )}
+        {linkError && <Banner tone="error">{linkError}</Banner>}
       </section>
 
       <section className="card">

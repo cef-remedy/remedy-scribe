@@ -26,6 +26,12 @@ class EncounterOut(BaseModel):
     # happened and how many times it's been tried.
     retry_count: int
     last_pipeline_error: str | None
+    #: Phase 2.6. Notes are 1:1 with encounters (Note.encounter_id is
+    #: unique), but nothing exposed the id — so the review screen at
+    #: /notes/{id} had no way to be reached from a worklist. Found while
+    #: writing the end-to-end test for 2.6, which could not navigate to the
+    #: screen it was meant to exercise.
+    note_id: str | None = None
     audio_retention_expires_at: datetime | None
     created_at: datetime
 

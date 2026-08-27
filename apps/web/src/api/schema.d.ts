@@ -191,6 +191,62 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/patients/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search
+         * @description Name-first fuzzy search (P0-6: "accepts a typed or dictated patient
+         *     name and fuzzy-matches against the existing directory").
+         *
+         *     Distinct from `POST /match`, which needs a birthdate and answers the
+         *     *deduplication* question. This answers the earlier one: which patients
+         *     might the doctor mean? Birthdate comes back with each hit so two people
+         *     with similar names can be told apart, which is why it is stored
+         *     unencrypted in the first place.
+         *
+         *     Note the audit entry: this is a PHI read — it decrypts every patient
+         *     name in the directory to rank them — so it is logged as one. Phase 4.2
+         *     exists because reads are the ones developers forget.
+         */
+        get: operations["search_api_v1_patients_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/patients/{patient_id}/prior-visit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Prior Visit
+         * @description The prior visit's assessment and plan (P0-5's longitudinal-context
+         *     item), for the note review screen.
+         *
+         *     Returns null rather than 404 when there is no prior visit: a first-time
+         *     patient is the normal case, not an error, and a 404 would push the client
+         *     into treating an ordinary state as a failure.
+         */
+        get: operations["prior_visit_api_v1_patients__patient_id__prior_visit_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/encounters": {
         parameters: {
             query?: never;
@@ -823,12 +879,17 @@ export interface components {
          * NoteTransitionRequest
          * @description Advances the note exactly one step in the state machine
          *     (P0-5: generated -> filed -> authenticated -> signed, no skipping).
-         *     Signing additionally requires PRC license number.
+         *     Signing additionally requires PRC license number, and **filing
+         *     additionally requires confirming the patient** (P0-6: identity is
+         *     re-confirmed at the moment a note is filed, not only at recording
+         *     start).
          */
         NoteTransitionRequest: {
             to_status: components["schemas"]["NoteStatus"];
             /** Prc License Number */
             prc_license_number?: string | null;
+            /** Confirmed Patient Id */
+            confirmed_patient_id?: string | null;
         };
         /** PartUploadUrlResponse */
         PartUploadUrlResponse: {
@@ -881,6 +942,55 @@ export interface components {
              * Format: date
              */
             birthdate: string;
+        };
+        /**
+         * PatientSearchHit
+         * @description One ranked result from name-first search (P0-6).
+         *
+         *     `birthdate` is returned so the doctor can disambiguate two people with
+         *     the same or similar name — which is the whole reason dedup uses name +
+         *     birthdate together rather than name alone. It is already stored
+         *     unencrypted (see app/models/patient.py) precisely because it has to be
+         *     usable as a discriminator.
+         */
+        PatientSearchHit: {
+            /** Id */
+            id: string;
+            /** Full Name */
+            full_name: string;
+            /**
+             * Birthdate
+             * Format: date
+             */
+            birthdate: string;
+            /** Score */
+            score: number;
+            /**
+             * Match Type
+             * @enum {string}
+             */
+            match_type: "exact" | "near";
+        };
+        /**
+         * PriorVisitOut
+         * @description Longitudinal context for the review screen (P0-5). Deliberately only
+         *     assessment and plan: subjective and objective are visit-specific, while
+         *     A and P are what a doctor actually needs carried forward.
+         */
+        PriorVisitOut: {
+            /** Note Id */
+            note_id: string;
+            /** Encounter Id */
+            encounter_id: string;
+            /** Assessment */
+            assessment: string;
+            /** Plan */
+            plan: string;
+            /**
+             * Signed At
+             * Format: date-time
+             */
+            signed_at: string;
         };
         /**
          * RefreshRequest
@@ -1241,6 +1351,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PatientOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_api_v1_patients_search_get: {
+        parameters: {
+            query: {
+                /** @description Typed or dictated patient name */
+                q: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PatientSearchHit"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    prior_visit_api_v1_patients__patient_id__prior_visit_get: {
+        parameters: {
+            query?: {
+                exclude_encounter_id?: string | null;
+            };
+            header?: never;
+            path: {
+                patient_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriorVisitOut"] | null;
                 };
             };
             /** @description Validation Error */

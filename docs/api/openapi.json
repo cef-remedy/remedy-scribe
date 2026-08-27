@@ -349,6 +349,146 @@
         ]
       }
     },
+    "/api/v1/patients/search": {
+      "get": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Search",
+        "description": "Name-first fuzzy search (P0-6: \"accepts a typed or dictated patient\nname and fuzzy-matches against the existing directory\").\n\nDistinct from `POST /match`, which needs a birthdate and answers the\n*deduplication* question. This answers the earlier one: which patients\nmight the doctor mean? Birthdate comes back with each hit so two people\nwith similar names can be told apart, which is why it is stored\nunencrypted in the first place.\n\nNote the audit entry: this is a PHI read \u2014 it decrypts every patient\nname in the directory to rank them \u2014 so it is logged as one. Phase 4.2\nexists because reads are the ones developers forget.",
+        "operationId": "search_api_v1_patients_search_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "Typed or dictated patient name",
+              "title": "Q"
+            },
+            "description": "Typed or dictated patient name"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 10,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PatientSearchHit"
+                  },
+                  "title": "Response Search Api V1 Patients Search Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/patients/{patient_id}/prior-visit": {
+      "get": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Prior Visit",
+        "description": "The prior visit's assessment and plan (P0-5's longitudinal-context\nitem), for the note review screen.\n\nReturns null rather than 404 when there is no prior visit: a first-time\npatient is the normal case, not an error, and a 404 would push the client\ninto treating an ordinary state as a failure.",
+        "operationId": "prior_visit_api_v1_patients__patient_id__prior_visit_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          },
+          {
+            "name": "exclude_encounter_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Exclude Encounter Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/PriorVisitOut"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Prior Visit Api V1 Patients  Patient Id  Prior Visit Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/encounters": {
       "post": {
         "tags": [
@@ -1712,6 +1852,17 @@
               }
             ],
             "title": "Prc License Number"
+          },
+          "confirmed_patient_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed Patient Id"
           }
         },
         "type": "object",
@@ -1719,7 +1870,7 @@
           "to_status"
         ],
         "title": "NoteTransitionRequest",
-        "description": "Advances the note exactly one step in the state machine\n(P0-5: generated -> filed -> authenticated -> signed, no skipping).\nSigning additionally requires PRC license number."
+        "description": "Advances the note exactly one step in the state machine\n(P0-5: generated -> filed -> authenticated -> signed, no skipping).\nSigning additionally requires PRC license number, and **filing\nadditionally requires confirming the patient** (P0-6: identity is\nre-confirmed at the moment a note is filed, not only at recording\nstart)."
       },
       "PartUploadUrlResponse": {
         "properties": {
@@ -1824,6 +1975,80 @@
           "birthdate"
         ],
         "title": "PatientOut"
+      },
+      "PatientSearchHit": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "birthdate": {
+            "type": "string",
+            "format": "date",
+            "title": "Birthdate"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "match_type": {
+            "type": "string",
+            "enum": [
+              "exact",
+              "near"
+            ],
+            "title": "Match Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "full_name",
+          "birthdate",
+          "score",
+          "match_type"
+        ],
+        "title": "PatientSearchHit",
+        "description": "One ranked result from name-first search (P0-6).\n\n`birthdate` is returned so the doctor can disambiguate two people with\nthe same or similar name \u2014 which is the whole reason dedup uses name +\nbirthdate together rather than name alone. It is already stored\nunencrypted (see app/models/patient.py) precisely because it has to be\nusable as a discriminator."
+      },
+      "PriorVisitOut": {
+        "properties": {
+          "note_id": {
+            "type": "string",
+            "title": "Note Id"
+          },
+          "encounter_id": {
+            "type": "string",
+            "title": "Encounter Id"
+          },
+          "assessment": {
+            "type": "string",
+            "title": "Assessment"
+          },
+          "plan": {
+            "type": "string",
+            "title": "Plan"
+          },
+          "signed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Signed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "note_id",
+          "encounter_id",
+          "assessment",
+          "plan",
+          "signed_at"
+        ],
+        "title": "PriorVisitOut",
+        "description": "Longitudinal context for the review screen (P0-5). Deliberately only\nassessment and plan: subjective and objective are visit-specific, while\nA and P are what a doctor actually needs carried forward."
       },
       "RefreshRequest": {
         "properties": {

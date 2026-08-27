@@ -6,7 +6,12 @@ from app.models.clinician import Clinician
 from app.models.note import Note
 from app.schemas.note import NoteOut, NoteSectionUpdate, NoteTransitionRequest
 from app.services import audit
-from app.services.note_lifecycle import InvalidTransitionError, SigningRequiresLicenseError, transition
+from app.services.note_lifecycle import (
+    InvalidTransitionError,
+    PatientIdentityNotConfirmedError,
+    SigningRequiresLicenseError,
+    transition,
+)
 
 router = APIRouter(prefix="/notes", tags=["notes"])
 
@@ -95,11 +100,16 @@ def transition_note(
             payload.to_status,
             clinician_id=clinician.id,
             prc_license_number=payload.prc_license_number,
+            confirmed_patient_id=payload.confirmed_patient_id,
         )
     except InvalidTransitionError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except SigningRequiresLicenseError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+    except PatientIdentityNotConfirmedError as exc:
+        # A state problem, not a permissions one: the caller may file,
+        # the note just is not attached to a confirmed patient yet.
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
 
     audit.record(
         db,

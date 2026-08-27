@@ -11,6 +11,7 @@ import { Login } from "./routes/Login";
 import { Home } from "./routes/Home";
 import { Record } from "./routes/Record";
 import { Consent } from "./routes/Consent";
+import { NoteReview } from "./routes/NoteReview";
 
 export function App() {
   const { status } = useAuth();
@@ -39,6 +40,10 @@ export function App() {
       <Route
         path="/encounters/:encounterId/record"
         element={signedIn ? <Record /> : <Navigate to="/login" replace />}
+      />
+      <Route
+        path="/notes/:noteId"
+        element={signedIn ? <NoteReview /> : <Navigate to="/login" replace />}
       />
       <Route path="*" element={<Navigate to={signedIn ? "/" : "/login"} replace />} />
     </Routes>

@@ -10,3 +10,4 @@ build/
 dist/
 smoke.db
 tests/test.db
+bench*.db

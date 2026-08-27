@@ -37,8 +37,14 @@ class NoteSectionUpdate(BaseModel):
 class NoteTransitionRequest(BaseModel):
     """Advances the note exactly one step in the state machine
     (P0-5: generated -> filed -> authenticated -> signed, no skipping).
-    Signing additionally requires PRC license number.
+    Signing additionally requires PRC license number, and **filing
+    additionally requires confirming the patient** (P0-6: identity is
+    re-confirmed at the moment a note is filed, not only at recording
+    start).
     """
 
     to_status: NoteStatus
     prc_license_number: str | None = None
+    #: Required for the FILED transition; checked against the encounter's
+    #: own patient_id so a stale client cannot file against the wrong person.
+    confirmed_patient_id: str | None = None

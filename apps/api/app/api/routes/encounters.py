@@ -6,9 +6,32 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db, require_role
 from app.models.clinician import Clinician
 from app.models.encounter import Encounter, EncounterPipelineStatus
+from app.models.note import Note
 from app.schemas.encounter import EncounterCreate, EncounterLinkPatient, EncounterOut
 
 router = APIRouter(prefix="/encounters", tags=["encounters"])
+
+def _encounter_out(db: Session, encounter: Encounter) -> EncounterOut:
+    """EncounterOut plus the 1:1 note id (Phase 2.6).
+
+    Resolved here rather than as a relationship on the model so the extra
+    query only happens on the read paths that need it, and so `note_id` stays
+    a property of the API response rather than of the ORM object.
+    """
+    note_id = (
+        db.query(Note.id).filter(Note.encounter_id == encounter.id).scalar()
+        if encounter.pipeline_status
+        in (
+            EncounterPipelineStatus.NOTE_GENERATED,
+            EncounterPipelineStatus.TRANSCRIBED,
+        )
+        else None
+    )
+    out = EncounterOut.model_validate(encounter)
+    out.note_id = note_id
+    return out
+
+
 
 # Phase 1.5: the two terminal, dead-lettered statuses — see
 # app/tasks/pipeline.py's _mark_stage_failure. Both /failed and /retry
@@ -56,7 +79,7 @@ def list_loose_sessions(
     action" — every encounter with no patient linked yet.
     """
     rows = db.query(Encounter).filter(Encounter.patient_id.is_(None)).order_by(Encounter.created_at.desc()).all()
-    return [EncounterOut.model_validate(r) for r in rows]
+    return [_encounter_out(db, r) for r in rows]
 
 
 @router.post("/{encounter_id}/link-patient", response_model=EncounterOut)
@@ -96,7 +119,7 @@ def list_failed_encounters(
         .order_by(Encounter.pipeline_updated_at.desc())
         .all()
     )
-    return [EncounterOut.model_validate(r) for r in rows]
+    return [_encounter_out(db, r) for r in rows]
 
 
 @router.post("/{encounter_id}/retry", response_model=EncounterOut)
@@ -178,7 +201,7 @@ def read_encounter(
     encounter = db.get(Encounter, encounter_id)
     if encounter is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Encounter not found")
-    return EncounterOut.model_validate(encounter)
+    return _encounter_out(db, encounter)
 
 
 # Upload confirmation used to live here as `POST /{encounter_id}/confirm-upload`,
