@@ -1,5 +1,10 @@
 # Root-level catch-all. Each app also has its own .gitignore for
-# language-specific ignores (apps/api/.gitignore, apps/mobile/.gitignore).
+# language-specific ignores (apps/api/.gitignore, apps/web/.gitignore).
+#
+# NOTE: adding a path here does NOT untrack a file that is already in the
+# index — gitignore only applies to untracked paths. Both entries below
+# were listed here AND tracked anyway for several commits; use
+# `git rm -r --cached <path>` to actually stop tracking something.
 .DS_Store
 *.log
 
