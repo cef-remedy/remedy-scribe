@@ -8,44 +8,109 @@ choice optimizes for the stated constraint: lean team, 4–8 week MVP.
 
 ---
 
-## 1. Client — React Native (Expo, custom dev client) + TypeScript
+## 1. Client — browser web app (PWA-shaped) on a clinic laptop + TypeScript
 
-**Decided in discussion:** cross-platform mobile, not a web/PWA client.
+> **Superseded 2026-08-27 (decision 0024).** This section previously read
+> "React Native (Expo, custom dev client)" and rejected a web/PWA client.
+> Both of its stated reasons were specific to a *phone*, and the phone
+> premise turned out to be wrong. The original text is preserved at the
+> bottom of this section, because the reasoning was sound given what was
+> assumed at the time — it was the assumption that failed, not the logic.
 
-The web/PWA alternative was ruled out because P0-2 requires recording to
-"survive interruption (incoming call, app backgrounded, device locked)
-without data loss" — mobile browsers suspend microphone capture on
-background/lock, which directly conflicts with that requirement. A phone app
-is also the framing throughout the PRD's user stories ("one tap," "the
-doctor's device").
+**Decided:** a browser-based web app — service worker offline shell,
+IndexedDB write-ahead queue — running in Chrome or Edge on a clinic
+laptop. `apps/mobile/`'s Expo scaffold is retired.
 
-**React Native over two native codebases:** a lean team building an MVP in
-4–8 weeks cannot maintain separate Swift and Kotlin apps. One TypeScript
-codebase covers iOS + Android.
+**What changed:** the PRD listed *"What devices do doctors actually carry,
+and does a phone fit the physical workflow?"* as an Open Question owned by
+Design/Engineering. On 2026-08-27 the supervisor answered it: consultations
+run primarily on **laptops**. The rejection of a web client rested on
+"mobile browsers suspend microphone capture on background/lock" — true of
+mobile browsers, and irrelevant on a laptop.
 
-**Expo with a custom dev client (prebuild/CNG), not Expo managed workflow:**
-background audio capture needs native modules (background task registration,
-foreground service on Android, `AVAudioSession` background mode on iOS) that
-plain Expo managed workflow doesn't expose. A custom dev client keeps Expo's
-tooling (EAS Build, OTA updates for JS-only fixes) while allowing native
-modules — pure Expo Go would block P0-2; pure bare RN CLI would throw away
-EAS/OTA for no benefit here.
+**Measured, not assumed** (`docs/experiments/audio-capture-harness.html`,
+one 29-minute run on the real hardware — Windows, Chrome 151):
 
-Key libraries:
-- `expo-audio` for capture (the modern replacement for the now-deprecated
-  `expo-av`), backed by a native background-task
-  module (`react-native-background-actions` or a small custom native module)
-  for the "keep recording while backgrounded/locked" requirement.
-- On-device encryption of the audio file before it touches disk (P0-2:
-  "encrypted on-device before any network activity") — `expo-crypto` /
-  `react-native-aes-crypto` for AES-256, key sealed via `expo-secure-store`
-  (iOS Keychain / Android Keystore).
-- A local write-ahead queue (SQLite via `expo-sqlite`) for the upload queue,
-  chunk state, and idempotency keys — this is what makes the "visible,
-  persistent queue status" (P0-2) and "loose sessions tray" (P0-6) survive
-  app kill/restart.
-- Resumable chunked upload client (custom, on top of the API's chunk
-  endpoints — see §2).
+- Audio missing during 131 s of backgrounded time, across 9 hidden
+  windows: **0.05 s**.
+- Page timers did not throttle (1737/1743 ticks, identical to a Worker),
+  because Chrome exempts tabs holding active capture with a live audio
+  graph. So encoding does **not** need to move into a Worker here.
+- All measurable loss in the run — 6.5 s of 7.7 s total — came from a
+  single **system-sleep** event. That is the one real risk, and it favours
+  no architecture: lid close is OS power policy, which neither a web page
+  nor Electron can veto.
+
+**Consequences for P0-2:** its interruption clause re-scopes to the laptop
+form factor. Backgrounding and screen lock are measured as satisfied;
+lid close/sleep is not, and is unsatisfiable in software — mitigated by
+Windows power policy ("When I close the lid → Do nothing") plus chunked
+IndexedDB writes so a suspend truncates rather than destroys a recording.
+Whoever signs off on P0-2 needs that stated plainly.
+
+Key libraries and mechanisms:
+- `getUserMedia` + `MediaRecorder` for capture, with the mime type
+  **feature-detected** via `MediaRecorder.isTypeSupported()` rather than
+  hardcoded — Chrome/Edge/Firefox give WebM/Opus, Safari was MP4/AAC-only
+  before 18.4. Groq Whisper accepts both.
+- An `AudioContext` + `AudioWorklet` alongside it for level metering and
+  the persistent recording indicator (P0-1) — and, as the harness showed,
+  keeping a live audio graph is part of what earns the throttling
+  exemption.
+- Web Crypto (`AES-GCM`, non-extractable `CryptoKey`) for on-device
+  encryption before any network activity (P0-2). Note the honest gap
+  versus the retired mobile plan: a browser cannot seal the key in a
+  hardware keystore the way Keychain/Android Keystore could. If Legal
+  requires hardware-sealed key custody, decision 0024's option (b) —
+  an Electron wrapper — becomes necessary.
+- IndexedDB as the local write-ahead queue for upload state, chunk
+  progress, and idempotency keys, replacing `expo-sqlite`. Same
+  write-ahead-log invariant, different store.
+- A **screen wake lock re-acquired on every `visibilitychange → visible`**.
+  The browser auto-releases it on hide and never restores it; the first
+  harness run lost it 35 s in and ran unguarded for 28 minutes. This is
+  mandatory, not a nicety.
+- WebAuthn (Windows Hello / Touch ID) for biometric unlock — a better
+  cross-platform story than the mobile plan had.
+- Resumable chunked upload straight to the existing presigned S3
+  multipart endpoints from Phase 1.1 (§2) — the browser `PUT`s to S3
+  directly, no new backend work.
+
+**Token storage** amends decision 0006 rather than reversing it: the shape
+survives (short-lived in-memory access token + persisted revocable refresh
+token + server-side revocation), but the mechanism changes from
+`expo-secure-store` to an httpOnly/Secure/SameSite cookie — stronger
+against XSS, weaker on hardware sealing.
+
+<details>
+<summary><b>Original text, superseded (kept for the reasoning)</b></summary>
+
+> **Decided in discussion:** cross-platform mobile, not a web/PWA client.
+>
+> The web/PWA alternative was ruled out because P0-2 requires recording to
+> "survive interruption (incoming call, app backgrounded, device locked)
+> without data loss" — mobile browsers suspend microphone capture on
+> background/lock, which directly conflicts with that requirement. A phone app
+> is also the framing throughout the PRD's user stories ("one tap," "the
+> doctor's device").
+>
+> **React Native over two native codebases:** a lean team building an MVP in
+> 4–8 weeks cannot maintain separate Swift and Kotlin apps. One TypeScript
+> codebase covers iOS + Android.
+>
+> **Expo with a custom dev client (prebuild/CNG), not Expo managed workflow:**
+> background audio capture needs native modules (background task registration,
+> foreground service on Android, `AVAudioSession` background mode on iOS) that
+> plain Expo managed workflow doesn't expose. A custom dev client keeps Expo's
+> tooling (EAS Build, OTA updates for JS-only fixes) while allowing native
+> modules — pure Expo Go would block P0-2; pure bare RN CLI would throw away
+> EAS/OTA for no benefit here.
+>
+> Note what this branch of complexity existed for: it was *entirely* downstream
+> of needing background audio on a phone. With the laptop form factor it
+> disappears rather than being solved.
+
+</details>
 
 ## 2. Backend — Python + FastAPI
 

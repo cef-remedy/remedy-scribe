@@ -112,7 +112,7 @@
     <div class="grid" id="metrics">
       <div class="metric" id="m-wall"><div class="label">Wall clock</div><div class="val">&mdash;</div><div class="note">Date.now()</div></div>
       <div class="metric" id="m-audio"><div class="label">Audio clock (ground truth)</div><div class="val">&mdash;</div><div class="note">worklet samples / rate</div></div>
-      <div class="metric" id="m-drift"><div class="label">Audio drift vs wall</div><div class="val">&mdash;</div><div class="note">under 0.5% = no loss</div></div>
+      <div class="metric" id="m-drift"><div class="label">Audio missing</div><div class="val">&mdash;</div><div class="note">seconds lost, not a %</div></div>
       <div class="metric" id="m-ctx"><div class="label">Audio engine liveness</div><div class="val">&mdash;</div><div class="note">ms since last worklet msg</div></div>
       <div class="metric" id="m-page"><div class="label">Page timer ticks</div><div class="val">&mdash;</div><div class="note">throttles when hidden</div></div>
       <div class="metric" id="m-worker"><div class="label">Worker timer ticks</div><div class="val">&mdash;</div><div class="note">should NOT throttle</div></div>
@@ -367,6 +367,31 @@ var WORKER_SRC = [
   '};'
 ].join('\n');
 
+/* ---------- wake lock ----------
+ * A screen wake lock is auto-released by the browser whenever the page
+ * becomes hidden, and it is NOT restored when the page comes back. The
+ * first 29-minute run on real hardware showed exactly that: acquired at
+ * 0.0s, released at 35.1s on the first backgrounding, never re-acquired
+ * for the remaining 28 minutes - so idle sleep was unguarded for 97% of
+ * the session, and a suspend duly happened at 122.8s.
+ *
+ * Re-acquiring on every return to visible is therefore mandatory, not a
+ * nicety, and the production client needs the same logic. Note what it
+ * still cannot do: a wake lock blocks IDLE sleep only. A deliberate lid
+ * close is OS power policy and no web page (nor Electron) can veto it.
+ */
+function acquireWakeLock() {
+  if (!navigator.wakeLock) return;
+  if (wakeLock && !wakeLock.released) return;
+  navigator.wakeLock.request('screen').then(function (wl) {
+    wakeLock = wl;
+    log('screen wake lock ACQUIRED (blocks idle sleep, NOT lid close)');
+    wl.addEventListener('release', function () {
+      log('screen wake lock released by browser (page hidden)', 'warn');
+    });
+  }).catch(function (e) { log('wake lock refused: ' + e.message, 'warn'); });
+}
+
 /* ---------- run ---------- */
 function start() {
   S.runId = String(Date.now()).slice(-8);
@@ -465,13 +490,7 @@ function start() {
       log('MediaRecorder unavailable - audio-clock measurement only', 'warn');
     }
 
-    if (navigator.wakeLock) {
-      navigator.wakeLock.request('screen').then(function (wl) {
-        wakeLock = wl;
-        log('screen wake lock ACQUIRED (blocks idle sleep, NOT lid close)');
-        wl.addEventListener('release', function () { log('screen wake lock released', 'warn'); });
-      }).catch(function (e) { log('wake lock refused: ' + e.message, 'warn'); });
-    }
+    acquireWakeLock();
 
     S.t0 = Date.now();
     S.running = true;
@@ -500,6 +519,8 @@ function stop() {
 /* ---------- lifecycle events ---------- */
 document.addEventListener('visibilitychange', function () {
   log('visibilitychange -> ' + (document.hidden ? 'HIDDEN' : 'visible'), 'warn');
+  // The browser dropped the wake lock on hide; take it back.
+  if (!document.hidden && S.running) acquireWakeLock();
 });
 window.addEventListener('blur', function () { log('window blur'); });
 window.addEventListener('focus', function () { log('window focus'); });
@@ -510,6 +531,17 @@ window.addEventListener('online', function () { log('network online'); });
 window.addEventListener('offline', function () { log('network offline', 'warn'); });
 
 /* ---------- render ---------- */
+// Loss thresholds are in absolute seconds first, percentage second. One
+// second of a clinical consultation is a real sentence; five is a whole
+// exchange. Percentages flatter long recordings.
+var LOSS_OK_MS = 1000;
+var LOSS_BAD_MS = 5000;
+function lossClass(missingMs, driftPct) {
+  if (missingMs >= LOSS_BAD_MS || driftPct >= 5) return 'bad';
+  if (missingMs >= LOSS_OK_MS || driftPct >= 0.5) return 'warn';
+  return 'ok';
+}
+
 function set(id, val, note, cls) {
   var el = $(id);
   el.querySelector('.val').textContent = val;
@@ -534,9 +566,16 @@ function render() {
   set('m-wall', fmt(wall), S.startupMs ? 'incl. ' + S.startupMs + 'ms startup' : 'Date.now()');
   set('m-audio', fmt(audioMs),
     (S.samples - S.baseSamples).toLocaleString() + ' samples @ ' + S.sampleRate + ' Hz');
-  set('m-drift', driftPct.toFixed(2) + '%',
-    driftPct < 0.5 ? 'no measurable loss' : 'about ' + fmt(measWall - audioMs) + ' missing',
-    driftPct < 0.5 ? 'ok' : driftPct < 5 ? 'warn' : 'bad');
+  // Absolute seconds, not a percentage. The first real 29-minute run read
+  // 0.441% drift and sailed under a "< 0.5% = fine" gate - while actually
+  // having lost 7.7 SECONDS of consultation audio, easily a whole exchange
+  // about a dose. On a long recording a percentage hides exactly the
+  // magnitude that matters clinically, so the gate is now on seconds and
+  // the percentage is demoted to context.
+  var missingMs = Math.max(0, measWall - audioMs);
+  set('m-drift', missingMs < 1000 ? (missingMs / 1000).toFixed(2) + 's' : fmt(missingMs),
+    driftPct.toFixed(3) + '% of ' + (measWall / 1000 / 60).toFixed(1) + ' min',
+    lossClass(missingMs, driftPct));
   // The single most diagnostic number for "is capture alive right now."
   set('m-ctx', stale ? stale + 'ms' : (S.running ? '-' : 'stopped'),
     'worst ' + S.maxMsgGap + 'ms / ctx ' + S.ctxTime.toFixed(1) + 's',
@@ -562,6 +601,7 @@ function render() {
 
 function renderVerdict(wall, audioMs, driftPct, expTicks, timeslice) {
   if (!S.t0) return;
+  var missingMs = Math.max(0, wall - audioMs);
   var v = [];
   var pageThrottled = expTicks > 5 && S.pageTicks < expTicks * 0.8;
   var workerThrottled = expTicks > 5 && S.workerTicks < expTicks * 0.8;
@@ -581,17 +621,21 @@ function renderVerdict(wall, audioMs, driftPct, expTicks, timeslice) {
       'The worklet went silent for ' + S.maxMsgGap + 'ms at its worst (it posts every ~250ms), so the audio graph stopped ' +
       'processing rather than merely delivering late. Any audio in that window is gone. Check the log for a freeze event, ' +
       'an AudioContext state change, or a muted track.']);
-  } else if (driftPct >= 5) {
-    v.push(['bad', 'Significant audio loss',
-      driftPct.toFixed(1) + '% drift, roughly ' + fmt(wall - audioMs) + ' missing. The audio graph itself stalled, not just chunk delivery. ' +
-      'A browser tab is not safe for clinical capture on this hardware.']);
-  } else if (driftPct < 0.5) {
+  } else if (missingMs >= LOSS_BAD_MS || driftPct >= 5) {
+    v.push(['bad', fmt(missingMs) + ' of audio missing',
+      'Captured ' + fmt(audioMs) + ' against ' + fmt(wall) + ' of wall clock (' + driftPct.toFixed(3) + '%). ' +
+      'The audio graph stalled rather than merely delivering late. At this magnitude a browser tab is not safe for ' +
+      'clinical capture on this hardware without understanding the cause first.']);
+  } else if (missingMs < LOSS_OK_MS && driftPct < 0.5) {
     v.push(['ok', 'No audio loss detected',
-      'The audio graph never stalled: ' + fmt(audioMs) + ' captured against ' + fmt(wall) + ' of wall clock (' +
-      driftPct.toFixed(2) + '% drift). A browser tab can hold this recording on this hardware.']);
+      'The audio graph never stalled: ' + fmt(audioMs) + ' captured against ' + fmt(wall) + ' of wall clock, ' +
+      (missingMs / 1000).toFixed(2) + 's unaccounted (' + driftPct.toFixed(3) + '%). ' +
+      'A browser tab can hold this recording on this hardware.']);
   } else {
-    v.push(['warn', 'Minor audio drift',
-      driftPct.toFixed(2) + '% drift (' + fmt(wall - audioMs) + '). Small, but worth understanding before trusting it with a real consultation.']);
+    v.push(['warn', fmt(missingMs) + ' of audio missing',
+      'Only ' + driftPct.toFixed(3) + '% of the run, but a percentage is the wrong lens here: ' + fmt(missingMs) +
+      ' of a consultation can be a whole exchange about a dose. Find the cause before trusting this with a patient - ' +
+      'check the worst worklet gap and the chunk log for where it went.']);
   }
 
   if (expTicks > 5) {

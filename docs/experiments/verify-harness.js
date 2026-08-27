@@ -126,7 +126,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     // The point of the whole instrument: a healthy synthetic run must
     // read as no loss. Anything above 0.5% here means the measurement
     // is miscalibrated, not that audio was lost.
-    ["drift near zero on a healthy run", final.driftPct !== null && Math.abs(final.driftPct) < 0.5],
+    // Gate on absolute seconds, matching the harness: a percentage
+    // flatters long runs and let 7.7s of real loss pass on the first
+    // 29-minute hardware run.
+    ["audio loss under 1s on a healthy run", final.missingSec !== null && final.missingSec < 1],
+    ["drift percentage also sane", final.driftPct !== null && Math.abs(final.driftPct) < 0.5],
     ["startup latency reported separately", final.startupNoted],
     ["worker ticks accumulated", final.workerTicks > 15],
     ["page ticks accumulated", final.pageTicks > 5],
@@ -170,7 +174,8 @@ function readMetrics(page) {
     return {
       wallSec: num(val("m-wall")),
       audioSec: num(val("m-audio")),
-      driftPct: num(val("m-drift")),
+      missingSec: num(val("m-drift")),
+      driftPct: num(note("m-drift")),
       livenessMs: num(val("m-ctx")),
       maxMsgGapMs: gapMatch ? parseInt(gapMatch[1], 10) : null,
       startupNoted: /startup/.test(note("m-wall")),
@@ -189,7 +194,7 @@ function readMetrics(page) {
 
 function dump(m) {
   console.log(
-    "  wall=" + m.wallSec + "s  audio=" + m.audioSec + "s  drift=" + m.driftPct + "%"
+    "  wall=" + m.wallSec + "s  audio=" + m.audioSec + "s  missing=" + m.missingSec + "s (" + m.driftPct + "%)"
   );
   console.log(
     "  liveness=" + m.livenessMs + "ms  worstWorkletGap=" + m.maxMsgGapMs + "ms" +
