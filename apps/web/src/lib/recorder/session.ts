@@ -62,7 +62,15 @@ export type AudioGap = {
   cause: "suspend" | "stall";
 };
 
-export type RecordingStatus = "idle" | "starting" | "recording" | "stopping" | "stopped" | "error";
+export type RecordingStatus =
+  | "idle"
+  | "starting"
+  | "recording"
+  /** Deliberately paused, e.g. mid-visit re-consent (P0-1). Not a stall. */
+  | "paused"
+  | "stopping"
+  | "stopped"
+  | "error";
 
 export type RecordingState = {
   status: RecordingStatus;
@@ -74,6 +82,8 @@ export type RecordingState = {
   missingMs: number;
   chunkCount: number;
   bytes: number;
+  /** Cumulative time deliberately paused. Excluded from gap accounting. */
+  pausedMs: number;
   gaps: AudioGap[];
   mismatches: AudioSettingsMismatch[];
   mimeType: string | null;
@@ -89,6 +99,7 @@ const EMPTY_STATE: RecordingState = {
   missingMs: 0,
   chunkCount: 0,
   bytes: 0,
+  pausedMs: 0,
   gaps: [],
   mismatches: [],
   mimeType: null,
@@ -126,12 +137,17 @@ export class RecordingSession {
   private monitorTimer: ReturnType<typeof setInterval> | undefined;
   private seq = 0;
   private pendingWrites: Promise<unknown>[] = [];
+  private paused = false;
+  private pausedAt = 0;
+  private pausedTotalMs = 0;
 
   private state: RecordingState = { ...EMPTY_STATE };
   private listeners = new Set<(state: RecordingState) => void>();
 
   private onVisibility = () => {
-    if (!document.hidden && this.state.status === "recording") {
+    // Also re-acquire while paused: the session is still live and will
+    // resume, so idle sleep still needs blocking.
+    if (!document.hidden && (this.state.status === "recording" || this.state.status === "paused")) {
       // The browser dropped the wake lock when we were hidden and will not
       // restore it. This single line is the harness's most consequential
       // finding — see the module docstring.
@@ -307,6 +323,16 @@ export class RecordingSession {
   /** Runs every 500ms: detects suspends and stalls, updates the counters. */
   private monitor(): void {
     const now = Date.now();
+
+    if (this.paused) {
+      // Neither watchdog is meaningful while paused: the wall clock advances
+      // by design and the worklet is silent by design. Advance the baseline
+      // so resume() does not inherit a stale one.
+      this.lastMonitorAt = now;
+      this.emit({ elapsedMs: now - this.startedAt });
+      return;
+    }
+
     const gaps = [...this.state.gaps];
 
     const jump = now - this.lastMonitorAt - MONITOR_INTERVAL_MS;
@@ -339,15 +365,82 @@ export class RecordingSession {
     this.emit({
       elapsedMs,
       capturedMs,
-      // Measured between the two points sampled at the same instant, so the
-      // worklet's 250ms post interval does not read as loss.
-      missingMs: Math.max(0, measuredWindow - capturedMs),
+      // Measured between two points sampled at the same instant, so the
+      // worklet's 250ms post interval does not read as loss — and with
+      // deliberate pauses subtracted, so a re-consent pause is not reported
+      // as missing audio.
+      missingMs: Math.max(0, measuredWindow - this.pausedTotalMs - capturedMs),
+      pausedMs: this.pausedTotalMs,
       gaps,
     });
   }
 
+  /**
+   * Deliberate pause — the mid-visit re-consent path (P0-1: "a new
+   * participant joins mid-recording... recording pauses until fresh consent
+   * is logged").
+   *
+   * Suspends the AudioContext as well as the MediaRecorder, which matters
+   * for a non-obvious reason: if the graph kept running, the worklet would
+   * keep counting samples the recorder is no longer writing, and the gap
+   * detector would report the pause as lost audio. Suspending stops both
+   * clocks together. The monitor additionally skips stall/suspend detection
+   * while paused, because worklet silence is now expected rather than a
+   * symptom.
+   */
+  async pause(): Promise<void> {
+    if (this.state.status !== "recording") return;
+    this.paused = true;
+    this.pausedAt = Date.now();
+
+    try {
+      if (this.recorder?.state === "recording") this.recorder.pause();
+    } catch {
+      /* already paused */
+    }
+    try {
+      await this.audioContext?.suspend();
+    } catch {
+      /* already suspended */
+    }
+
+    this.emit({ status: "paused" });
+  }
+
+  async resume(): Promise<void> {
+    if (this.state.status !== "paused") return;
+
+    const pausedFor = Date.now() - this.pausedAt;
+    this.pausedTotalMs += pausedFor;
+
+    try {
+      await this.audioContext?.resume();
+    } catch {
+      /* nothing to resume */
+    }
+    try {
+      if (this.recorder?.state === "paused") this.recorder.resume();
+    } catch {
+      /* already running */
+    }
+
+    // Re-baseline both watchdogs. Without this the pause duration reads as a
+    // wall-clock jump and gets logged as a "suspend" gap — the recorder
+    // reporting a fault it caused itself.
+    const now = Date.now();
+    this.lastMonitorAt = now;
+    this.lastWorkletMsgAt = now;
+    this.paused = false;
+
+    this.emit({ status: "recording", pausedMs: this.pausedTotalMs });
+  }
+
   async stop(): Promise<{ chunkCount: number; missingMs: number; gaps: AudioGap[] }> {
-    if (this.state.status !== "recording" && this.state.status !== "error") {
+    if (
+      this.state.status !== "recording" &&
+      this.state.status !== "paused" &&
+      this.state.status !== "error"
+    ) {
       return { chunkCount: this.state.chunkCount, missingMs: this.state.missingMs, gaps: this.state.gaps };
     }
     this.emit({ status: "stopping" });
@@ -356,6 +449,9 @@ export class RecordingSession {
     // Without it the final few seconds of a consultation are discarded —
     // the tail, which is often where the plan is stated.
     try {
+      // A paused MediaRecorder ignores requestData(), so the buffered tail
+      // would be silently dropped. Resume first, then flush.
+      if (this.recorder?.state === "paused") this.recorder.resume();
       if (this.recorder && this.recorder.state === "recording") {
         this.recorder.requestData();
         await new Promise<void>((resolve) => {

@@ -19,6 +19,7 @@ knowing before debugging a "completion always fails" report.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from functools import lru_cache
 from typing import Any
@@ -28,6 +29,8 @@ from botocore.client import Config
 from botocore.exceptions import ClientError
 
 from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 # Recognized recording formats -> file extension. Not an enforced
 # allowlist (Phase 2.2 hasn't picked a codec yet — see
@@ -295,3 +298,22 @@ def ensure_bucket_configured() -> None:
         )
     except ClientError as exc:
         logger.warning("Could not set lifecycle configuration on bucket %s: %s", bucket, exc)
+
+
+def delete_object(key: str) -> bool:
+    """Deletes one object. Returns True if it is gone (including if it was
+    already absent), False if the delete failed.
+
+    Phase 2.3 (P0-1: "processing stops and the associated audio is queued
+    for deletion without undue delay"). Deliberately returns a bool rather
+    than raising: a withdrawal must never fail because S3 was briefly
+    unreachable — the consent ledger entry is the legal record and has to
+    persist regardless, with the retention clock as the backstop for the
+    bytes. See app/services/consent.py:handle_withdrawal.
+    """
+    try:
+        _client().delete_object(Bucket=get_settings().s3_bucket, Key=key)
+        return True
+    except ClientError:
+        logger.warning("Could not delete audio object %s", key, exc_info=True)
+        return False

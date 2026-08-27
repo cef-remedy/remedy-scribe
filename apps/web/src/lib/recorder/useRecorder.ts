@@ -16,6 +16,7 @@ export function useRecorder() {
     missingMs: 0,
     chunkCount: 0,
     bytes: 0,
+    pausedMs: 0,
     gaps: [],
     mismatches: [],
     mimeType: null,
@@ -35,13 +36,23 @@ export function useRecorder() {
     return sessionRef.current?.stop() ?? null;
   }, []);
 
+  /** Mid-visit re-consent (P0-1): pause, log fresh consent, resume. */
+  const pause = useCallback(async () => {
+    await sessionRef.current?.pause();
+  }, []);
+
+  const resume = useCallback(async () => {
+    await sessionRef.current?.resume();
+  }, []);
+
   useEffect(() => {
     return () => {
       // Unmounting while recording must not leave a live microphone and an
       // orphaned wake lock behind. Fire-and-forget is fine here: stop()
       // awaits its own pending chunk writes.
       const session = sessionRef.current;
-      if (session && session.getState().status === "recording") void session.stop();
+      const status = session?.getState().status;
+      if (session && (status === "recording" || status === "paused")) void session.stop();
     };
   }, []);
 
@@ -50,7 +61,16 @@ export function useRecorder() {
    * beforeunload by the recording screen rather than here, so the warning
    * is attached to the UI that can explain it.
    */
-  const isRecording = state.status === "recording" || state.status === "starting";
+  const isRecording =
+    state.status === "recording" || state.status === "starting" || state.status === "paused";
 
-  return { state, start, stop, isRecording, sessionId: sessionRef.current?.sessionId ?? null };
+  return {
+    state,
+    start,
+    stop,
+    pause,
+    resume,
+    isRecording,
+    sessionId: sessionRef.current?.sessionId ?? null,
+  };
 }

@@ -16,7 +16,7 @@ product/legal/risk fork the checklist flags for you is marked **STATUS: OPEN
 |---|---|---|---|
 | [0001](0001-consent-ledger-read-model.md) | 0.1 | How `assert_consent_valid` reads "current" consent state from an append-only ledger | Decided (implementation) |
 | [0002](0002-consent-violation-is-terminal-not-retried.md) | 0.1 | What the pipeline does when consent is invalid at task time | Decided (implementation) |
-| [0003](0003-mid-visit-reconsent-detection.md) | 0.1 / 2.3 | Manual flag vs. diarization-based detection for mid-visit re-consent | **OPEN — your call** |
+| [0003](0003-mid-visit-reconsent-detection.md) | 0.1 / 2.3 | Manual flag vs. diarization-based detection for mid-visit re-consent | Closed 2026-08-27 — **by elimination**: decision 0018 removed diarization entirely, so manual flagging is the only implementable option |
 | [0004](0004-note-read-access-scope.md) | 0.2 | Note reads: authoring clinician only, or any clinician in the clinic | Decided (implementation) |
 | [0005](0005-rbac-role-policy-and-audit-log-endpoint.md) | 0.2 | Per-route role policy (`doctor` vs `admin` for clinical writes); adding a minimal audit-log endpoint early | Decided (implementation) |
 | [0006](0006-mobile-token-storage-and-revocation.md) | 0.3 | Where the token lives on the device; lost-phone revocation | Decided (user) |
@@ -40,3 +40,4 @@ product/legal/risk fork the checklist flags for you is marked **STATUS: OPEN
 | [0024](0024-web-client-on-laptop-not-mobile.md) | 2.1 | Client is a browser web app on a clinic laptop, not Expo mobile — **supersedes tech-stack.md §1**; backgrounding measured safe, lid-close sleep is the one real gap | Decided (user + measurement) |
 | [0025](0025-audio-format-mono-opus-32kbps.md) | 2.1 / 2.2 | Audio capture: mono Opus at 32 kbps — and the settings are verified against the device, not trusted | Decided (user) |
 | [0026](0026-recorder-design.md) | 2.2 | Recorder: consent gate reads the server and fails closed (incl. offline); audio gaps recorded rather than hidden; 5s chunks ≠ 5 MB S3 parts; crypto-shred is per-device | Decided (implementation) |
+| [0027](0027-consent-flow-ordering-and-withdrawal.md) | 2.3 | Consent ordering forced by P0-1 (nothing captured before consent, so the *asking* is not recorded); withdrawal's three ordered actions; script text is a placeholder pending counsel | Decided (implementation) |

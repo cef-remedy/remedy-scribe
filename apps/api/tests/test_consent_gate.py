@@ -51,12 +51,21 @@ def _add_entry(db, encounter_id: str, event: str) -> ConsentLedgerEntry:
     between them — true at microsecond resolution, but relying on it makes
     the ordering dependency invisible and the test quietly clock-sensitive.
     Setting it explicitly documents the dependency and removes the race.
+
+    Offsets run *backwards* from an hour ago, not forwards from now. An
+    earlier version offset forwards, which meant that by the 17th test in
+    the file a seeded "given" landed at now+17ms while an entry created
+    through the API route landed at plain now — so the withdrawal sorted
+    BEFORE the grant and the fold ended on "given". Seeded entries must
+    always be older than anything the route writes during the test.
     """
     from datetime import datetime, timedelta, timezone
 
     _seq[0] += 1
     entry = _ledger_entry(encounter_id, event)
-    entry.created_at = datetime.now(timezone.utc) + timedelta(milliseconds=_seq[0])
+    entry.created_at = (
+        datetime.now(timezone.utc) - timedelta(hours=1) + timedelta(milliseconds=_seq[0])
+    )
     db.add(entry)
     db.commit()
     return entry
@@ -286,3 +295,158 @@ def test_consent_read_agrees_with_enforcement(db, client):
 
         assert read_says == expected, f"read disagreed for {events}"
         assert enforcement_says == expected, f"enforcement disagreed for {events}"
+
+
+# --- Phase 2.3: withdrawal has server-side effects -------------------------
+#
+# The checklist's heads-up was that withdrawal had *no* server-side effect.
+# P0-1 requires "processing stops and the associated audio is queued for
+# deletion without undue delay". These assert what actually happens, and in
+# particular that the legal record survives a storage failure — the ordering
+# that makes the whole design defensible.
+
+
+def _post_consent(client, clinician, encounter_id, event):
+    from app.core.security import create_access_token
+
+    token = create_access_token(subject=clinician.id, extra_claims={"role": clinician.role})
+    return client.post(
+        "/api/v1/consent",
+        json={
+            "encounter_id": encounter_id,
+            "event": event,
+            "participant_roster": ["doctor", "patient"],
+            "purposes": ["clinical documentation"],
+            "script_language": "fil",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+
+def test_withdrawal_sets_the_retention_clock_to_now(db, client, monkeypatch):
+    monkeypatch.setattr("app.services.storage.delete_object", lambda key: True)
+    encounter, clinician = _seed_encounter(db)
+    _add_entry(db, encounter.id, "given")
+
+    before = encounter.audio_retention_expires_at
+    response = _post_consent(client, clinician, encounter.id, "withdrawn")
+
+    assert response.status_code == 201
+    assert response.json()["withdrawal"]["retention_expired_immediately"] is True
+    db.refresh(encounter)
+    # The durable backstop: whatever happens to the delete call, this
+    # encounter is now eligible for collection immediately rather than in 90
+    # days.
+    assert encounter.audio_retention_expires_at != before
+    assert encounter.audio_retention_expires_at is not None
+
+
+def test_withdrawal_deletes_uploaded_audio(db, client, monkeypatch):
+    deleted_keys = []
+    monkeypatch.setattr(
+        "app.services.storage.delete_object", lambda key: (deleted_keys.append(key), True)[1]
+    )
+
+    encounter, clinician = _seed_encounter(db)
+    encounter.audio_object_key = "encounters/x/audio/y.webm"
+    db.add(encounter)
+    db.commit()
+    _add_entry(db, encounter.id, "given")
+
+    body = _post_consent(client, clinician, encounter.id, "withdrawn").json()
+
+    assert body["withdrawal"]["audio_deleted"] is True
+    assert deleted_keys == ["encounters/x/audio/y.webm"]
+    db.refresh(encounter)
+    assert encounter.audio_deleted_at is not None
+
+
+def test_withdrawal_keeps_the_ledger_entry_even_if_deletion_fails(db, client, monkeypatch):
+    """The ordering that makes this defensible. The ledger entry is the legal
+    record; a storage outage must not be able to erase it, and the retention
+    clock still moves so the bytes get collected later.
+    """
+    monkeypatch.setattr("app.services.storage.delete_object", lambda key: False)
+
+    encounter, clinician = _seed_encounter(db)
+    encounter.audio_object_key = "encounters/x/audio/y.webm"
+    db.add(encounter)
+    db.commit()
+    _add_entry(db, encounter.id, "given")
+
+    response = _post_consent(client, clinician, encounter.id, "withdrawn")
+
+    assert response.status_code == 201
+    assert response.json()["withdrawal"]["audio_deleted"] is False
+    # The entry persisted...
+    entries = (
+        db.query(ConsentLedgerEntry).filter(ConsentLedgerEntry.encounter_id == encounter.id).all()
+    )
+    assert any(e.event == "withdrawn" for e in entries)
+    # ...consent is revoked...
+    with pytest.raises(ConsentNotValidError):
+        assert_consent_valid(db, encounter.id)
+    # ...and the backstop still fired.
+    db.refresh(encounter)
+    assert encounter.audio_retention_expires_at is not None
+    assert encounter.audio_deleted_at is None  # honestly reported as not deleted
+
+
+def test_withdrawal_with_no_uploaded_audio_is_not_an_error(db, client, monkeypatch):
+    monkeypatch.setattr("app.services.storage.delete_object", lambda key: True)
+    encounter, clinician = _seed_encounter(db)
+    _add_entry(db, encounter.id, "given")
+
+    body = _post_consent(client, clinician, encounter.id, "withdrawn").json()
+
+    assert body["withdrawal"]["nothing_to_delete"] is True
+    assert body["withdrawal"]["pipeline_will_stop"] is True
+
+
+def test_withdrawing_twice_is_idempotent(db, client, monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        "app.services.storage.delete_object", lambda key: (calls.append(key), True)[1]
+    )
+
+    encounter, clinician = _seed_encounter(db)
+    encounter.audio_object_key = "encounters/x/audio/y.webm"
+    db.add(encounter)
+    db.commit()
+    _add_entry(db, encounter.id, "given")
+
+    first = _post_consent(client, clinician, encounter.id, "withdrawn").json()
+    second = _post_consent(client, clinician, encounter.id, "withdrawn").json()
+
+    assert first["withdrawal"]["audio_deleted"] is True
+    # Still reported as deleted, but storage was not asked a second time.
+    assert second["withdrawal"]["audio_deleted"] is True
+    assert calls == ["encounters/x/audio/y.webm"]
+
+
+def test_giving_consent_reports_no_withdrawal_outcome(db, client):
+    encounter, clinician = _seed_encounter(db)
+
+    body = _post_consent(client, clinician, encounter.id, "given").json()
+
+    # Nothing to report for a non-withdrawal, and the field must not appear
+    # populated — a UI reading it would otherwise show a deletion notice.
+    assert body["withdrawal"] is None
+
+
+def test_declining_does_not_delete_or_stop_anything(db, client, monkeypatch):
+    """PRD edge case: the app must remain fully usable if recording is
+    declined. A decline is not a withdrawal — there is nothing to undo.
+    """
+    called = []
+    monkeypatch.setattr(
+        "app.services.storage.delete_object", lambda key: (called.append(key), True)[1]
+    )
+    encounter, clinician = _seed_encounter(db)
+
+    body = _post_consent(client, clinician, encounter.id, "declined").json()
+
+    assert body["withdrawal"] is None
+    assert called == []
+    db.refresh(encounter)
+    assert encounter.audio_deleted_at is None

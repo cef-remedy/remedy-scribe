@@ -106,3 +106,40 @@ code {
 .kv dt { color: var(--ink3); font-size: .85rem; }
 .kv dd { margin: 0; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .9rem; }
 .kv dd.bad { color: var(--error); font-weight: 600; }
+
+
+/* --- consent flow (2.3) ------------------------------------------------- */
+.roster { list-style: none; padding: 0; margin: .75rem 0; }
+.roster li { margin-bottom: .35rem; }
+.roster label { display: flex; align-items: center; gap: .5rem; font-size: .95rem; }
+
+.lang-tabs { display: flex; gap: .5rem; margin: .75rem 0; flex-wrap: wrap; }
+.lang-tab {
+  margin: 0; font-weight: 500; background: transparent; color: var(--ink2);
+  border-color: var(--rule); padding: .4rem .8rem; font-size: .85rem;
+}
+.lang-tab.is-active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+.script {
+  border: 1px solid var(--rule); border-radius: 8px; padding: .85rem 1rem;
+  margin-bottom: .75rem; background: var(--bg);
+}
+/* The version actually being spoken is visually primary; the other stays
+   available for reference without competing for attention. */
+.script--spoken { border-color: var(--accent); background: var(--card); }
+.script h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em;
+             color: var(--ink3); margin: 0 0 .5rem; }
+.script ol { margin: 0; padding-left: 1.3rem; }
+.script li { margin-bottom: .45rem; line-height: 1.5; }
+.script-ask { font-weight: 600; margin: .75rem 0 0; }
+
+.consent-actions { display: flex; gap: .75rem; flex-wrap: wrap; align-items: center; }
+.consent-actions .ghost { margin-top: 1.1rem; }
+
+/* Paused state: visually distinct from recording, but still obviously a live
+   session — a paused recorder that looks like no recorder is how someone gets
+   recorded without realising it. */
+.rec-indicator.is-paused { background: var(--warn-bg); color: var(--warn); border-bottom-color: var(--warn); }
+.rec-indicator.is-paused .rec-dot { background: var(--warn); animation: none; }
+
+.danger { background: transparent; border-color: var(--error); color: var(--error); }

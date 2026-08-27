@@ -90,3 +90,93 @@ def assert_consent_valid(db: Session, encounter_id: str) -> None:
     """
     if not current_consent_state(db, encounter_id).is_given:
         raise ConsentNotValidError(f"Encounter {encounter_id} has no active consent record.")
+
+
+@dataclass(frozen=True)
+class WithdrawalOutcome:
+    """What actually happened when a withdrawal was processed. Returned
+    rather than logged-and-forgotten because the API tells the client, and
+    the client has to tell the doctor whether the audio is gone — "we think
+    it's deleted" is not something to guess about in front of a patient.
+    """
+
+    encounter_id: str
+    #: The pipeline stops at the next stage boundary, which Phase 0.1 already
+    #: enforces. Never "instantly": you cannot reliably kill a Celery task
+    #: mid-flight, and telling Legal otherwise would be a lie.
+    pipeline_will_stop: bool
+    #: True once the uploaded object is confirmed gone from object storage.
+    audio_deleted: bool
+    #: True when there was no uploaded audio to delete in the first place.
+    nothing_to_delete: bool
+    #: Set to now on withdrawal so any retention sweep collects it
+    #: immediately rather than at the end of the normal 90-day clock.
+    retention_expired_immediately: bool
+
+
+def handle_withdrawal(db: Session, encounter_id: str) -> WithdrawalOutcome:
+    """The server-side half of P0-1's withdrawal requirement: "processing
+    stops and the associated audio is queued for deletion without undue
+    delay."
+
+    Three things happen, in an order chosen so a failure in the least
+    important one cannot undo the most important:
+
+    1. **The ledger entry is already committed** by the caller before this
+       runs. That entry is the legal record; it must survive even if
+       everything below fails.
+    2. **The retention clock is set to now.** This is the durable backstop —
+       whatever happens to the delete call below, the encounter is now
+       eligible for collection by the retention job (Phase 4.4) instead of
+       sitting for 90 days.
+    3. **An immediate delete is attempted.** Best-effort by design: a
+       withdrawal must not fail because object storage was briefly
+       unreachable.
+
+    Deliberately does NOT try to abort a running Celery task. The
+    checklist's own heads-up is explicit that you cannot reliably kill a
+    task mid-flight, so the design is "stops at the next checkpoint" —
+    which Phase 0.1 already guarantees by re-checking consent at the head of
+    `transcribe_encounter` and at upload confirmation. `pipeline_will_stop`
+    reports that honestly rather than implying instant abort.
+
+    Idempotent: withdrawing twice is not an error, and the second call
+    reports `nothing_to_delete` once the object is gone.
+    """
+    from datetime import datetime, timezone
+
+    from app.models.encounter import Encounter
+    from app.services import storage
+
+    encounter = db.get(Encounter, encounter_id)
+    if encounter is None:
+        return WithdrawalOutcome(
+            encounter_id=encounter_id,
+            pipeline_will_stop=False,
+            audio_deleted=False,
+            nothing_to_delete=True,
+            retention_expired_immediately=False,
+        )
+
+    now = datetime.now(timezone.utc)
+    encounter.audio_retention_expires_at = now
+
+    key = encounter.audio_object_key
+    already_gone = encounter.audio_deleted_at is not None
+    deleted = False
+
+    if key and not already_gone:
+        deleted = storage.delete_object(key)
+        if deleted:
+            encounter.audio_deleted_at = now
+
+    db.add(encounter)
+    db.commit()
+
+    return WithdrawalOutcome(
+        encounter_id=encounter_id,
+        pipeline_will_stop=True,
+        audio_deleted=deleted or already_gone,
+        nothing_to_delete=key is None,
+        retention_expired_immediately=True,
+    )

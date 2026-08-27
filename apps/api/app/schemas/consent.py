@@ -42,3 +42,28 @@ class ConsentStateOut(BaseModel):
     latest_event: str | None
     script_language: str | None
     entry_count: int
+
+
+class WithdrawalOutcomeOut(BaseModel):
+    """Returned alongside a "withdrawn" ledger entry so the client can tell
+    the doctor what actually happened — in front of a patient who has just
+    asked to stop being recorded, "it's probably deleted" is not good enough.
+
+    Note `pipeline_will_stop` means "at the next stage boundary", never
+    instantly: a running Celery task cannot be reliably killed mid-flight
+    (see app/services/consent.py:handle_withdrawal). The UI wording must
+    match that, because it is also what Legal will be told.
+    """
+
+    pipeline_will_stop: bool
+    audio_deleted: bool
+    nothing_to_delete: bool
+    retention_expired_immediately: bool
+
+
+class ConsentEntryWithOutcomeOut(ConsentEntryOut):
+    """A consent entry plus, for withdrawals only, what was done about the
+    audio. Absent for "given"/"declined" because there is nothing to report.
+    """
+
+    withdrawal: WithdrawalOutcomeOut | None = None

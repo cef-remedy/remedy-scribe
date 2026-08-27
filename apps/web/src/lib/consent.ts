@@ -75,3 +75,88 @@ export async function checkConsentGate(encounterId: string): Promise<ConsentGate
     };
   }
 }
+
+
+export type WithdrawalResult =
+  | {
+      ok: true;
+      /** Always "at the next stage boundary", never instantly. */
+      pipelineWillStop: boolean;
+      audioDeleted: boolean;
+      nothingToDelete: boolean;
+    }
+  | { ok: false; reason: string };
+
+/**
+ * Submits a withdrawal (P0-1: "processing stops and the associated audio is
+ * queued for deletion without undue delay").
+ *
+ * Returns what the server actually did rather than assuming success. The
+ * doctor is standing in front of a patient who has just asked to stop being
+ * recorded — "it's probably deleted" is not an acceptable thing to say, and
+ * the UI needs the real answer to avoid saying it.
+ */
+export async function withdrawConsent(encounterId: string): Promise<WithdrawalResult> {
+  try {
+    const { data, error, response } = await api.POST("/api/v1/consent", {
+      body: {
+        encounter_id: encounterId,
+        event: "withdrawn",
+        participant_roster: [],
+        purposes: [],
+        script_language: "fil",
+      },
+    });
+
+    if (error || !data || response.status !== 201) {
+      return {
+        ok: false,
+        reason:
+          "The withdrawal could not be saved to the server. Local audio has been deleted from this laptop, but tell the patient the server record is pending and retry.",
+      };
+    }
+
+    const w = data.withdrawal;
+    return {
+      ok: true,
+      pipelineWillStop: w?.pipeline_will_stop ?? false,
+      audioDeleted: w?.audio_deleted ?? false,
+      nothingToDelete: w?.nothing_to_delete ?? false,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      reason:
+        e instanceof OfflineError
+          ? "No connection, so the withdrawal is not yet on the server. Local audio has been deleted from this laptop; retry once you are back online."
+          : "The withdrawal could not be saved. Local audio has been deleted from this laptop.",
+    };
+  }
+}
+
+/**
+ * Logs a fresh "given" event for a mid-visit re-consent (P0-1: "a new
+ * participant joins mid-recording... recording pauses until fresh consent is
+ * logged"). A new roster is the whole point — the ledger has to show who was
+ * present for which stretch of the recording.
+ */
+export async function reconsent(
+  encounterId: string,
+  participants: string[],
+  scriptLanguage: "fil" | "en",
+): Promise<boolean> {
+  try {
+    const { response } = await api.POST("/api/v1/consent", {
+      body: {
+        encounter_id: encounterId,
+        event: "given",
+        participant_roster: participants,
+        purposes: [],
+        script_language: scriptLanguage,
+      },
+    });
+    return response.status === 201;
+  } catch {
+    return false;
+  }
+}

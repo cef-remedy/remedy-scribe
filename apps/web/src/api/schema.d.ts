@@ -401,6 +401,13 @@ export interface paths {
          *     updates a prior row — "given", "declined", and "withdrawn" are each
          *     their own event so the full history for an encounter is reconstructed
          *     by reading, not by inspecting mutable state.
+         *
+         *     Phase 2.3: a "withdrawn" event additionally triggers the audio-deletion
+         *     path (P0-1: "processing stops and the associated audio is queued for
+         *     deletion without undue delay"). The ledger entry is committed *first*
+         *     and deliberately: it is the legal record and must survive even if the
+         *     deletion below fails. The response reports what actually happened so the
+         *     UI can tell the doctor the truth rather than an optimistic guess.
          */
         post: operations["record_consent_event_api_v1_consent_post"];
         delete?: never;
@@ -549,8 +556,12 @@ export interface components {
              */
             script_language: "fil" | "en";
         };
-        /** ConsentEntryOut */
-        ConsentEntryOut: {
+        /**
+         * ConsentEntryWithOutcomeOut
+         * @description A consent entry plus, for withdrawals only, what was done about the
+         *     audio. Absent for "given"/"declined" because there is nothing to report.
+         */
+        ConsentEntryWithOutcomeOut: {
             /** Id */
             id: string;
             /** Encounter Id */
@@ -564,6 +575,7 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            withdrawal?: components["schemas"]["WithdrawalOutcomeOut"] | null;
         };
         /**
          * ConsentEventType
@@ -916,6 +928,27 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /**
+         * WithdrawalOutcomeOut
+         * @description Returned alongside a "withdrawn" ledger entry so the client can tell
+         *     the doctor what actually happened — in front of a patient who has just
+         *     asked to stop being recorded, "it's probably deleted" is not good enough.
+         *
+         *     Note `pipeline_will_stop` means "at the next stage boundary", never
+         *     instantly: a running Celery task cannot be reliably killed mid-flight
+         *     (see app/services/consent.py:handle_withdrawal). The UI wording must
+         *     match that, because it is also what Legal will be told.
+         */
+        WithdrawalOutcomeOut: {
+            /** Pipeline Will Stop */
+            pipeline_will_stop: boolean;
+            /** Audio Deleted */
+            audio_deleted: boolean;
+            /** Nothing To Delete */
+            nothing_to_delete: boolean;
+            /** Retention Expired Immediately */
+            retention_expired_immediately: boolean;
         };
     };
     responses: never;
@@ -1473,7 +1506,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ConsentEntryOut"];
+                    "application/json": components["schemas"]["ConsentEntryWithOutcomeOut"];
                 };
             };
             /** @description Validation Error */

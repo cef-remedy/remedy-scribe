@@ -16,10 +16,12 @@ import { formatDuration } from "../lib/format";
 
 export function RecordingIndicator({
   active,
+  paused = false,
   elapsedMs,
   missingMs,
 }: {
   active: boolean;
+  paused?: boolean;
   elapsedMs: number;
   missingMs: number;
 }) {
@@ -30,9 +32,13 @@ export function RecordingIndicator({
   const hasGap = missingMs >= 1000;
 
   return (
-    <div className="rec-indicator" role="status" aria-live="polite">
+    <div
+      className={paused ? "rec-indicator is-paused" : "rec-indicator"}
+      role="status"
+      aria-live="polite"
+    >
       <span className="rec-dot" aria-hidden="true" />
-      <strong>Recording</strong>
+      <strong>{paused ? "Paused — awaiting fresh consent" : "Recording"}</strong>
       <span className="rec-time">{formatDuration(elapsedMs)}</span>
       {hasGap && (
         <span className="rec-gap" title="Audio was lost during a system sleep or stall">
