@@ -1,0 +1,41 @@
+# Line-ending policy, committed rather than left to each developer's
+# `core.autocrlf`. Without this file the behaviour lives only in local git
+# config — this machine has core.autocrlf=true, which is why every `git add`
+# printed "LF will be replaced by CRLF". That works here and silently
+# differs on a collaborator's machine, and inconsistent normalization is one
+# of the two classic causes of "why does my editor show thousands of
+# changes" (the other being ignored files being counted).
+#
+# text=auto: git decides per-file, stores LF in the repo, checks out the
+# platform-native ending. Deterministic for everyone, no churn.
+* text=auto
+
+# Always LF regardless of platform: these are read by tools that care.
+*.sh text eol=lf
+*.py text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Never touched — declared explicitly so a stray CRLF conversion can never
+# corrupt one.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.db binary
+*.m4a binary
+*.mp3 binary
+*.wav binary
+*.webm binary
+
+# Generated, and large: collapse it in diffs and PR review rather than
+# scrolling past 1583 lines of derived types.
+apps/web/src/api/schema.d.ts linguist-generated=true
+apps/web/package-lock.json linguist-generated=true
+docs/api/openapi.json linguist-generated=true

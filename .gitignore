@@ -13,3 +13,32 @@ graphify-out/
 
 # impeccable skill's local hook cache — regenerable, not source.
 .impeccable/
+
+# --- Repo-wide heavy/generated directories ---------------------------------
+#
+# These are ALSO covered by the per-app .gitignore files, and that was not
+# enough. `npm install` in apps/web ran before apps/web/.gitignore existed,
+# leaving a window where 12,559 node_modules files were genuinely untracked
+# — long enough for an editor to cache that count and keep showing it. Root
+# patterns close the window and cover any app added later.
+#
+# For scale, these account for ~25,000 ignored files: node_modules ~12.5k,
+# .venv ~10.6k, .mypy_cache ~1.8k. `git status` correctly reports 0; a tool
+# that counts ignored files reports 25k. Both numbers are right about
+# different questions.
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Tool caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.tsbuildinfo
+*.tsbuildinfo
+
+# Build output
+dist/
+build/
