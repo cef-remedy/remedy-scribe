@@ -13,6 +13,8 @@ re-deriving it against the ledger.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from sqlalchemy.orm import Session
 
 from app.models.consent import ConsentLedgerEntry
@@ -27,9 +29,27 @@ class ConsentNotValidError(Exception):
     """
 
 
-def assert_consent_valid(db: Session, encounter_id: str) -> None:
-    """Raise ConsentNotValidError unless the most recent status implied
-    by the ledger, read in chronological order, is "given".
+@dataclass(frozen=True)
+class ConsentState:
+    """The ledger folded into an answer. Phase 2.2 needs this as a *value*
+    rather than only as an exception: P0-1 says the app must block
+    recording when no consent exists, and to block it the client has to be
+    able to ask. Local client state cannot answer it — a page reload mid-
+    encounter loses that, while the ledger entry persists — so the read
+    has to come from here.
+    """
+
+    encounter_id: str
+    is_given: bool
+    latest_event: str | None
+    script_language: str | None
+    entry_count: int
+
+
+def current_consent_state(db: Session, encounter_id: str) -> ConsentState:
+    """The single fold over the ledger. `assert_consent_valid` and the
+    read endpoint both go through this, so "valid consent" keeps exactly
+    one definition — the property this module's docstring promises.
 
     The ledger is append-only (enforced by a DB trigger — see
     alembic/versions/..._append_only_consent_ledger.py), so "current
@@ -52,5 +72,21 @@ def assert_consent_valid(db: Session, encounter_id: str) -> None:
         elif entry.event in ("declined", "withdrawn"):
             is_given = False
 
-    if not is_given:
+    latest = entries[-1] if entries else None
+    return ConsentState(
+        encounter_id=encounter_id,
+        is_given=is_given,
+        latest_event=latest.event if latest else None,
+        script_language=latest.script_language if latest else None,
+        entry_count=len(entries),
+    )
+
+
+def assert_consent_valid(db: Session, encounter_id: str) -> None:
+    """Raise ConsentNotValidError unless the ledger currently implies
+    "given". Thin wrapper over `current_consent_state` on purpose: the
+    enforcement points (upload confirmation, the transcription task) and
+    the client-facing read must never be able to disagree.
+    """
+    if not current_consent_state(db, encounter_id).is_given:
         raise ConsentNotValidError(f"Encounter {encounter_id} has no active consent record.")

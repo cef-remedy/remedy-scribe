@@ -16,5 +16,8 @@
     "noEmit": true,
     "types": ["vite/client", "vite-plugin-pwa/client"]
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Tests live in their own project (tsconfig.test.json): they run in
+  // Node and need node types, which app code must not have.
+  "exclude": ["src/**/*.test.ts", "src/test/**"]
 }

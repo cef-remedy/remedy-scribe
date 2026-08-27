@@ -60,3 +60,49 @@ code {
   font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .85em;
   background: var(--bg); padding: .1rem .35rem; border-radius: 4px;
 }
+
+/* --- P0-1 recording indicator ------------------------------------------
+   Sticky and full-width on purpose: a patient in the room must be able to
+   tell they are being recorded at a glance, and the doctor must not be able
+   to scroll it away. This is a legal control, not a status chip. */
+.rec-indicator {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  margin: 0 -1rem 1rem;
+  padding: .6rem 1rem;
+  background: var(--error-bg);
+  color: var(--error);
+  border-bottom: 2px solid var(--error);
+  font-size: .95rem;
+}
+.rec-dot {
+  width: .7rem;
+  height: .7rem;
+  border-radius: 50%;
+  background: var(--error);
+  animation: rec-pulse 1.6s ease-in-out infinite;
+}
+/* Respect a reduced-motion preference — but keep the dot visible, since it
+   is the indicator itself and not decoration. */
+@media (prefers-reduced-motion: reduce) {
+  .rec-dot { animation: none; }
+}
+@keyframes rec-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .25; }
+}
+.rec-time { font-family: ui-monospace, Menlo, Consolas, monospace; }
+.rec-gap {
+  margin-left: auto;
+  font-weight: 600;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+
+.kv { display: grid; grid-template-columns: auto 1fr; gap: .25rem 1rem; margin: .5rem 0 0; }
+.kv dt { color: var(--ink3); font-size: .85rem; }
+.kv dd { margin: 0; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .9rem; }
+.kv dd.bad { color: var(--error); font-weight: 600; }

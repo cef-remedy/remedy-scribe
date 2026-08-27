@@ -9,6 +9,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./lib/auth";
 import { Login } from "./routes/Login";
 import { Home } from "./routes/Home";
+import { Record } from "./routes/Record";
 
 export function App() {
   const { status } = useAuth();
@@ -30,6 +31,10 @@ export function App() {
     <Routes>
       <Route path="/login" element={signedIn ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/" element={signedIn ? <Home /> : <Navigate to="/login" replace />} />
+      <Route
+        path="/encounters/:encounterId/record"
+        element={signedIn ? <Record /> : <Navigate to="/login" replace />}
+      />
       <Route path="*" element={<Navigate to={signedIn ? "/" : "/login"} replace />} />
     </Routes>
   );

@@ -27,3 +27,4 @@ these files explain them, not duplicate them.
 | 1.4 | [1.4-real-note-generation.md](1.4-real-note-generation.md) | `HaikuNoteGenerator` — forced-tool-call structured output, mechanical two-layer suppression, segment-ID citations verified (not trusted) before persistence |
 | 1.5 | [1.5-pipeline-failure-handling.md](1.5-pipeline-failure-handling.md) | Dead-lettering (two new terminal statuses) plus a separate Celery Beat stuck-sweep; `/retry` and `/failed` routes — Phase 1 now fully closed |
 | 2.1 | [2.1-web-app-foundation.md](2.1-web-app-foundation.md) | Client re-platformed to a browser web app on a clinic laptop; generated typed API client, httpOnly-cookie auth with session resume, CORS — three bugs caught by running it |
+| 2.2 | [2.2-recording.md](2.2-recording.md) | Real recording: fail-closed consent gate (P0-1), AES-GCM chunks encrypted before disk, AudioWorklet gap detection, persistent indicator — 22/22 end-to-end in a real browser |

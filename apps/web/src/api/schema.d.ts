@@ -409,6 +409,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/consent/{encounter_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Consent State
+         * @description The client-side half of the P0-1 gate. The server already refuses
+         *     to finalize an upload or transcribe without consent (Phase 0.1); this
+         *     lets the app refuse to *capture* in the first place, which is what
+         *     P0-1 actually asks for — "before anything is captured".
+         */
+        get: operations["read_consent_state_api_v1_consent__encounter_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/notes/{note_id}": {
         parameters: {
             query?: never;
@@ -550,6 +573,31 @@ export interface components {
          * @enum {string}
          */
         ConsentEventType: "given" | "declined" | "withdrawn";
+        /**
+         * ConsentStateOut
+         * @description Phase 2.2: lets the client answer "may I start recording?" — P0-1
+         *     requires the app to *block* recording when no consent exists, and it
+         *     cannot block what it cannot see. Deliberately a server read rather
+         *     than client state: a reload mid-encounter loses local state while
+         *     the ledger entry persists, so local state would fail open.
+         *
+         *     `can_record` is the same fold the server enforces at upload
+         *     confirmation and at the head of the transcription task (see
+         *     app/services/consent.py) — one definition, three consumers, so the
+         *     client can never believe it may record when the server disagrees.
+         */
+        ConsentStateOut: {
+            /** Encounter Id */
+            encounter_id: string;
+            /** Can Record */
+            can_record: boolean;
+            /** Latest Event */
+            latest_event: string | null;
+            /** Script Language */
+            script_language: string | null;
+            /** Entry Count */
+            entry_count: number;
+        };
         /**
          * EncounterCreate
          * @description Starts (or resumes) an encounter. `upload_idempotency_key` is
@@ -1426,6 +1474,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConsentEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_consent_state_api_v1_consent__encounter_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsentStateOut"];
                 };
             };
             /** @description Validation Error */

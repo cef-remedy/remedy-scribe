@@ -821,6 +821,54 @@
         ]
       }
     },
+    "/api/v1/consent/{encounter_id}": {
+      "get": {
+        "tags": [
+          "consent"
+        ],
+        "summary": "Read Consent State",
+        "description": "The client-side half of the P0-1 gate. The server already refuses\nto finalize an upload or transcribe without consent (Phase 0.1); this\nlets the app refuse to *capture* in the first place, which is what\nP0-1 actually asks for \u2014 \"before anything is captured\".",
+        "operationId": "read_consent_state_api_v1_consent__encounter_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "encounter_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Encounter Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentStateOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/notes/{note_id}": {
       "get": {
         "tags": [
@@ -1165,6 +1213,54 @@
         ],
         "title": "ConsentEventType",
         "description": "Phase 0.4: was a free-form String(16) with only a Python-side\ncomment (`# given | declined | withdrawn`) documenting the allowed\nvalues \u2014 nothing enforced it. See `create_constraint=True` below."
+      },
+      "ConsentStateOut": {
+        "properties": {
+          "encounter_id": {
+            "type": "string",
+            "title": "Encounter Id"
+          },
+          "can_record": {
+            "type": "boolean",
+            "title": "Can Record"
+          },
+          "latest_event": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Event"
+          },
+          "script_language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Script Language"
+          },
+          "entry_count": {
+            "type": "integer",
+            "title": "Entry Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "encounter_id",
+          "can_record",
+          "latest_event",
+          "script_language",
+          "entry_count"
+        ],
+        "title": "ConsentStateOut",
+        "description": "Phase 2.2: lets the client answer \"may I start recording?\" \u2014 P0-1\nrequires the app to *block* recording when no consent exists, and it\ncannot block what it cannot see. Deliberately a server read rather\nthan client state: a reload mid-encounter loses local state while\nthe ledger entry persists, so local state would fail open.\n\n`can_record` is the same fold the server enforces at upload\nconfirmation and at the head of the transcription task (see\napp/services/consent.py) \u2014 one definition, three consumers, so the\nclient can never believe it may record when the server disagrees."
       },
       "EncounterCreate": {
         "properties": {

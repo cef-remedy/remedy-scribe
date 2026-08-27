@@ -22,3 +22,23 @@ class ConsentEntryOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ConsentStateOut(BaseModel):
+    """Phase 2.2: lets the client answer "may I start recording?" — P0-1
+    requires the app to *block* recording when no consent exists, and it
+    cannot block what it cannot see. Deliberately a server read rather
+    than client state: a reload mid-encounter loses local state while
+    the ledger entry persists, so local state would fail open.
+
+    `can_record` is the same fold the server enforces at upload
+    confirmation and at the head of the transcription task (see
+    app/services/consent.py) — one definition, three consumers, so the
+    client can never believe it may record when the server disagrees.
+    """
+
+    encounter_id: str
+    can_record: bool
+    latest_event: str | None
+    script_language: str | None
+    entry_count: int

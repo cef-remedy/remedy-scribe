@@ -3,10 +3,11 @@ import json
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db, require_role
+from app.api.deps import get_current_clinician, get_db, require_role
 from app.models.clinician import Clinician
 from app.models.consent import ConsentLedgerEntry
-from app.schemas.consent import ConsentEntryCreate, ConsentEntryOut
+from app.services.consent import current_consent_state
+from app.schemas.consent import ConsentEntryCreate, ConsentEntryOut, ConsentStateOut
 
 router = APIRouter(prefix="/consent", tags=["consent"])
 
@@ -36,3 +37,28 @@ def record_consent_event(
     db.commit()
     db.refresh(entry)
     return ConsentEntryOut.model_validate(entry)
+
+
+@router.get("/{encounter_id}", response_model=ConsentStateOut)
+def read_consent_state(
+    encounter_id: str,
+    db: Session = Depends(get_db),
+    # Any authenticated clinician, not doctor-only: this is a *read* of
+    # whether recording is permitted, and the same reasoning as note reads
+    # (decision 0004) applies — restricting it buys nothing while breaking
+    # a compliance officer's ability to check consent state.
+    clinician: Clinician = Depends(get_current_clinician),
+) -> ConsentStateOut:
+    """The client-side half of the P0-1 gate. The server already refuses
+    to finalize an upload or transcribe without consent (Phase 0.1); this
+    lets the app refuse to *capture* in the first place, which is what
+    P0-1 actually asks for — "before anything is captured".
+    """
+    state = current_consent_state(db, encounter_id)
+    return ConsentStateOut(
+        encounter_id=state.encounter_id,
+        can_record=state.is_given,
+        latest_event=state.latest_event,
+        script_language=state.script_language,
+        entry_count=state.entry_count,
+    )
