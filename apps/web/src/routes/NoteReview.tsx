@@ -14,7 +14,13 @@
  *    distinguish "the draft was nearly right" from "the doctor rewrote it in
  *    one pass".
  *
- * 3. **Signing is a distinct ceremony**, not the last button in a row. It
+ * 3. **Grounding comes before editing** (Phase 3, P0-7). Each section renders
+ *    as clickable lines first — tap one to see the transcript passage it came
+ *    from, tap again to hear it — and swaps to a textarea only when the doctor
+ *    chooses to edit. The first pass over an AI draft should be verification,
+ *    and the default gesture should be the one the doctor is accountable for.
+ *
+ * 4. **Signing is a distinct ceremony**, not the last button in a row. It
  *    binds a PRC licence number to a real clinician, is irreversible, and
  *    makes the doctor — not the model — accountable for the content. It is
  *    visually separated and requires typing the licence number every time.
@@ -24,7 +30,10 @@ import { useParams } from "react-router-dom";
 import { api, OfflineError } from "../api/client";
 import { Banner } from "../components/Banner";
 import { PatientPicker } from "../components/PatientPicker";
+import { GroundedSection } from "../components/GroundedSection";
+import { audioNotice, fetchGrounding, type Grounding } from "../lib/grounding";
 import { fetchPriorVisit, type PriorVisit } from "../lib/patients";
+import { usePassagePlayer } from "../lib/usePassagePlayer";
 
 type Section = "assessment" | "plan" | "subjective" | "objective";
 
@@ -77,6 +86,8 @@ export function NoteReview() {
   const [info, setInfo] = useState<string | null>(null);
   const [licence, setLicence] = useState("");
   const [savingSection, setSavingSection] = useState<Section | null>(null);
+  const [grounding, setGrounding] = useState<Grounding | null>(null);
+  const player = usePassagePlayer(note?.encounter_id ?? null);
 
   const load = useCallback(async () => {
     try {
@@ -95,6 +106,10 @@ export function NoteReview() {
         subjective: loaded.subjective,
         objective: loaded.objective,
       });
+
+      // Additive: a failed grounding read leaves the note fully readable and
+      // signable. It must never be the reason a doctor cannot work.
+      setGrounding(await fetchGrounding(noteId));
 
       const encounter = await api.GET("/api/v1/encounters/{encounter_id}", {
         params: { path: { encounter_id: loaded.encounter_id } },
@@ -136,6 +151,10 @@ export function NoteReview() {
           return;
         }
         setNote(data as Note);
+        // The edit may have shifted every offset after it, so the spans this
+        // screen is highlighting by are now suspect. Re-ask the server rather
+        // than keep rendering links it would no longer vouch for.
+        setGrounding(await fetchGrounding(noteId));
       } catch {
         setError("That edit could not be saved — you may be offline.");
       } finally {
@@ -189,6 +208,10 @@ export function NoteReview() {
   if (!note) return <main className="app"><p className="muted">Loading the note…</p></main>;
 
   const next = NEXT_STATUS[note.status];
+  // The degradation ladder in words (Phase 3's heads-up): notes outlive audio,
+  // and a doctor should know which rung they are on rather than meet a control
+  // that quietly does nothing.
+  const notice = grounding ? audioNotice(grounding.audio_state, grounding.transcript_state) : null;
   const signed = note.status === "signed";
   const needsPatient = note.status === "generated";
 
@@ -245,24 +268,35 @@ export function NoteReview() {
         </section>
       )}
 
+      {/* --- P0-7: where the note came from, before it is edited --- */}
+      {notice && (
+        <Banner tone="info">
+          {notice}
+        </Banner>
+      )}
+      {grounding && grounding.audio_state === "available" && (
+        <p className="muted ground-help">
+          Click any line of the note to see the transcript passage it was drafted from. Click it
+          again to hear that moment of the consultation.
+        </p>
+      )}
+
       {/* --- the note itself, APSO --- */}
       {SECTIONS.map(({ key, label, hint }) => (
-        <section className="card" key={key}>
-          <h2>{label}</h2>
-          <p className="muted">{hint}</p>
-          <textarea
-            aria-label={label}
-            rows={5}
-            disabled={signed}
-            value={drafts[key]}
-            onChange={(e) => setDrafts((d) => ({ ...d, [key]: e.target.value }))}
-            onBlur={() => void saveSection(key)}
-          />
-          {savingSection === key && <p className="muted">Saving…</p>}
-          {!signed && drafts[key] !== note[key] && (
-            <p className="muted">Unsaved — click outside the box to save this edit.</p>
-          )}
-        </section>
+        <GroundedSection
+          key={key}
+          sectionKey={key}
+          label={label}
+          hint={hint}
+          text={drafts[key]}
+          savedText={note[key]}
+          signed={signed}
+          saving={savingSection === key}
+          grounding={grounding}
+          player={player}
+          onChange={(text) => setDrafts((d) => ({ ...d, [key]: text }))}
+          onBlur={() => void saveSection(key)}
+        />
       ))}
 
       {/* --- the signing ceremony, deliberately separated --- */}

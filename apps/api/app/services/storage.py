@@ -122,6 +122,44 @@ def presign_part_upload(key: str, upload_id: str, part_number: int, expires_in: 
     )
 
 
+def presign_audio_playback(key: str, expires_in: int | None = None) -> tuple[str, int]:
+    """A short-lived presigned GET for the grounding UI's audio playback
+    (Phase 3, P0-7). Returns (url, expires_in_seconds).
+
+    Two signed response headers matter as much as the URL itself:
+
+    * ``ResponseCacheControl="no-store"`` — object storage returns it on
+      every response, so the browser does not write the audio into its
+      HTTP cache. P0-7 asks for playback "without permanently
+      re-downloading PHI"; this is the half of that which keeps the bytes
+      off the laptop's disk. The other half is that the browser's own
+      Range requests go straight to storage, so only the seconds actually
+      played are ever transferred, and the API server never sees them.
+    * ``ResponseContentDisposition="inline"`` — a recording should stream
+      into an audio element, not land in the doctor's Downloads folder as
+      an unencrypted file nothing will ever clean up.
+
+    Expiry is deliberately its own setting rather than reusing the
+    part-upload window: an upload URL is handed to a device that is
+    already holding the bytes, while this one is a playable handle on PHI
+    and should outlive the click that requested it by as little as
+    possible.
+    """
+    settings = get_settings()
+    expires = expires_in or settings.s3_playback_url_expires_seconds
+    url = _client().generate_presigned_url(
+        "get_object",
+        Params={
+            "Bucket": settings.s3_bucket,
+            "Key": key,
+            "ResponseCacheControl": "no-store",
+            "ResponseContentDisposition": "inline",
+        },
+        ExpiresIn=expires,
+    )
+    return url, expires
+
+
 def list_uploaded_parts(key: str, upload_id: str) -> list[dict[str, Any]]:
     """The per-chunk state a resumed upload diffs against — S3 already
     tracks exactly this for any in-progress multipart upload, so there's

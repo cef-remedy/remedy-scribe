@@ -397,6 +397,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/encounters/{encounter_id}/audio-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Audio Playback Url
+         * @description Phase 3 (P0-7): a short-lived presigned GET so the grounding UI can
+         *     play audio from a cited timestamp.
+         *
+         *     Separate from the grounding read on purpose. A presigned URL is a live,
+         *     playable handle on PHI; minting one every time a doctor opens a note
+         *     would hand out a working link to a recording they may never ask to
+         *     hear. This endpoint is the moment they ask.
+         *
+         *     Returns **409, not 404**, when the audio is gone. The encounter exists
+         *     and the caller may read it — what is missing is the recording, which is
+         *     a state problem, and the message says *why* it is missing (deleted at
+         *     the patient's request, retention elapsed, never recorded, or storage
+         *     unreachable). The whole point of this phase's heads-up is that the
+         *     doctor should understand which state they are in.
+         */
+        get: operations["read_audio_playback_url_api_v1_encounters__encounter_id__audio_url_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/encounters/{encounter_id}/upload/init": {
         parameters: {
             query?: never;
@@ -554,6 +587,39 @@ export interface paths {
         patch: operations["edit_section_api_v1_notes__note_id__patch"];
         trace?: never;
     };
+    "/api/v1/notes/{note_id}/grounding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Grounding
+         * @description Phase 3 (P0-7): everything needed to answer "where did this line come
+         *     from?" in one read.
+         *
+         *     Resolves each section's stored spans against the note's *current* text,
+         *     returns the cited transcript passages with their audio timestamps, and
+         *     reports which rung of the degradation ladder this encounter is on
+         *     (audio + transcript, transcript only, or neither). See
+         *     app/services/grounding.py for why each of those is verified rather than
+         *     assumed.
+         *
+         *     Audited separately from `note.read`: reading a note is reading the
+         *     clinician-facing summary, while this returns verbatim transcript
+         *     passages — a strictly larger PHI disclosure, and one worth being able
+         *     to account for on its own.
+         */
+        get: operations["read_grounding_api_v1_notes__note_id__grounding_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/notes/{note_id}/transition": {
         parameters: {
             query?: never;
@@ -614,6 +680,25 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AudioPlaybackOut
+         * @description A short-lived presigned GET URL. Minted only when the doctor asks to
+         *     hear something, never as part of loading a note.
+         */
+        AudioPlaybackOut: {
+            /** Url */
+            url: string;
+            /** Expires In Seconds */
+            expires_in_seconds: number;
+        };
+        /**
+         * AudioState
+         * @description The degradation ladder the Phase 3 heads-up asks for: notes outlive
+         *     audio, and the doctor must understand *which* state they are in rather
+         *     than seeing a play button that does nothing.
+         * @enum {string}
+         */
+        AudioState: "available" | "never_recorded" | "withdrawn" | "expired" | "unreachable";
         /** AuditLogOut */
         AuditLogOut: {
             /** Id */
@@ -733,6 +818,8 @@ export interface components {
             retry_count: number;
             /** Last Pipeline Error */
             last_pipeline_error: string | null;
+            /** Note Id */
+            note_id?: string | null;
             /** Audio Retention Expires At */
             audio_retention_expires_at: string | null;
             /**
@@ -752,6 +839,65 @@ export interface components {
          * @enum {string}
          */
         EncounterPipelineStatus: "recording" | "uploaded" | "transcribed" | "note_generated" | "blocked_no_consent" | "transcription_failed" | "generation_failed";
+        /** GroundedSectionOut */
+        GroundedSectionOut: {
+            /** Suppressed */
+            suppressed: boolean;
+            /** Spans */
+            spans: components["schemas"]["GroundedSpanOut"][];
+            /** Spans Fit */
+            spans_fit: boolean;
+            /** Edited Since Generation */
+            edited_since_generation: boolean;
+        };
+        /**
+         * GroundedSegmentOut
+         * @description One transcript passage. `start_ms`/`end_ms` are nullable because a
+         *     persisted segment with no words is representable, and a read endpoint
+         *     should degrade to "this passage cannot be played" rather than 500.
+         */
+        GroundedSegmentOut: {
+            /** Id */
+            id: string;
+            /** Index */
+            index: number;
+            /** Speaker */
+            speaker: string;
+            /** Text */
+            text: string;
+            /** Start Ms */
+            start_ms: number | null;
+            /** End Ms */
+            end_ms: number | null;
+            /** Cited */
+            cited: boolean;
+        };
+        /** GroundedSpanOut */
+        GroundedSpanOut: {
+            /** Text Start */
+            text_start: number;
+            /** Text End */
+            text_end: number;
+            /** Segment Ids */
+            segment_ids: string[];
+            /** Text */
+            text: string;
+        };
+        /** GroundingOut */
+        GroundingOut: {
+            /** Note Id */
+            note_id: string;
+            /** Encounter Id */
+            encounter_id: string;
+            audio_state: components["schemas"]["AudioState"];
+            transcript_state: components["schemas"]["TranscriptState"];
+            /** Segments */
+            segments: components["schemas"]["GroundedSegmentOut"][];
+            /** Sections */
+            sections: {
+                [key: string]: components["schemas"]["GroundedSectionOut"];
+            };
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1025,6 +1171,11 @@ export interface components {
              */
             token_type: string;
         };
+        /**
+         * TranscriptState
+         * @enum {string}
+         */
+        TranscriptState: "available" | "never_transcribed" | "expired";
         /**
          * UploadInitRequest
          * @description `content_type` is optional and not enforced against an allowlist
@@ -1600,6 +1751,37 @@ export interface operations {
             };
         };
     };
+    read_audio_playback_url_api_v1_encounters__encounter_id__audio_url_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AudioPlaybackOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     init_upload_api_v1_encounters__encounter_id__upload_init_post: {
         parameters: {
             query?: never;
@@ -1846,6 +2028,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NoteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_grounding_api_v1_notes__note_id__grounding_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroundingOut"];
                 };
             };
             /** @description Validation Error */

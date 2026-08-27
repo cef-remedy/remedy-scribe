@@ -3,6 +3,10 @@
 :root {
   --bg: #f5f7f3; --card: #fff; --ink: #16201d; --ink2: #46534e; --ink3: #78857f;
   --rule: #d8ded4; --accent: #0e5c52; --accent-ink: #f5f7f3;
+  /* A second surface, one step off --card: the prior-visit card and cited
+     transcript passages. Referenced by .prior since 2.6 but never defined,
+     so that card silently rendered with no background until Phase 3. */
+  --card2: #eef2ec;
   --error: #a2432a; --error-bg: #f7e7e0;
   --warn: #7a5c14; --warn-bg: #faf0d7;
 }
@@ -211,3 +215,70 @@ textarea:disabled { opacity: .75; cursor: not-allowed; }
 .loose > li { border: 1px solid var(--rule); border-radius: 8px; padding: .6rem .8rem; margin-bottom: .5rem; }
 .loose-head { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; }
 .loose-head .ghost { margin: 0 0 0 auto; padding: .25rem .6rem; font-size: .8rem; }
+
+/* --- grounding UI (Phase 3, P0-7) ---------------------------------------
+   The note reads as prose but every line is a control. That means the
+   affordance has to be discoverable without turning a clinical document into
+   a wall of buttons: no borders, no button chrome, just a hover/selected
+   state and a cursor. A doctor should be able to read the note without
+   noticing the mechanism, and find it the moment they want to check a line. */
+.ground-help { margin: 0 0 .9rem; }
+
+.grounded-text {
+  line-height: 1.65; margin: 0;
+  /* Inline-block children with whitespace between them collapse to single
+     spaces, which is exactly the spacing generation used when it joined the
+     sentences — so the rendered text matches the stored text. */
+}
+.ground-line {
+  display: inline; margin: 0; padding: .05rem .1rem;
+  font: inherit; text-align: left; color: var(--ink);
+  background: none; border: none; border-radius: 3px;
+  cursor: pointer;
+  /* A dotted underline reads as "there is more here" rather than "this is a
+     link that will navigate away". */
+  text-decoration: underline dotted var(--rule);
+  text-underline-offset: .18em;
+}
+.ground-line:hover { background: var(--warn-bg); text-decoration-color: var(--accent); }
+.ground-line.is-selected {
+  background: var(--warn-bg);
+  box-shadow: inset 0 -2px 0 var(--accent);
+  text-decoration: none;
+}
+/* A drafted line citing no passage is the line most worth a second look, so
+   it is marked in the note itself rather than only in the panel. */
+.ground-line.is-uncited { text-decoration: underline wavy var(--error); }
+.ground-line:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.ground-stale {
+  margin: .6rem 0 0; font-size: .88rem; color: var(--warn);
+  background: var(--warn-bg); border-radius: 6px; padding: .5rem .65rem;
+}
+
+.passages { margin-top: .9rem; border-top: 1px solid var(--rule); padding-top: .75rem; }
+.passages h3 {
+  font-size: .8rem; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--ink3); margin: 0 0 .5rem; display: flex; align-items: center; gap: .5rem;
+}
+.passage-list { list-style: none; padding: 0; margin: 0; }
+.passage-list > li { padding: .45rem .6rem; border-radius: 6px; margin-bottom: .35rem; }
+/* Cited and context are visually ranked, not merely labelled: a passage read
+   without its surroundings is easy to misread, but a neighbour is not what
+   the line cited and must not look like evidence. */
+.passage-list > li.is-cited { background: var(--card2); border-left: 3px solid var(--accent); }
+.passage-list > li.is-context { opacity: .62; border-left: 3px solid var(--rule); }
+.passage-head { display: flex; gap: .6rem; align-items: baseline; flex-wrap: wrap; }
+.passage-speaker { font-size: .78rem; font-weight: 600; color: var(--ink2); }
+.passage-time { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .78rem; color: var(--ink3); }
+.passage-tag {
+  font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink3);
+}
+.passage-text { margin: .2rem 0 0; font-size: .92rem; line-height: 1.5; white-space: pre-wrap; }
+
+.playing-dot {
+  width: .5rem; height: .5rem; border-radius: 50%; background: var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .playing-dot { animation: none; } }

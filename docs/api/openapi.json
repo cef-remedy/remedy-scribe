@@ -751,6 +751,54 @@
         }
       }
     },
+    "/api/v1/encounters/{encounter_id}/audio-url": {
+      "get": {
+        "tags": [
+          "encounters"
+        ],
+        "summary": "Read Audio Playback Url",
+        "description": "Phase 3 (P0-7): a short-lived presigned GET so the grounding UI can\nplay audio from a cited timestamp.\n\nSeparate from the grounding read on purpose. A presigned URL is a live,\nplayable handle on PHI; minting one every time a doctor opens a note\nwould hand out a working link to a recording they may never ask to\nhear. This endpoint is the moment they ask.\n\nReturns **409, not 404**, when the audio is gone. The encounter exists\nand the caller may read it \u2014 what is missing is the recording, which is\na state problem, and the message says *why* it is missing (deleted at\nthe patient's request, retention elapsed, never recorded, or storage\nunreachable). The whole point of this phase's heads-up is that the\ndoctor should understand which state they are in.",
+        "operationId": "read_audio_playback_url_api_v1_encounters__encounter_id__audio_url_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "encounter_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Encounter Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioPlaybackOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/encounters/{encounter_id}/upload/init": {
       "post": {
         "tags": [
@@ -1160,6 +1208,54 @@
         }
       }
     },
+    "/api/v1/notes/{note_id}/grounding": {
+      "get": {
+        "tags": [
+          "notes"
+        ],
+        "summary": "Read Grounding",
+        "description": "Phase 3 (P0-7): everything needed to answer \"where did this line come\nfrom?\" in one read.\n\nResolves each section's stored spans against the note's *current* text,\nreturns the cited transcript passages with their audio timestamps, and\nreports which rung of the degradation ladder this encounter is on\n(audio + transcript, transcript only, or neither). See\napp/services/grounding.py for why each of those is verified rather than\nassumed.\n\nAudited separately from `note.read`: reading a note is reading the\nclinician-facing summary, while this returns verbatim transcript\npassages \u2014 a strictly larger PHI disclosure, and one worth being able\nto account for on its own.",
+        "operationId": "read_grounding_api_v1_notes__note_id__grounding_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroundingOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/notes/{note_id}/transition": {
       "post": {
         "tags": [
@@ -1270,6 +1366,37 @@
   },
   "components": {
     "schemas": {
+      "AudioPlaybackOut": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "expires_in_seconds": {
+            "type": "integer",
+            "title": "Expires In Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url",
+          "expires_in_seconds"
+        ],
+        "title": "AudioPlaybackOut",
+        "description": "A short-lived presigned GET URL. Minted only when the doctor asks to\nhear something, never as part of loading a note."
+      },
+      "AudioState": {
+        "type": "string",
+        "enum": [
+          "available",
+          "never_recorded",
+          "withdrawn",
+          "expired",
+          "unreachable"
+        ],
+        "title": "AudioState",
+        "description": "The degradation ladder the Phase 3 heads-up asks for: notes outlive\naudio, and the doctor must understand *which* state they are in rather\nthan seeing a play button that does nothing."
+      },
       "AuditLogOut": {
         "properties": {
           "id": {
@@ -1535,6 +1662,17 @@
             ],
             "title": "Last Pipeline Error"
           },
+          "note_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Id"
+          },
           "audio_retention_expires_at": {
             "anyOf": [
               {
@@ -1578,6 +1716,168 @@
         ],
         "title": "EncounterPipelineStatus",
         "description": "Phase 0.4: was a free-form String(32) that the codebase wrote at\nleast five different values into across two files (encounters.py,\ntasks/pipeline.py) with nothing checking any of them matched. Now a\nproper enum, the way Note.status already was in name \u2014 see the\n`create_constraint=True` below for why \"already was\" turned out to\nbe only half true."
+      },
+      "GroundedSectionOut": {
+        "properties": {
+          "suppressed": {
+            "type": "boolean",
+            "title": "Suppressed"
+          },
+          "spans": {
+            "items": {
+              "$ref": "#/components/schemas/GroundedSpanOut"
+            },
+            "type": "array",
+            "title": "Spans"
+          },
+          "spans_fit": {
+            "type": "boolean",
+            "title": "Spans Fit"
+          },
+          "edited_since_generation": {
+            "type": "boolean",
+            "title": "Edited Since Generation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "suppressed",
+          "spans",
+          "spans_fit",
+          "edited_since_generation"
+        ],
+        "title": "GroundedSectionOut"
+      },
+      "GroundedSegmentOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "speaker": {
+            "type": "string",
+            "title": "Speaker"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "start_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Ms"
+          },
+          "end_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Ms"
+          },
+          "cited": {
+            "type": "boolean",
+            "title": "Cited"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "index",
+          "speaker",
+          "text",
+          "start_ms",
+          "end_ms",
+          "cited"
+        ],
+        "title": "GroundedSegmentOut",
+        "description": "One transcript passage. `start_ms`/`end_ms` are nullable because a\npersisted segment with no words is representable, and a read endpoint\nshould degrade to \"this passage cannot be played\" rather than 500."
+      },
+      "GroundedSpanOut": {
+        "properties": {
+          "text_start": {
+            "type": "integer",
+            "title": "Text Start"
+          },
+          "text_end": {
+            "type": "integer",
+            "title": "Text End"
+          },
+          "segment_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Segment Ids"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text_start",
+          "text_end",
+          "segment_ids",
+          "text"
+        ],
+        "title": "GroundedSpanOut"
+      },
+      "GroundingOut": {
+        "properties": {
+          "note_id": {
+            "type": "string",
+            "title": "Note Id"
+          },
+          "encounter_id": {
+            "type": "string",
+            "title": "Encounter Id"
+          },
+          "audio_state": {
+            "$ref": "#/components/schemas/AudioState"
+          },
+          "transcript_state": {
+            "$ref": "#/components/schemas/TranscriptState"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/GroundedSegmentOut"
+            },
+            "type": "array",
+            "title": "Segments"
+          },
+          "sections": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/GroundedSectionOut"
+            },
+            "type": "object",
+            "title": "Sections"
+          }
+        },
+        "type": "object",
+        "required": [
+          "note_id",
+          "encounter_id",
+          "audio_state",
+          "transcript_state",
+          "segments",
+          "sections"
+        ],
+        "title": "GroundingOut"
       },
       "HTTPValidationError": {
         "properties": {
@@ -2103,6 +2403,15 @@
           "refresh_token"
         ],
         "title": "TokenResponse"
+      },
+      "TranscriptState": {
+        "type": "string",
+        "enum": [
+          "available",
+          "never_transcribed",
+          "expired"
+        ],
+        "title": "TranscriptState"
       },
       "UploadInitRequest": {
         "properties": {

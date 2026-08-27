@@ -30,6 +30,13 @@ class Settings(BaseSettings):
     s3_access_key: str = "remedy"
     s3_secret_key: str = "remedy-dev-secret"
     s3_presigned_url_expires_seconds: int = 900  # 15 min per part-upload URL
+    # Phase 3 (P0-7): the grounding UI's audio playback URL. Shorter than
+    # the upload window on purpose — an upload URL goes to a device that
+    # already holds the bytes, while this one is a playable handle on PHI.
+    # Not shorter than a few minutes, though: a browser streams via Range
+    # requests over the life of the URL, so an aggressively short expiry
+    # breaks playback mid-passage rather than improving anything.
+    s3_playback_url_expires_seconds: int = 300  # 5 min
     # The orphan-upload reaper: how long an incomplete multipart upload
     # survives before the bucket lifecycle rule aborts it automatically.
     s3_abort_incomplete_upload_after_days: int = 2

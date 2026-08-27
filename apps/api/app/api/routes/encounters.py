@@ -8,6 +8,9 @@ from app.models.clinician import Clinician
 from app.models.encounter import Encounter, EncounterPipelineStatus
 from app.models.note import Note
 from app.schemas.encounter import EncounterCreate, EncounterLinkPatient, EncounterOut
+from app.schemas.grounding import AudioPlaybackOut
+from app.services import audit
+from app.services.grounding import AudioNotPlayableError, presign_playback_url
 
 router = APIRouter(prefix="/encounters", tags=["encounters"])
 
@@ -202,6 +205,53 @@ def read_encounter(
     if encounter is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Encounter not found")
     return _encounter_out(db, encounter)
+
+
+
+@router.get("/{encounter_id}/audio-url", response_model=AudioPlaybackOut)
+def read_audio_playback_url(
+    encounter_id: str,
+    db: Session = Depends(get_db),
+    clinician: Clinician = Depends(require_role("doctor")),
+) -> AudioPlaybackOut:
+    """Phase 3 (P0-7): a short-lived presigned GET so the grounding UI can
+    play audio from a cited timestamp.
+
+    Separate from the grounding read on purpose. A presigned URL is a live,
+    playable handle on PHI; minting one every time a doctor opens a note
+    would hand out a working link to a recording they may never ask to
+    hear. This endpoint is the moment they ask.
+
+    Returns **409, not 404**, when the audio is gone. The encounter exists
+    and the caller may read it — what is missing is the recording, which is
+    a state problem, and the message says *why* it is missing (deleted at
+    the patient's request, retention elapsed, never recorded, or storage
+    unreachable). The whole point of this phase's heads-up is that the
+    doctor should understand which state they are in.
+    """
+    encounter = db.get(Encounter, encounter_id)
+    if encounter is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Encounter not found")
+
+    try:
+        url, expires_in = presign_playback_url(db, encounter)
+    except AudioNotPlayableError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+
+    # Listening to a consultation recording is a PHI access in its own
+    # right, and a more sensitive one than reading the note: the audio is
+    # verbatim, including whatever the doctor chose not to write down. The
+    # object key is deliberately not recorded — it is a direct pointer to
+    # the bytes, and an audit row outlives the retention window of what it
+    # points at.
+    audit.record(
+        db,
+        actor_clinician_id=clinician.id,
+        action="encounter.audio.playback_url",
+        entity_type="encounter",
+        entity_id=encounter.id,
+    )
+    return AudioPlaybackOut(url=url, expires_in_seconds=expires_in)
 
 
 # Upload confirmation used to live here as `POST /{encounter_id}/confirm-upload`,

@@ -78,7 +78,11 @@ function check(name, ok, detail) {
 function readStoredChunks(page, sessionId) {
   return page.evaluate(async (sid) => {
     const db = await new Promise((resolve, reject) => {
-      const req = indexedDB.open("remedy-scribe", 1);
+      // No version argument on purpose: opening at a pinned version throws
+      // VersionError once the app's own schema moves past it, and a read-only
+      // probe has no business dictating the schema anyway. This test was
+      // unrunnable from the moment Phase 2.2 bumped the store to v2.
+      const req = indexedDB.open("remedy-scribe");
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });

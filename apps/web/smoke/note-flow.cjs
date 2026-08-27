@@ -22,8 +22,19 @@
  *
  * Run:
  *   PW_PATH=... MFA_SECRET=... node smoke/note-flow.cjs
+ *
+ * SEED_PIPELINE=1 substitutes the ASR and note-generation legs via
+ * smoke/seed_pipeline.py when vendor API keys are not provisioned — see that
+ * file. Everything this test is actually about (identity, review, editing,
+ * filing, signing) is unaffected; only how the draft came to exist is.
  */
 const crypto = require("node:crypto");
+const { execFileSync } = require("node:child_process");
+const path = require("node:path");
+
+const SEED_PIPELINE = process.env.SEED_PIPELINE === "1";
+const PYTHON =
+  process.env.API_PYTHON || path.join(__dirname, "..", "..", "api", ".venv", "Scripts", "python.exe");
 
 const PW_PATH = process.env.PW_PATH || "playwright";
 const WEB_URL = process.env.WEB_URL || "http://localhost:5173";
@@ -205,6 +216,7 @@ const call = (page, fn, arg) => page.evaluate(fn, arg);
   await sleep(2500);
 
   let noteId = null;
+  let uploaded = false;
   for (let i = 0; i < 40; i++) {
     await sleep(2000);
     const snap = await call(
@@ -219,10 +231,19 @@ const call = (page, fn, arg) => page.evaluate(fn, arg);
       enc,
     );
     if (i % 4 === 0) console.log(`  t+${(i + 1) * 2}s  pipeline=${snap.status}  note=${snap.noteId}`);
+    if (snap.status && snap.status !== "recording") uploaded = true;
     if (snap.noteId) {
       noteId = snap.noteId;
       break;
     }
+    if (SEED_PIPELINE && uploaded) break;
+  }
+  if (!noteId && SEED_PIPELINE) {
+    console.log("  SEED_PIPELINE=1: substituting the ASR and note-generation legs");
+    noteId = execFileSync(PYTHON, [path.join(__dirname, "seed_pipeline.py"), enc], {
+      encoding: "utf8",
+      cwd: path.join(__dirname, "..", "..", "api"),
+    }).trim();
   }
   // note_id was added to EncounterOut in 2.6 precisely because this test
   // could not otherwise navigate to the screen it exists to exercise.
@@ -262,8 +283,25 @@ const call = (page, fn, arg) => page.evaluate(fn, arg);
     }, noteId);
 
   const before = await readAssessment();
+  // Phase 3 made the section render as clickable lines first and the textarea
+  // opt-in, so editing now starts with an explicit gesture. Asserted here
+  // rather than assumed: this is the affordance change, and if the button
+  // disappears the edit path is broken even though nothing else would notice.
+  const assessmentCard = page
+    .locator("section.card")
+    .filter({ has: page.getByRole("heading", { name: "Assessment", exact: true }) });
+  const editButton = assessmentCard.getByRole("button", { name: /edit this section/i });
+  const groundedFirst = (await editButton.count()) === 1;
+  check("a drafted section is readable as evidence before it is editable (P0-7)", groundedFirst);
+  if (groundedFirst) {
+    await editButton.click();
+    await sleep(300);
+  }
   await page.getByLabel("Assessment").fill(before + " Edited by the doctor.");
-  await page.getByLabel("Plan").click(); // blur triggers the save
+  // Blur on the page heading, not on another section: since Phase 3 the other
+  // sections render as grounded lines rather than textareas, so there is no
+  // sibling field to click into.
+  await page.locator("h1").click();
   await sleep(1600);
   const after = await readAssessment();
   check("an edit is persisted on blur", after.includes("Edited by the doctor."), after.slice(-42));
@@ -370,7 +408,14 @@ const call = (page, fn, arg) => page.evaluate(fn, arg);
     "review screen shows the PRC licence it was signed under",
     (await page.getByText(/PRC-0123456/).count()) >= 1,
   );
-  check("editing is disabled once signed", await page.getByLabel("Assessment").isDisabled());
+  // Phase 3: a signed note renders as evidence only — there is no textarea to
+  // disable. A stronger guarantee than a disabled field, and worth asserting
+  // as absence rather than as state.
+  check("a signed note offers no editable field at all", (await page.locator("textarea").count()) === 0);
+  check(
+    "a signed note can still be checked against its sources",
+    (await page.locator(".ground-line").count()) > 0,
+  );
 
   console.log("\n=== page errors ===");
   console.log(pageErrors.length ? pageErrors.join("\n") : "  (none)");
