@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Remedy Scribe — Browser Audio Capture Harness</title>
+<!-- Inline favicon: keeps the console clean. A /favicon.ico 404 is harmless
+     but adds noise, and during a clinic test the console needs to be quiet
+     enough that a real error stands out. -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>%F0%9F%8E%99</text></svg>">
+<style>
+  :root {
+    --bg: #f5f7f3; --card: #fff; --card2: #edf0ea; --ink: #16201d; --ink2: #46534e;
+    --ink3: #78857f; --rule: #d8ded4; --ok: #0e5c52; --okbg: #deebe6;
+    --bad: #a2432a; --badbg: #f7e7e0; --warn: #7a5c14; --warnbg: #faf0d7;
+    --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1512; --card: #151e1a; --card2: #1c2721; --ink: #e6ede7; --ink2: #a3b0a8;
+      --ink3: #76837b; --rule: #2a362f; --ok: #5cc2ae; --okbg: #16302a;
+      --bad: #e89a7c; --badbg: #33201a; --warn: #d9bd6a; --warnbg: #2e2612;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px; background: var(--bg); color: var(--ink);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--ink2); margin: 0 0 20px; font-size: 14px; }
+  .card {
+    background: var(--card); border: 1px solid var(--rule); border-radius: 10px;
+    padding: 16px 18px; margin-bottom: 14px;
+  }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .09em;
+       color: var(--ink3); margin: 0 0 12px; font-weight: 600; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .metric { background: var(--card2); border-radius: 8px; padding: 11px 13px; }
+  .metric .label { font-size: 11px; color: var(--ink3); text-transform: uppercase;
+                   letter-spacing: .06em; margin-bottom: 3px; }
+  .metric .val { font: 600 21px/1.2 var(--mono); }
+  .metric .note { font-size: 11px; color: var(--ink3); margin-top: 3px; font-family: var(--mono); }
+  .metric.ok .val { color: var(--ok); } .metric.bad .val { color: var(--bad); }
+  .metric.warn .val { color: var(--warn); }
+  button {
+    font: 600 14px inherit; padding: 9px 18px; border-radius: 7px; cursor: pointer;
+    border: 1px solid var(--rule); background: var(--card2); color: var(--ink); margin-right: 8px;
+  }
+  button.primary { background: var(--ok); border-color: var(--ok); color: var(--bg); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  td, th { text-align: left; padding: 4px 8px 4px 0; vertical-align: top; }
+  th { color: var(--ink3); font-weight: 600; font-size: 11px; text-transform: uppercase; }
+  td.k { color: var(--ink2); white-space: nowrap; }
+  td.v { font-family: var(--mono); font-size: 12px; word-break: break-all; }
+  #log {
+    font: 12px/1.5 var(--mono); background: var(--card2); border-radius: 8px;
+    padding: 11px; max-height: 300px; overflow-y: auto; white-space: pre-wrap;
+  }
+  .verdict { border-radius: 8px; padding: 13px 15px; font-size: 14px; margin-bottom: 9px; }
+  .verdict.ok { background: var(--okbg); color: var(--ok); border: 1px solid var(--ok); }
+  .verdict.bad { background: var(--badbg); color: var(--bad); border: 1px solid var(--bad); }
+  .verdict.warn { background: var(--warnbg); color: var(--warn); border: 1px solid var(--warn); }
+  .verdict.idle { background: var(--card2); color: var(--ink2); }
+  .verdict b { display: block; margin-bottom: 2px; }
+  ol { margin: 6px 0 0; padding-left: 22px; } li { margin-bottom: 5px; }
+  code { font-family: var(--mono); font-size: .9em; background: var(--card2);
+         padding: 1px 5px; border-radius: 4px; }
+  .banner { background: var(--badbg); color: var(--bad); border: 1px solid var(--bad);
+            border-radius: 8px; padding: 13px 15px; margin-bottom: 14px; display: none; }
+  .row { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end; }
+  label.inl { font-size: 13px; color: var(--ink2); }
+  input[type=number] { font: inherit; width: 84px; padding: 5px 7px; border-radius: 6px;
+                       border: 1px solid var(--rule); background: var(--card); color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Browser Audio Capture Harness</h1>
+  <p class="sub">Remedy Scribe &middot; Phase 2 client decision &middot; measures whether a browser tab can hold a
+  clinical-grade recording through backgrounding, screen lock, and lid close.</p>
+
+  <div class="banner" id="banner"></div>
+
+  <div class="card">
+    <h2>Environment</h2>
+    <table id="env"></table>
+  </div>
+
+  <div class="card">
+    <h2>Run</h2>
+    <div class="row" style="margin-bottom:14px">
+      <div>
+        <label class="inl">MediaRecorder timeslice (ms)</label><br>
+        <input type="number" id="timeslice" value="5000" min="500" step="500">
+      </div>
+      <div>
+        <label class="inl">Heartbeat interval (ms)</label><br>
+        <input type="number" id="hb" value="1000" min="200" step="100">
+      </div>
+    </div>
+    <button class="primary" id="start">Start recording</button>
+    <button id="stop" disabled>Stop &amp; verdict</button>
+    <button id="export" disabled>Export JSON report</button>
+    <button id="clear">Clear stored chunks</button>
+  </div>
+
+  <div class="card">
+    <h2>Live measurement &mdash; three independent clocks</h2>
+    <div class="grid" id="metrics">
+      <div class="metric" id="m-wall"><div class="label">Wall clock</div><div class="val">&mdash;</div><div class="note">Date.now()</div></div>
+      <div class="metric" id="m-audio"><div class="label">Audio clock (ground truth)</div><div class="val">&mdash;</div><div class="note">worklet samples / rate</div></div>
+      <div class="metric" id="m-drift"><div class="label">Audio drift vs wall</div><div class="val">&mdash;</div><div class="note">under 0.5% = no loss</div></div>
+      <div class="metric" id="m-ctx"><div class="label">Audio engine liveness</div><div class="val">&mdash;</div><div class="note">ms since last worklet msg</div></div>
+      <div class="metric" id="m-page"><div class="label">Page timer ticks</div><div class="val">&mdash;</div><div class="note">throttles when hidden</div></div>
+      <div class="metric" id="m-worker"><div class="label">Worker timer ticks</div><div class="val">&mdash;</div><div class="note">should NOT throttle</div></div>
+      <div class="metric" id="m-chunks"><div class="label">MediaRecorder chunks</div><div class="val">&mdash;</div><div class="note">count / total bytes</div></div>
+      <div class="metric" id="m-gap"><div class="label">Worst chunk interval</div><div class="val">&mdash;</div><div class="note">vs requested timeslice</div></div>
+      <div class="metric" id="m-sleep"><div class="label">System sleep detected</div><div class="val">&mdash;</div><div class="note">wall-clock jump</div></div>
+      <div class="metric" id="m-state"><div class="label">Track / ctx state</div><div class="val">&mdash;</div><div class="note">live / running</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Verdict</h2>
+    <div id="verdicts"><div class="verdict idle">Not run yet.</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Test procedure <span id="osname" style="text-transform:none;letter-spacing:0"></span></h2>
+    <ol id="steps"></ol>
+  </div>
+
+  <div class="card">
+    <h2>Persisted chunks (IndexedDB &mdash; survives reload &amp; crash)</h2>
+    <div id="stored" style="font-family:var(--mono);font-size:12px;color:var(--ink2);white-space:pre-wrap">checking&hellip;</div>
+  </div>
+
+  <div class="card">
+    <h2>Event log</h2>
+    <div id="log"></div>
+  </div>
+</div>
+
+<script>
+/* ------------------------------------------------------------------ *
+ * Three clocks, measured against each other:
+ *
+ *   1. Wall clock   - Date.now(). The truth about elapsed real time.
+ *   2. Audio clock  - AudioWorklet sample count. Codec-independent and
+ *                     exact: process() is called with zero-filled buffers
+ *                     even in total silence, so the count only falls
+ *                     behind if the audio graph ACTUALLY stalled. This is
+ *                     the measurement that answers "did we lose audio?"
+ *                     Byte counts can't answer it, because Opus encodes
+ *                     silence to almost nothing and a quiet consult room
+ *                     would look identical to dropped data.
+ *   3. Timer clocks - a setInterval in the page vs one in a Worker.
+ *                     Page timers throttle to ~1Hz when hidden; workers
+ *                     generally don't. This answers "do I need to move
+ *                     encoding into a Worker, or is naive MediaRecorder
+ *                     good enough on this hardware?"
+ *
+ * MediaRecorder runs off the SAME MediaStream as the worklet, so both
+ * paths see identical input - that's the side-by-side comparison.
+ * ------------------------------------------------------------------ */
+
+var S = {
+  running: false, t0: 0, samples: 0, sampleRate: 0, ctxTime: 0,
+  // Drift is measured from baseWall/baseSamples, NOT from t0. The gap
+  // between clicking start and the audio graph actually delivering its
+  // first quantum (getUserMedia + addModule + resume, ~1s in practice)
+  // is startup latency, not lost audio. Measuring from t0 charges that
+  // latency to drift forever, which reads as a permanent 1-4% deficit
+  // and fires a false "audio loss" warning on a perfectly healthy run.
+  baseWall: 0, baseSamples: 0, startupMs: 0,
+  // Wall time of the most recent worklet message, and the worst gap
+  // between messages. The worklet posts 4x/sec, so comparing the sample
+  // count against "now" carries up to 250ms of quantization - ~1% of a
+  // 25s run, enough to trip the drift warning on a healthy baseline.
+  // Comparing it against lastMsgWall instead puts both endpoints at the
+  // same instant and removes the artifact entirely. maxMsgGap is then a
+  // sharper stall detector than drift: silence from the worklet means
+  // the audio graph stopped, detectable in 250ms rather than inferred
+  // from slowly accumulating drift.
+  lastMsgWall: 0, maxMsgGap: 0,
+  pageTicks: 0, workerTicks: 0, chunks: 0, bytes: 0,
+  lastChunkAt: 0, worstChunkGap: 0, sleepMs: 0, lastHbWall: 0,
+  events: [], chunkRecords: [], runId: null
+};
+var ctx, node, stream, rec, worker, pageTimer, wakeLock, uiTimer;
+
+function $(id) { return document.getElementById(id); }
+function fmt(ms) { return (ms / 1000).toFixed(2) + 's'; }
+
+function log(msg, kind) {
+  var t = S.t0 ? ((Date.now() - S.t0) / 1000).toFixed(2) : '--.--';
+  while (t.length < 8) { t = ' ' + t; }
+  S.events.push({ at: Date.now(), tRel: S.t0 ? Date.now() - S.t0 : null, msg: msg, kind: kind || 'info' });
+  var el = $('log');
+  el.textContent = '[' + t + '] ' + msg + '\n' + el.textContent;
+}
+
+/* ---------- environment ---------- */
+var UA = navigator.userAgent;
+var IS_MAC = /Mac/i.test(navigator.platform || '') || /Mac OS X/i.test(UA);
+var IS_WIN = /Win/i.test(navigator.platform || '') || /Windows/i.test(UA);
+var OS = IS_MAC ? 'macOS' : IS_WIN ? 'Windows' : 'other';
+var BROWSER = /Edg\//.test(UA) ? 'Edge'
+  : /Chrome\//.test(UA) ? 'Chrome'
+  : /Firefox\//.test(UA) ? 'Firefox'
+  : /Safari\//.test(UA) ? 'Safari' : 'unknown';
+
+var MIMES = [
+  'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus',
+  'audio/mp4;codecs=mp4a.40.2', 'audio/mp4'
+];
+function supportedMimes() {
+  if (typeof MediaRecorder === 'undefined') return [];
+  return MIMES.filter(function (m) {
+    try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; }
+  });
+}
+var SUPPORTED = supportedMimes();
+// Feature-detected, never hardcoded: Safari was MP4/AAC-only before 18.4,
+// Chrome/Edge/Firefox prefer WebM/Opus. Groq Whisper accepts both, so the
+// only wrong move here is assuming one of them.
+var MIME = typeof MediaRecorder === 'undefined' ? null : (SUPPORTED[0] || '');
+
+function renderEnv() {
+  var hasWorklet = false;
+  try {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    hasWorklet = !!(AC && AC.prototype && 'audioWorklet' in AC.prototype);
+  } catch (e) {}
+
+  var rows = [
+    ['OS / browser', OS + ' / ' + BROWSER],
+    ['Secure context', window.isSecureContext ? 'yes' : 'NO - getUserMedia will be refused'],
+    ['getUserMedia', (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) ? 'available' : 'MISSING'],
+    ['AudioWorklet', hasWorklet ? 'available' : 'MISSING - no ground-truth clock'],
+    ['MediaRecorder', typeof MediaRecorder !== 'undefined' ? 'available' : 'MISSING'],
+    ['Chosen mime', MIME === null ? 'n/a' : (MIME || 'browser default')],
+    ['All supported mimes', SUPPORTED.length ? SUPPORTED.join('  |  ') : 'none detected'],
+    ['WebCodecs AudioEncoder', typeof AudioEncoder !== 'undefined' ? 'available (production encode path)' : 'absent - encode via MediaRecorder'],
+    ['Screen Wake Lock', navigator.wakeLock ? 'available' : 'absent'],
+    ['Page Lifecycle (freeze/resume)', ('onfreeze' in document) ? 'available' : 'absent'],
+    ['Storage quota API', (navigator.storage && navigator.storage.estimate) ? 'available' : 'absent'],
+    ['User agent', UA]
+  ];
+  $('env').innerHTML = '<tr><th>Check</th><th>Result</th></tr>' + rows.map(function (r) {
+    return '<tr><td class="k">' + r[0] + '</td><td class="v">' + r[1] + '</td></tr>';
+  }).join('');
+
+  if (!window.isSecureContext) {
+    $('banner').style.display = 'block';
+    $('banner').innerHTML = '<b>Not a secure context &mdash; microphone access will be refused.</b><br>' +
+      'Serve this over localhost rather than opening it from disk. From the repo root:<br>' +
+      '<code>python -m http.server 8765</code><br>then open ' +
+      '<code>http://localhost:8765/docs/experiments/audio-capture-harness.html</code>';
+  }
+}
+
+function renderSteps() {
+  var lock = IS_MAC ? 'Ctrl+Cmd+Q' : 'Win+L';
+  var lidNote = IS_MAC
+    ? 'On a MacBook, closing the lid sleeps the machine unless it is on power AND driving an external display. ' +
+      'Expect this to register as system sleep - that result is the finding, not a harness bug.'
+    : 'On Windows this is mitigable: Power Options -> "When I close the lid" -> Do nothing. ' +
+      'Worth testing both before and after changing that setting.';
+  var steps = [
+    'Click <b>Start recording</b> and grant microphone access. Talk, or leave a radio on - content does not matter, the audio clock counts silence too.',
+    'Leave it in the foreground 30 seconds. Confirm audio drift sits near 0%. This is your baseline; if it is not clean here, nothing below means anything.',
+    'Switch to another tab for 60 seconds, then come back. Watch <b>Page timer ticks</b> fall behind while <b>Worker timer ticks</b> and the <b>audio clock</b> should not.',
+    'Minimize the entire browser window for 60 seconds. Come back.',
+    'Lock the screen (<code>' + lock + '</code>) for 60 seconds, then unlock.',
+    '<b>Close the laptop lid</b> for 60 seconds, then reopen. ' + lidNote,
+    'Let it run a full 30 minutes untouched, matching a real consultation length, then hit <b>Stop &amp; verdict</b>.',
+    'Export the JSON report. Then reload this page - the persisted-chunks panel should still list the run, which is what proves IndexedDB durability across a reload or crash.'
+  ];
+  $('osname').textContent = '- detected ' + OS + ' / ' + BROWSER;
+  $('steps').innerHTML = steps.map(function (s) { return '<li>' + s + '</li>'; }).join('');
+}
+
+/* ---------- IndexedDB ---------- */
+function idb() {
+  return new Promise(function (res, rej) {
+    var r = indexedDB.open('rs-capture-harness', 1);
+    r.onupgradeneeded = function () {
+      var db = r.result;
+      if (!db.objectStoreNames.contains('chunks')) db.createObjectStore('chunks', { autoIncrement: true });
+    };
+    r.onsuccess = function () { res(r.result); };
+    r.onerror = function () { rej(r.error); };
+  });
+}
+
+function putChunk(record) {
+  return idb().then(function (db) {
+    return new Promise(function (res, rej) {
+      var tx = db.transaction('chunks', 'readwrite');
+      tx.objectStore('chunks').add(record);
+      tx.oncomplete = function () { db.close(); res(); };
+      tx.onerror = function () { db.close(); rej(tx.error); };
+    });
+  }).catch(function (e) { log('IndexedDB write FAILED: ' + e.message, 'bad'); });
+}
+
+function showStored() {
+  idb().then(function (db) {
+    return new Promise(function (res, rej) {
+      var rq = db.transaction('chunks', 'readonly').objectStore('chunks').getAll();
+      rq.onsuccess = function () { db.close(); res(rq.result); };
+      rq.onerror = function () { db.close(); rej(rq.error); };
+    });
+  }).then(function (all) {
+    if (!all.length) { $('stored').textContent = 'none stored'; return; }
+    var runs = {};
+    all.forEach(function (c) {
+      if (!runs[c.runId]) runs[c.runId] = { n: 0, bytes: 0 };
+      runs[c.runId].n++; runs[c.runId].bytes += c.size;
+    });
+    var txt = Object.keys(runs).map(function (id) {
+      return 'run ' + id + ': ' + runs[id].n + ' chunks, ' + (runs[id].bytes / 1024).toFixed(0) + ' KB';
+    }).join('\n');
+    if (navigator.storage && navigator.storage.estimate) {
+      navigator.storage.estimate().then(function (e) {
+        $('stored').textContent = txt + '\nquota: ' + (e.usage / 1048576).toFixed(1) +
+          ' MB used of ' + (e.quota / 1048576).toFixed(0) + ' MB';
+      });
+    } else { $('stored').textContent = txt; }
+  }).catch(function (e) { $('stored').textContent = 'IndexedDB unavailable: ' + e.message; });
+}
+
+/* ---------- worklet + worker, as blob URLs so this stays one file ---------- */
+var WORKLET_SRC = [
+  'class CounterProcessor extends AudioWorkletProcessor {',
+  '  constructor() { super(); this.n = 0; this.lastPost = 0; }',
+  '  process(inputs) {',
+  '    var ch = inputs[0] && inputs[0][0];',
+  '    if (ch) { this.n += ch.length; }',
+  '    if (currentFrame - this.lastPost >= sampleRate / 4) {',
+  '      this.lastPost = currentFrame;',
+  '      this.port.postMessage({ samples: this.n, ctxTime: currentTime });',
+  '    }',
+  '    return true;',
+  '  }',
+  '}',
+  'registerProcessor("counter", CounterProcessor);'
+].join('\n');
+
+var WORKER_SRC = [
+  'var n = 0, timer = null, last = 0, interval = 1000;',
+  'self.onmessage = function (e) {',
+  '  if (e.data.cmd === "start") {',
+  '    interval = e.data.interval; last = Date.now();',
+  '    timer = setInterval(function () {',
+  '      n++;',
+  '      var now = Date.now();',
+  '      var drift = now - last - interval;',
+  '      last = now;',
+  '      self.postMessage({ ticks: n, wall: now, drift: drift });',
+  '    }, interval);',
+  '  } else if (e.data.cmd === "stop") { clearInterval(timer); timer = null; }',
+  '};'
+].join('\n');
+
+/* ---------- run ---------- */
+function start() {
+  S.runId = String(Date.now()).slice(-8);
+  var timeslice = +$('timeslice').value;
+  var hbInt = +$('hb').value;
+
+  navigator.mediaDevices.getUserMedia({
+    audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+  }).then(function (s) {
+    stream = s;
+    var track = stream.getAudioTracks()[0];
+    log('mic acquired: "' + track.label + '"');
+    try { log('track settings: ' + JSON.stringify(track.getSettings())); } catch (e) {}
+    track.addEventListener('mute', function () { log('*** TRACK MUTED - input stopped delivering ***', 'bad'); });
+    track.addEventListener('unmute', function () { log('track unmuted', 'warn'); });
+    track.addEventListener('ended', function () { log('*** TRACK ENDED - capture is dead ***', 'bad'); });
+
+    var AC = window.AudioContext || window.webkitAudioContext;
+    ctx = new AC();
+    S.sampleRate = ctx.sampleRate;
+    // Safari exposes an "interrupted" state that Chrome does not - log any change.
+    ctx.onstatechange = function () {
+      log('AudioContext state -> ' + ctx.state, ctx.state === 'running' ? 'info' : 'bad');
+    };
+    return ctx.audioWorklet.addModule(
+      URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'text/javascript' }))
+    );
+  }).then(function () {
+    node = new AudioWorkletNode(ctx, 'counter');
+    node.port.onmessage = function (e) {
+      var now = Date.now();
+      if (S.lastMsgWall && S.running) {
+        var g = now - S.lastMsgWall;
+        if (g > S.maxMsgGap) S.maxMsgGap = g;
+      }
+      S.lastMsgWall = now;
+      S.samples = e.data.samples;
+      S.ctxTime = e.data.ctxTime;
+      // First message that lands after the run clock starts marks the
+      // point the audio graph is genuinely delivering. Anchor the drift
+      // measurement here so startup latency is reported separately
+      // rather than being mistaken for loss.
+      if (!S.baseWall && S.t0) {
+        S.baseWall = Date.now();
+        S.baseSamples = e.data.samples;
+        S.startupMs = S.baseWall - S.t0;
+        log('audio graph delivering - startup latency ' + S.startupMs + 'ms (excluded from drift)');
+      }
+    };
+    // gain 0 -> destination keeps the graph scheduled without echoing to the speakers
+    var mute = ctx.createGain();
+    mute.gain.value = 0;
+    ctx.createMediaStreamSource(stream).connect(node).connect(mute).connect(ctx.destination);
+    return ctx.state === 'suspended' ? ctx.resume() : null;
+  }).then(function () {
+    log('AudioContext running at ' + S.sampleRate + ' Hz, state=' + ctx.state);
+
+    worker = new Worker(URL.createObjectURL(new Blob([WORKER_SRC], { type: 'text/javascript' })));
+    worker.onmessage = function (e) {
+      S.workerTicks = e.data.ticks;
+      if (S.lastHbWall) {
+        var jump = e.data.wall - S.lastHbWall - hbInt;
+        // A wall-clock jump far larger than the heartbeat means the machine
+        // was suspended - lid close or sleep. No client architecture can
+        // prevent that, so detecting it is the point.
+        if (jump > 3000) {
+          S.sleepMs += jump;
+          log('*** WALL-CLOCK JUMP ' + (jump / 1000).toFixed(1) + 's - system slept/suspended ***', 'bad');
+        }
+      }
+      S.lastHbWall = e.data.wall;
+    };
+    worker.postMessage({ cmd: 'start', interval: hbInt });
+
+    pageTimer = setInterval(function () { S.pageTicks++; }, hbInt);
+
+    if (MIME !== null) {
+      rec = MIME ? new MediaRecorder(stream, { mimeType: MIME }) : new MediaRecorder(stream);
+      rec.ondataavailable = function (ev) {
+        var now = Date.now();
+        var gap = S.lastChunkAt ? now - S.lastChunkAt : timeslice;
+        S.lastChunkAt = now;
+        if (gap > S.worstChunkGap) S.worstChunkGap = gap;
+        S.chunks++; S.bytes += ev.data.size;
+        S.chunkRecords.push({ seq: S.chunks, tRel: now - S.t0, size: ev.data.size, gapMs: gap });
+        putChunk({ runId: S.runId, seq: S.chunks, at: now, tRel: now - S.t0, size: ev.data.size, gapMs: gap, blob: ev.data });
+        if (gap > timeslice * 2.5) {
+          log('chunk #' + S.chunks + ' arrived ' + (gap / 1000).toFixed(1) + 's after the previous one (asked ' +
+              timeslice + 'ms), ' + ev.data.size + ' B', 'warn');
+        }
+      };
+      rec.onerror = function (e) { log('MediaRecorder error: ' + e.error, 'bad'); };
+      rec.start(timeslice);
+      log('MediaRecorder started - mime=' + rec.mimeType + ' timeslice=' + timeslice + 'ms');
+    } else {
+      log('MediaRecorder unavailable - audio-clock measurement only', 'warn');
+    }
+
+    if (navigator.wakeLock) {
+      navigator.wakeLock.request('screen').then(function (wl) {
+        wakeLock = wl;
+        log('screen wake lock ACQUIRED (blocks idle sleep, NOT lid close)');
+        wl.addEventListener('release', function () { log('screen wake lock released', 'warn'); });
+      }).catch(function (e) { log('wake lock refused: ' + e.message, 'warn'); });
+    }
+
+    S.t0 = Date.now();
+    S.running = true;
+    $('start').disabled = true; $('stop').disabled = false; $('export').disabled = true;
+    uiTimer = setInterval(render, 250);
+    log('=== RUN STARTED ===');
+  }).catch(function (e) {
+    log('START FAILED: ' + e.name + ' - ' + e.message, 'bad');
+    alert('Could not start: ' + e.message);
+  });
+}
+
+function stop() {
+  S.running = false;
+  clearInterval(pageTimer); clearInterval(uiTimer);
+  try { if (rec && rec.state !== 'inactive') rec.stop(); } catch (e) {}
+  if (worker) worker.postMessage({ cmd: 'stop' });
+  if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+  if (wakeLock) { try { wakeLock.release(); } catch (e) {} }
+  if (ctx) { try { ctx.close(); } catch (e) {} }
+  log('=== RUN STOPPED ===');
+  render(); showStored();
+  $('start').disabled = false; $('stop').disabled = true; $('export').disabled = false;
+}
+
+/* ---------- lifecycle events ---------- */
+document.addEventListener('visibilitychange', function () {
+  log('visibilitychange -> ' + (document.hidden ? 'HIDDEN' : 'visible'), 'warn');
+});
+window.addEventListener('blur', function () { log('window blur'); });
+window.addEventListener('focus', function () { log('window focus'); });
+document.addEventListener('freeze', function () { log('*** PAGE FROZEN (Page Lifecycle) ***', 'bad'); });
+document.addEventListener('resume', function () { log('page resumed', 'warn'); });
+window.addEventListener('pagehide', function () { log('pagehide', 'bad'); });
+window.addEventListener('online', function () { log('network online'); });
+window.addEventListener('offline', function () { log('network offline', 'warn'); });
+
+/* ---------- render ---------- */
+function set(id, val, note, cls) {
+  var el = $(id);
+  el.querySelector('.val').textContent = val;
+  if (note !== undefined) el.querySelector('.note').textContent = note;
+  el.className = 'metric' + (cls ? ' ' + cls : '');
+}
+
+function render() {
+  var wall = S.t0 ? Date.now() - S.t0 : 0;
+  // Measurement window: baseline -> most recent worklet message. Both
+  // endpoints are sampled at the same instant, so there is no
+  // quantization artifact. Staleness (now vs that message) is tracked
+  // separately as the live stall signal.
+  var measWall = S.baseWall ? S.lastMsgWall - S.baseWall : 0;
+  var audioMs = (S.sampleRate && S.baseWall) ? ((S.samples - S.baseSamples) / S.sampleRate) * 1000 : 0;
+  var driftPct = measWall > 1000 ? ((measWall - audioMs) / measWall) * 100 : 0;
+  var stale = (S.running && S.lastMsgWall) ? Date.now() - S.lastMsgWall : 0;
+  var hbInt = +$('hb').value;
+  var expTicks = Math.floor(wall / hbInt);
+  var timeslice = +$('timeslice').value;
+
+  set('m-wall', fmt(wall), S.startupMs ? 'incl. ' + S.startupMs + 'ms startup' : 'Date.now()');
+  set('m-audio', fmt(audioMs),
+    (S.samples - S.baseSamples).toLocaleString() + ' samples @ ' + S.sampleRate + ' Hz');
+  set('m-drift', driftPct.toFixed(2) + '%',
+    driftPct < 0.5 ? 'no measurable loss' : 'about ' + fmt(measWall - audioMs) + ' missing',
+    driftPct < 0.5 ? 'ok' : driftPct < 5 ? 'warn' : 'bad');
+  // The single most diagnostic number for "is capture alive right now."
+  set('m-ctx', stale ? stale + 'ms' : (S.running ? '-' : 'stopped'),
+    'worst ' + S.maxMsgGap + 'ms / ctx ' + S.ctxTime.toFixed(1) + 's',
+    !S.running ? '' : stale > 1500 ? 'bad' : stale > 700 ? 'warn' : 'ok');
+  set('m-page', S.pageTicks + ' / ' + expTicks,
+    (expTicks > 5 && S.pageTicks < expTicks * 0.8) ? 'THROTTLED' : 'keeping up',
+    (expTicks > 5 && S.pageTicks < expTicks * 0.8) ? 'warn' : 'ok');
+  set('m-worker', S.workerTicks + ' / ' + expTicks,
+    (expTicks > 5 && S.workerTicks < expTicks * 0.8) ? 'THROTTLED TOO' : 'keeping up',
+    (expTicks > 5 && S.workerTicks < expTicks * 0.8) ? 'bad' : 'ok');
+  set('m-chunks', String(S.chunks), (S.bytes / 1024).toFixed(0) + ' KB total');
+  set('m-gap', S.worstChunkGap ? (S.worstChunkGap / 1000).toFixed(1) + 's' : '-',
+    'asked ' + (timeslice / 1000).toFixed(1) + 's',
+    !S.worstChunkGap ? '' : S.worstChunkGap > timeslice * 2.5 ? 'warn' : 'ok');
+  set('m-sleep', S.sleepMs ? (S.sleepMs / 1000).toFixed(1) + 's' : 'none', 'cumulative',
+    S.sleepMs ? 'bad' : 'ok');
+  var tr = stream && stream.getAudioTracks()[0];
+  set('m-state', tr ? tr.readyState + (tr.muted ? ' / MUTED' : '') : '-', ctx ? ctx.state : '-',
+    (tr && tr.readyState === 'live' && !tr.muted) ? 'ok' : 'bad');
+
+  renderVerdict(measWall, audioMs, driftPct, expTicks, timeslice);
+}
+
+function renderVerdict(wall, audioMs, driftPct, expTicks, timeslice) {
+  if (!S.t0) return;
+  var v = [];
+  var pageThrottled = expTicks > 5 && S.pageTicks < expTicks * 0.8;
+  var workerThrottled = expTicks > 5 && S.workerTicks < expTicks * 0.8;
+  var chunkLag = S.worstChunkGap > timeslice * 2.5;
+
+  if (wall < 20000) {
+    v.push(['idle', 'Too early to judge',
+      'Run at least 30 seconds in the foreground to establish a baseline, then start backgrounding it.']);
+  } else if (S.sleepMs) {
+    v.push(['bad', 'System sleep interrupted capture',
+      (S.sleepMs / 1000).toFixed(1) + 's of wall clock passed with the machine suspended. Audio in that window is gone, and no client ' +
+      'architecture - browser or Electron - can prevent it, because lid close and sleep are OS power policy. ' +
+      (IS_MAC ? 'On macOS clamshell sleep is the hard case: staying awake needs power plus an external display.'
+              : 'On Windows, set "When I close the lid -> Do nothing" in Power Options and re-test.')]);
+  } else if (S.maxMsgGap > 1500) {
+    v.push(['bad', 'Audio engine stalled',
+      'The worklet went silent for ' + S.maxMsgGap + 'ms at its worst (it posts every ~250ms), so the audio graph stopped ' +
+      'processing rather than merely delivering late. Any audio in that window is gone. Check the log for a freeze event, ' +
+      'an AudioContext state change, or a muted track.']);
+  } else if (driftPct >= 5) {
+    v.push(['bad', 'Significant audio loss',
+      driftPct.toFixed(1) + '% drift, roughly ' + fmt(wall - audioMs) + ' missing. The audio graph itself stalled, not just chunk delivery. ' +
+      'A browser tab is not safe for clinical capture on this hardware.']);
+  } else if (driftPct < 0.5) {
+    v.push(['ok', 'No audio loss detected',
+      'The audio graph never stalled: ' + fmt(audioMs) + ' captured against ' + fmt(wall) + ' of wall clock (' +
+      driftPct.toFixed(2) + '% drift). A browser tab can hold this recording on this hardware.']);
+  } else {
+    v.push(['warn', 'Minor audio drift',
+      driftPct.toFixed(2) + '% drift (' + fmt(wall - audioMs) + '). Small, but worth understanding before trusting it with a real consultation.']);
+  }
+
+  if (expTicks > 5) {
+    if (pageThrottled && !workerThrottled) {
+      v.push(['warn', 'Page timers throttled, worker timers did not',
+        'Page fired ' + S.pageTicks + '/' + expTicks + ' ticks, the worker fired ' + S.workerTicks + '/' + expTicks + '. ' +
+        'This is expected browser behaviour and it is exactly why encoding belongs in a Worker rather than on a page timer. ' +
+        'If audio drift above is still near 0%, capture itself is fine - only page-driven timing is affected.']);
+    } else if (pageThrottled && workerThrottled) {
+      v.push(['bad', 'Both page and worker timers throttled',
+        'Worker timers are normally exempt, so both falling behind suggests the whole renderer process was suspended. ' +
+        'Check the log for a freeze event or a wall-clock jump.']);
+    } else {
+      v.push(['ok', 'Timers held',
+        'Page ' + S.pageTicks + '/' + expTicks + ', worker ' + S.workerTicks + '/' + expTicks + ' - neither throttled during this run.']);
+    }
+  }
+
+  if (chunkLag) {
+    v.push(['warn', 'MediaRecorder chunk delivery lagged',
+      'Worst gap between chunks was ' + (S.worstChunkGap / 1000).toFixed(1) + 's against a requested ' +
+      (timeslice / 1000).toFixed(1) + 's. Cross-check against audio drift: if drift is near 0% the recorder buffered and ' +
+      'delivered late, which is recoverable. If drift is high, data was genuinely dropped.']);
+  }
+
+  $('verdicts').innerHTML = v.map(function (x) {
+    return '<div class="verdict ' + x[0] + '"><b>' + x[1] + '</b>' + x[2] + '</div>';
+  }).join('');
+}
+
+/* ---------- export ---------- */
+$('export').onclick = function () {
+  var wall = Date.now() - S.t0;
+  var measWall = S.baseWall ? Date.now() - S.baseWall : 0;
+  var audioMs = (S.sampleRate && S.baseWall) ? ((S.samples - S.baseSamples) / S.sampleRate) * 1000 : 0;
+  var report = {
+    harness: 'remedy-scribe browser audio capture', version: 1,
+    env: {
+      os: OS, browser: BROWSER, ua: UA, secureContext: window.isSecureContext,
+      mime: MIME, supportedMimes: SUPPORTED, sampleRate: S.sampleRate,
+      wakeLockAvailable: !!navigator.wakeLock, webCodecs: typeof AudioEncoder !== 'undefined'
+    },
+    run: {
+      runId: S.runId, startedAt: new Date(S.t0).toISOString(),
+      wallMs: wall,
+      startupLatencyMs: S.startupMs,
+      measuredWallMs: measWall,
+      audioMs: Math.round(audioMs),
+      driftPct: measWall ? +(((measWall - audioMs) / measWall) * 100).toFixed(3) : null,
+      pageTicks: S.pageTicks, workerTicks: S.workerTicks,
+      expectedTicks: Math.floor(wall / (+$('hb').value)),
+      chunks: S.chunks, bytes: S.bytes,
+      worstChunkGapMs: S.worstChunkGap, requestedTimesliceMs: +$('timeslice').value,
+      maxWorkletMsgGapMs: S.maxMsgGap,
+      systemSleepMs: S.sleepMs
+    },
+    chunks: S.chunkRecords, events: S.events
+  };
+  var blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'capture-harness-' + OS + '-' + BROWSER + '-' + S.runId + '.json';
+  a.click();
+  log('report exported');
+};
+
+$('clear').onclick = function () {
+  idb().then(function (db) {
+    return new Promise(function (res) {
+      var tx = db.transaction('chunks', 'readwrite');
+      tx.objectStore('chunks').clear();
+      tx.oncomplete = function () { db.close(); res(); };
+    });
+  }).then(function () { log('stored chunks cleared'); showStored(); })
+    .catch(function (e) { log('clear failed: ' + e.message, 'bad'); });
+};
+
+$('start').onclick = start;
+$('stop').onclick = stop;
+
+renderEnv(); renderSteps(); showStored();
+log('harness loaded - ' + OS + ' / ' + BROWSER + ' - secureContext=' + window.isSecureContext);
+</script>
+</body>
+</html>
