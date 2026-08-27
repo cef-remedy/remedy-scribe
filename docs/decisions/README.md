@@ -38,3 +38,4 @@ product/legal/risk fork the checklist flags for you is marked **STATUS: OPEN
 | [0022](0022-source-span-citation-design.md) | 1.4 | Source spans cite persisted segment IDs, not model-emitted offsets or timestamps; citations verified, not trusted | Decided (implementation) |
 | [0023](0023-pipeline-failure-handling-design.md) | 1.5 | Two failure states, not three (no `upload_failed`); dead-lettering and the stuck-sweep are separate mechanisms; `/retry` re-runs only the failed stage | Decided (implementation) |
 | [0024](0024-web-client-on-laptop-not-mobile.md) | 2.1 | Client is a browser web app on a clinic laptop, not Expo mobile — **supersedes tech-stack.md §1**; backgrounding measured safe, lid-close sleep is the one real gap | Decided (user + measurement) |
+| [0025](0025-audio-format-mono-opus-32kbps.md) | 2.1 / 2.2 | Audio capture: mono Opus at 32 kbps — and the settings are verified against the device, not trusted | Decided (user) |

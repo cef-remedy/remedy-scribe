@@ -1,0 +1,1859 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Remedy Scribe API",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Login",
+        "description": "P0-8: multi-factor authentication for clinician access \u2014 password\nAND a valid TOTP code are both required; either failing alone returns\nthe same 401 to avoid leaking which factor was wrong.\n\nPhase 0.3: also rate-limited per-IP and locked-out per-email (see\napp/services/auth_rate_limit.py), and now issues a refresh token\nalongside the access token (see app/services/refresh_tokens.py) \u2014\nthe fix for \"a doctor gets logged out mid-consultation every 15\nminutes with no way back in short of re-entering a password and MFA\ncode.\"",
+        "operationId": "login_api_v1_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Refresh",
+        "description": "Silent-renewal endpoint the mobile client calls when its access\ntoken is expired (or about to be) \u2014 no password/MFA re-entry, no\nAuthorization header. Rotates the refresh token on every use; a\nreplayed/stolen refresh token gets caught here, not at login.",
+        "operationId": "refresh_api_v1_auth_refresh_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Logout",
+        "description": "Revokes exactly the one refresh token presented \u2014 signing out\nthis device without touching any other session the clinician has.",
+        "operationId": "logout_api_v1_auth_logout_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/mfa/enroll": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Mfa Enroll",
+        "description": "Step 1 of 2 (Phase 0.3) \u2014 replaces \"the TOTP secret can only be\ncreated by a seed script.\" Only usable on an account with no active\nMFA yet: an already-enrolled clinician re-provisioning here would\nlet anyone who has since learned the password silently swap out a\nreal MFA secret for their own. Re-enrollment for an already-active\naccount is intentionally not self-service (see\ndocs/decisions/0007) \u2014 it needs an admin/support path, not built\nhere.",
+        "operationId": "mfa_enroll_api_v1_auth_mfa_enroll_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaEnrollRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaEnrollOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/mfa/enroll/confirm": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Mfa Enroll Confirm",
+        "description": "Step 2 of 2: one valid code against the *pending* secret moves it\nto `mfa_secret`, the one login actually checks. Until this succeeds,\n/mfa/enroll can be called again (e.g. the QR was mis-scanned) \u2014 a\npending secret is disposable; only the confirmed one matters.",
+        "operationId": "mfa_enroll_confirm_api_v1_auth_mfa_enroll_confirm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaEnrollConfirmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaEnrollConfirmOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/clinicians/{clinician_id}/revoke-sessions": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Revoke Sessions",
+        "operationId": "revoke_sessions_api_v1_auth_clinicians__clinician_id__revoke_sessions_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "clinician_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Clinician Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokeSessionsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/patients/match": {
+      "post": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Match",
+        "description": "P0-6: exact match links silently; near match needs a one-tap\nconfirmation (client calls POST /patients with the confirmed name if\nthe doctor picks a candidate, or accepts the exact match directly);\nno match means the client should create a new record.",
+        "operationId": "match_api_v1_patients_match_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatientLookupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientMatchResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/patients": {
+      "post": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Create",
+        "description": "Creates a new record (P0-6: \"no match creates a new record with\nname + birthdate\"). Callers should have already called /match and\nconfirmed match_type == \"none\" \u2014 this route does not re-check, since\nthe one-tap confirmation UX for a near match also lands here with the\ndoctor having explicitly chosen \"this is a new patient.\"",
+        "operationId": "create_api_v1_patients_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatientLookupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/encounters": {
+      "post": {
+        "tags": [
+          "encounters"
+        ],
+        "summary": "Start Or Resume",
+        "description": "Get-or-create on upload_idempotency_key (P0-2: \"an idempotency key\nthat prevents duplicate notes from a retried upload\"). A retry with\nthe same key returns the existing encounter instead of creating a\nsecond one; recording is never blocked on patient_id (P0-6).",
+        "operationId": "start_or_resume_api_v1_encounters_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EncounterCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/encounters/loose": {
+      "get": {
+        "tags": [
+          "encounters"
+        ],
+        "summary": "List Loose Sessions",
+        "description": "P0-6: \"a persistent 'loose sessions' tray with a one-tap linking\naction\" \u2014 every encounter with no patient linked yet.",
+        "operationId": "list_loose_sessions_api_v1_encounters_loose_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EncounterOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Loose Sessions Api V1 Encounters Loose Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/encounters/{encounter_id}/link-patient": {
+      "post": {
+        "tags": [
+          "encounters"
+        ],
+        "summary": "Link Patient",
+        "operationId": "link_patient_api_v1_encounters__encounter_id__link_patient_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "encounter_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Encounter Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EncounterLinkPatient"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/encounters/failed": {
+      "get": {
+        "tags": [
+          "encounters"
+        ],
+        "summary": "List Failed Encounters",
+        "description": "The dead-letter surfacing this phase's checklist item asks for \u2014\n\"after max retries, mark the encounter failed and surface it in the\napp.\" There is no app yet (Phase 2), so this is the surface: a\ndoctor-facing client renders this list and offers /retry per row,\nthe same shape /loose already established for a different worklist.",
+        "operationId": "list_failed_encounters_api_v1_encounters_failed_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EncounterOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Failed Encounters Api V1 Encounters Failed Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/encounters/{encounter_id}/retry": {
+      "post": {
+        "tags": [
+          "encounters"
+        ],
+        "summary": "Retry Pipeline Stage",
+        "description": "The \"regenerate note\" action the checklist asks for, generalized\nto both dead-letter states rather than just note generation \u2014\nTRANSCRIPTION_FAILED and GENERATION_FAILED are the same shape of\nproblem at different stages, and a doctor shouldn't need two\ndifferent buttons for it.\n\nRe-runs only the failed stage onward, not the whole pipeline from\nscratch: a GENERATION_FAILED encounter already has a real transcript\n(transcription succeeded), so this calls `run_note_generation`\nrather than paying for a second real ASR call that would produce the\nsame transcript the first one already did.",
+        "operationId": "retry_pipeline_stage_api_v1_encounters__encounter_id__retry_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "encounter_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Encounter Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/encounters/{encounter_id}/upload/init": {
+      "post": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Init Upload",
+        "operationId": "init_upload_api_v1_encounters__encounter_id__upload_init_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "encounter_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Encounter Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadInitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadInitResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/encounters/{encounter_id}/upload/parts/{part_number}": {
+      "post": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Get Part Upload Url",
+        "operationId": "get_part_upload_url_api_v1_encounters__encounter_id__upload_parts__part_number__post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "encounter_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Encounter Id"
+            }
+          },
+          {
+            "name": "part_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Part Number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartUploadUrlResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/encounters/{encounter_id}/upload/parts": {
+      "get": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "List Upload Parts",
+        "description": "What a resuming client diffs against \u2014 see storage.list_uploaded_parts:\nS3 is the source of truth for \"what's already landed,\" not a\nPostgres table this app would have to keep in sync with it.",
+        "operationId": "list_upload_parts_api_v1_encounters__encounter_id__upload_parts_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "encounter_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Encounter Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadPartsStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/encounters/{encounter_id}/upload/complete": {
+      "post": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Complete Upload",
+        "description": "Finalizes the S3 object, then runs the same gate + bookkeeping the\nold confirm_upload did: consent check first (before touching S3 \u2014\nan invalid-consent encounter's multipart upload is left incomplete\nfor the lifecycle rule to reap, not finalized), then retention clock,\npipeline_status, and kicking the pipeline.",
+        "operationId": "complete_upload_api_v1_encounters__encounter_id__upload_complete_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "encounter_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Encounter Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/consent": {
+      "post": {
+        "tags": [
+          "consent"
+        ],
+        "summary": "Record Consent Event",
+        "description": "P0-1: appends one row to the immutable consent ledger. Never\nupdates a prior row \u2014 \"given\", \"declined\", and \"withdrawn\" are each\ntheir own event so the full history for an encounter is reconstructed\nby reading, not by inspecting mutable state.",
+        "operationId": "record_consent_event_api_v1_consent_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsentEntryCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentEntryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/notes/{note_id}": {
+      "get": {
+        "tags": [
+          "notes"
+        ],
+        "summary": "Get Note",
+        "operationId": "get_note_api_v1_notes__note_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "notes"
+        ],
+        "summary": "Edit Section",
+        "description": "P0-5: \"Doctor can freely edit any section before signing; edits are\ntracked for the edit-burden metric.\" Every edit writes a NoteRevision\nregardless of size \u2014 the edit-burden metric needs the raw edit\nhistory, not just the final diff from generation.",
+        "operationId": "edit_section_api_v1_notes__note_id__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteSectionUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notes/{note_id}/transition": {
+      "post": {
+        "tags": [
+          "notes"
+        ],
+        "summary": "Transition Note",
+        "description": "Drives the P0-5 state machine one step at a time. Signing\n(to_status == \"signed\") additionally requires prc_license_number and\nis recorded in the audit trail with the clinician's identity.",
+        "operationId": "transition_note_api_v1_notes__note_id__transition_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteTransitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audit-logs": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "List Audit Logs",
+        "operationId": "list_audit_logs_api_v1_audit_logs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AuditLogOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Audit Logs Api V1 Audit Logs Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AuditLogOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "actor_clinician_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Clinician Id"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "entity_type": {
+            "type": "string",
+            "title": "Entity Type"
+          },
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "actor_clinician_id",
+          "action",
+          "entity_type",
+          "entity_id",
+          "created_at"
+        ],
+        "title": "AuditLogOut"
+      },
+      "ConsentEntryCreate": {
+        "properties": {
+          "encounter_id": {
+            "type": "string",
+            "title": "Encounter Id"
+          },
+          "event": {
+            "$ref": "#/components/schemas/ConsentEventType"
+          },
+          "participant_roster": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Participant Roster"
+          },
+          "purposes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Purposes"
+          },
+          "script_language": {
+            "type": "string",
+            "enum": [
+              "fil",
+              "en"
+            ],
+            "title": "Script Language"
+          }
+        },
+        "type": "object",
+        "required": [
+          "encounter_id",
+          "event",
+          "participant_roster",
+          "purposes",
+          "script_language"
+        ],
+        "title": "ConsentEntryCreate"
+      },
+      "ConsentEntryOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "encounter_id": {
+            "type": "string",
+            "title": "Encounter Id"
+          },
+          "event": {
+            "type": "string",
+            "title": "Event"
+          },
+          "script_language": {
+            "type": "string",
+            "title": "Script Language"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "encounter_id",
+          "event",
+          "script_language",
+          "created_at"
+        ],
+        "title": "ConsentEntryOut"
+      },
+      "ConsentEventType": {
+        "type": "string",
+        "enum": [
+          "given",
+          "declined",
+          "withdrawn"
+        ],
+        "title": "ConsentEventType",
+        "description": "Phase 0.4: was a free-form String(16) with only a Python-side\ncomment (`# given | declined | withdrawn`) documenting the allowed\nvalues \u2014 nothing enforced it. See `create_constraint=True` below."
+      },
+      "EncounterCreate": {
+        "properties": {
+          "upload_idempotency_key": {
+            "type": "string",
+            "title": "Upload Idempotency Key"
+          },
+          "patient_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Patient Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "upload_idempotency_key"
+        ],
+        "title": "EncounterCreate",
+        "description": "Starts (or resumes) an encounter. `upload_idempotency_key` is\ngenerated client-side once per recording session and replayed on\nevery chunk/retry (P0-2) \u2014 the same key always resolves to the same\nencounter row."
+      },
+      "EncounterLinkPatient": {
+        "properties": {
+          "patient_id": {
+            "type": "string",
+            "title": "Patient Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "patient_id"
+        ],
+        "title": "EncounterLinkPatient",
+        "description": "One-tap linking action for a loose session (P0-6)."
+      },
+      "EncounterOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "patient_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Patient Id"
+          },
+          "pipeline_status": {
+            "$ref": "#/components/schemas/EncounterPipelineStatus"
+          },
+          "retry_count": {
+            "type": "integer",
+            "title": "Retry Count"
+          },
+          "last_pipeline_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Pipeline Error"
+          },
+          "audio_retention_expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Retention Expires At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "patient_id",
+          "pipeline_status",
+          "retry_count",
+          "last_pipeline_error",
+          "audio_retention_expires_at",
+          "created_at"
+        ],
+        "title": "EncounterOut"
+      },
+      "EncounterPipelineStatus": {
+        "type": "string",
+        "enum": [
+          "recording",
+          "uploaded",
+          "transcribed",
+          "note_generated",
+          "blocked_no_consent",
+          "transcription_failed",
+          "generation_failed"
+        ],
+        "title": "EncounterPipelineStatus",
+        "description": "Phase 0.4: was a free-form String(32) that the codebase wrote at\nleast five different values into across two files (encounters.py,\ntasks/pipeline.py) with nothing checking any of them matched. Now a\nproper enum, the way Note.status already was in name \u2014 see the\n`create_constraint=True` below for why \"already was\" turned out to\nbe only half true."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "LoginRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          },
+          "mfa_code": {
+            "type": "string",
+            "title": "Mfa Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password",
+          "mfa_code"
+        ],
+        "title": "LoginRequest"
+      },
+      "LogoutRequest": {
+        "properties": {
+          "refresh_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refresh Token"
+          }
+        },
+        "type": "object",
+        "title": "LogoutRequest",
+        "description": "Single-session logout: revokes exactly the refresh token\npresented, leaving any other device's session untouched. Optional for\nthe same reason as RefreshRequest \u2014 the cookie is the browser path."
+      },
+      "MfaEnrollConfirmOut": {
+        "properties": {
+          "enrolled": {
+            "type": "boolean",
+            "title": "Enrolled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enrolled"
+        ],
+        "title": "MfaEnrollConfirmOut"
+      },
+      "MfaEnrollConfirmRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password",
+          "code"
+        ],
+        "title": "MfaEnrollConfirmRequest",
+        "description": "Step 2: one valid code against the pending secret activates it."
+      },
+      "MfaEnrollOut": {
+        "properties": {
+          "provisioning_uri": {
+            "type": "string",
+            "title": "Provisioning Uri"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provisioning_uri"
+        ],
+        "title": "MfaEnrollOut"
+      },
+      "MfaEnrollRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "MfaEnrollRequest",
+        "description": "Step 1 of enrollment: proves password ownership, then provisions\na *pending* secret \u2014 not yet the one login checks against."
+      },
+      "NoteOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "encounter_id": {
+            "type": "string",
+            "title": "Encounter Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/NoteStatus"
+          },
+          "assessment": {
+            "type": "string",
+            "title": "Assessment"
+          },
+          "plan": {
+            "type": "string",
+            "title": "Plan"
+          },
+          "subjective": {
+            "type": "string",
+            "title": "Subjective"
+          },
+          "objective": {
+            "type": "string",
+            "title": "Objective"
+          },
+          "note_generator_provider": {
+            "type": "string",
+            "title": "Note Generator Provider"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "signed_by_clinician_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signed By Clinician Id"
+          },
+          "signed_prc_license_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signed Prc License Number"
+          },
+          "signed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "encounter_id",
+          "status",
+          "assessment",
+          "plan",
+          "subjective",
+          "objective",
+          "note_generator_provider",
+          "prompt_version",
+          "signed_by_clinician_id",
+          "signed_prc_license_number",
+          "signed_at"
+        ],
+        "title": "NoteOut"
+      },
+      "NoteSectionUpdate": {
+        "properties": {
+          "section": {
+            "type": "string",
+            "enum": [
+              "assessment",
+              "plan",
+              "subjective",
+              "objective"
+            ],
+            "title": "Section"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "section",
+          "text"
+        ],
+        "title": "NoteSectionUpdate",
+        "description": "Doctor edit to one section before signing (P0-5). Recorded as a\nNoteRevision for the edit-burden metric regardless of how small."
+      },
+      "NoteStatus": {
+        "type": "string",
+        "enum": [
+          "generated",
+          "filed",
+          "authenticated",
+          "signed"
+        ],
+        "title": "NoteStatus",
+        "description": "P0-5: \"Note state machine enforces four distinct states: generated\n\u2192 filed \u2192 authenticated \u2192 signed, with no state skippable.\"\n\nThe Enum column type below constrains the DB to these four values \u2014\nliterally, via a CHECK constraint (`create_constraint=True`; see\ndocs/decisions/0010 for why that flag has to be explicit: SQLAlchemy\n2.0 does not add the constraint by default for a non-native enum,\nwhich meant this docstring's claim was false until Phase 0.4). The\n*ordering* (no skipping) is enforced separately, in\napp/services/note_lifecycle.py, which is the only code path allowed\nto write Note.status \u2014 routes must go through it rather than setting\nstatus directly."
+      },
+      "NoteTransitionRequest": {
+        "properties": {
+          "to_status": {
+            "$ref": "#/components/schemas/NoteStatus"
+          },
+          "prc_license_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prc License Number"
+          }
+        },
+        "type": "object",
+        "required": [
+          "to_status"
+        ],
+        "title": "NoteTransitionRequest",
+        "description": "Advances the note exactly one step in the state machine\n(P0-5: generated -> filed -> authenticated -> signed, no skipping).\nSigning additionally requires PRC license number."
+      },
+      "PartUploadUrlResponse": {
+        "properties": {
+          "part_number": {
+            "type": "integer",
+            "title": "Part Number"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "expires_in_seconds": {
+            "type": "integer",
+            "title": "Expires In Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "part_number",
+          "url",
+          "expires_in_seconds"
+        ],
+        "title": "PartUploadUrlResponse"
+      },
+      "PatientLookupRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "birthdate": {
+            "type": "string",
+            "format": "date",
+            "title": "Birthdate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "birthdate"
+        ],
+        "title": "PatientLookupRequest",
+        "description": "Input to the fuzzy-match flow (P0-6): typed or dictated name + birthdate."
+      },
+      "PatientMatchResult": {
+        "properties": {
+          "match_type": {
+            "type": "string",
+            "enum": [
+              "exact",
+              "near",
+              "none"
+            ],
+            "title": "Match Type"
+          },
+          "patient": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PatientOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/PatientOut"
+            },
+            "type": "array",
+            "title": "Candidates",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "match_type"
+        ],
+        "title": "PatientMatchResult",
+        "description": "P0-6: exact match links silently; near match requires one-tap\nconfirmation; no match creates a new record."
+      },
+      "PatientOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "birthdate": {
+            "type": "string",
+            "format": "date",
+            "title": "Birthdate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "full_name",
+          "birthdate"
+        ],
+        "title": "PatientOut"
+      },
+      "RefreshRequest": {
+        "properties": {
+          "refresh_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refresh Token"
+          }
+        },
+        "type": "object",
+        "title": "RefreshRequest",
+        "description": "Phase 0.3: exchanges a still-valid refresh token for a new\naccess/refresh pair. Deliberately takes no Authorization header \u2014\nthe access token this call is meant to replace may already be\nexpired, which is the whole reason to call it.\n\nPhase 2.1: optional, because the browser client (decision 0024) never\nsees the refresh token \u2014 it rides in an httpOnly cookie the route\nreads instead. The field stays for non-browser callers and for the\nPhase 0.3 tests that exercise rotation/reuse-detection directly."
+      },
+      "RevokeSessionsOut": {
+        "properties": {
+          "revoked_count": {
+            "type": "integer",
+            "title": "Revoked Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "revoked_count"
+        ],
+        "title": "RevokeSessionsOut"
+      },
+      "TokenResponse": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "refresh_token": {
+            "type": "string",
+            "title": "Refresh Token"
+          },
+          "token_type": {
+            "type": "string",
+            "title": "Token Type",
+            "default": "bearer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token",
+          "refresh_token"
+        ],
+        "title": "TokenResponse"
+      },
+      "UploadInitRequest": {
+        "properties": {
+          "content_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Type"
+          }
+        },
+        "type": "object",
+        "title": "UploadInitRequest",
+        "description": "`content_type` is optional and not enforced against an allowlist\n\u2014 Phase 2.2 hasn't picked a recording codec yet, so this schema\ndoesn't get to invent one. It's used only to pick a file extension\nand set the S3 object's Content-Type metadata."
+      },
+      "UploadInitResponse": {
+        "properties": {
+          "object_key": {
+            "type": "string",
+            "title": "Object Key"
+          },
+          "upload_id": {
+            "type": "string",
+            "title": "Upload Id"
+          },
+          "min_part_size_bytes": {
+            "type": "integer",
+            "title": "Min Part Size Bytes"
+          },
+          "max_part_number": {
+            "type": "integer",
+            "title": "Max Part Number"
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_key",
+          "upload_id",
+          "min_part_size_bytes",
+          "max_part_number"
+        ],
+        "title": "UploadInitResponse"
+      },
+      "UploadPartsStatusResponse": {
+        "properties": {
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/UploadedPart"
+            },
+            "type": "array",
+            "title": "Parts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "parts"
+        ],
+        "title": "UploadPartsStatusResponse",
+        "description": "What a resuming client diffs its own local chunk manifest\nagainst to know which parts it can skip re-uploading."
+      },
+      "UploadedPart": {
+        "properties": {
+          "part_number": {
+            "type": "integer",
+            "title": "Part Number"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "etag": {
+            "type": "string",
+            "title": "Etag"
+          }
+        },
+        "type": "object",
+        "required": [
+          "part_number",
+          "size_bytes",
+          "etag"
+        ],
+        "title": "UploadedPart"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "OAuth2PasswordBearer": {
+        "type": "oauth2",
+        "flows": {
+          "password": {
+            "scopes": {},
+            "tokenUrl": "/api/v1/auth/login"
+          }
+        }
+      }
+    }
+  }
+}

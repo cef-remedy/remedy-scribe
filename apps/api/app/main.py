@@ -2,6 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import audit_logs, auth, consent, encounters, notes, patients, uploads
 from app.core.config import get_settings
@@ -30,6 +31,23 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Remedy Scribe API", version="0.1.0", lifespan=lifespan)
+
+# Phase 2.1 (decision 0024). The retired mobile client had no origin and so
+# never needed CORS; a browser client does, and its absence is a silent
+# failure — the preflight is rejected and the request never reaches a route,
+# so nothing appears in the API log at all.
+#
+# allow_credentials=True is required for the httpOnly refresh cookie to be
+# sent at all, and it is mutually exclusive with allow_origins=["*"] per the
+# CORS spec (browsers reject a wildcard on a credentialed request). Hence an
+# explicit allow-list from settings rather than a wildcard.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origin_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 API_PREFIX = "/api/v1"
 app.include_router(auth.router, prefix=API_PREFIX)

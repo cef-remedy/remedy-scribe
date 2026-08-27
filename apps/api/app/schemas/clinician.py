@@ -18,16 +18,23 @@ class RefreshRequest(BaseModel):
     access/refresh pair. Deliberately takes no Authorization header —
     the access token this call is meant to replace may already be
     expired, which is the whole reason to call it.
+
+    Phase 2.1: optional, because the browser client (decision 0024) never
+    sees the refresh token — it rides in an httpOnly cookie the route
+    reads instead. The field stays for non-browser callers and for the
+    Phase 0.3 tests that exercise rotation/reuse-detection directly.
     """
 
-    refresh_token: str
+    refresh_token: str | None = None
 
 
 class LogoutRequest(BaseModel):
     """Single-session logout: revokes exactly the refresh token
-    presented, leaving any other device's session untouched."""
+    presented, leaving any other device's session untouched. Optional for
+    the same reason as RefreshRequest — the cookie is the browser path.
+    """
 
-    refresh_token: str
+    refresh_token: str | None = None
 
 
 class RevokeSessionsOut(BaseModel):

@@ -56,6 +56,28 @@ class Settings(BaseSettings):
     login_lockout_threshold: int = 5
     login_lockout_window_minutes: int = 15
 
+    # Phase 2.1 (decision 0024: the client is a browser app, not mobile).
+    # A native app has no origin and never needed CORS; a browser one does,
+    # and gets no useful error without it — the request simply never
+    # arrives. Comma-separated rather than a JSON list so a deploy can set
+    # it from a plain env var without quoting gymnastics.
+    cors_allow_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+
+    # The refresh token now travels as an httpOnly cookie rather than in a
+    # JSON body the client reads (decision 0024's amendment to 0006). This
+    # is the one place a browser is strictly *stronger* than the retired
+    # mobile plan: httpOnly means an XSS payload cannot read the token at
+    # all, whereas expo-secure-store was always readable by app code.
+    refresh_cookie_name: str = "remedy_refresh"
+    # False for local http:// dev; MUST be true anywhere real, and paired
+    # with samesite=none only if the API and client are cross-site.
+    refresh_cookie_secure: bool = False
+    refresh_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_allow_origins.split(",") if o.strip()]
+
     # PHI field-level encryption (app/core/security.py:EncryptedString)
     phi_encryption_key: str | None = None
 

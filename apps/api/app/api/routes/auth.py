@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, require_role
+from app.core.config import get_settings
 from app.core.security import (
     create_access_token,
     generate_mfa_secret,
@@ -42,8 +43,84 @@ def _client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
+# --- refresh-token transport (Phase 2.1, decision 0024) -------------------
+#
+# The refresh token moved from "a JSON field the client stores" to an
+# httpOnly cookie. This is the one respect in which the browser client is
+# strictly stronger than the retired mobile plan: httpOnly means an XSS
+# payload cannot read the token at all, while expo-secure-store was always
+# readable by app code. The access token is unchanged — still short-lived
+# and held in memory only (decisions 0006/0007).
+#
+# Precedence: an explicitly-presented body token wins over the cookie, and
+# getting that backwards is a real bug rather than a style choice. With
+# cookie-first, a caller that names a specific token cannot actually use
+# it while any cookie exists — which silently broke Phase 0.3's
+# reuse-detection tests: they present a deliberately-stale token and
+# expect 401, but the route rotated the (valid) cookie instead and
+# returned 200. Worse, single-session logout would revoke whichever
+# session the cookie happened to hold rather than the one named.
+#
+# Body-first costs nothing in the browser: the httpOnly guarantee is that
+# XSS cannot *read* the cookie, which precedence does not affect, and a
+# cross-origin caller cannot set a JSON body past the CORS allow-list or
+# send the SameSite=lax cookie on a cross-site POST anyway.
+
+
+def _set_refresh_cookie(response: Response, token: str) -> None:
+    settings = get_settings()
+    response.set_cookie(
+        key=settings.refresh_cookie_name,
+        value=token,
+        httponly=True,
+        secure=settings.refresh_cookie_secure,
+        samesite=settings.refresh_cookie_samesite,
+        max_age=settings.refresh_token_expire_hours * 3600,
+        # Scoped to the auth routes that actually use it: no other endpoint
+        # has any business receiving this cookie.
+        path="/api/v1/auth",
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    settings = get_settings()
+    response.delete_cookie(
+        key=settings.refresh_cookie_name,
+        httponly=True,
+        secure=settings.refresh_cookie_secure,
+        samesite=settings.refresh_cookie_samesite,
+        path="/api/v1/auth",
+    )
+
+
+def _clear_cookie_headers() -> dict[str, str]:
+    """Cookie-clearing headers suitable for an HTTPException.
+
+    Mutating the injected `response` and then raising HTTPException does
+    NOT work: FastAPI builds a fresh response for the exception and the
+    mutation is silently discarded, so the dead cookie stays in the
+    browser and every subsequent silent renewal fails identically. The
+    fix is to carry the header on the exception itself — serialized by
+    Starlette's own set_cookie/delete_cookie rather than hand-rolled,
+    since Set-Cookie attribute formatting is easy to get subtly wrong.
+    """
+    scratch = Response()
+    _clear_refresh_cookie(scratch)
+    return {"set-cookie": scratch.headers["set-cookie"]}
+
+
+def _read_refresh_token(request: Request, body_token: str | None) -> str:
+    token = body_token or request.cookies.get(get_settings().refresh_cookie_name)
+    if not token:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "No refresh token supplied")
+    return token
+
+
+
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)) -> TokenResponse:
+def login(
+    payload: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)
+) -> TokenResponse:
     """P0-8: multi-factor authentication for clinician access — password
     AND a valid TOTP code are both required; either failing alone returns
     the same 401 to avoid leaking which factor was wrong.
@@ -85,35 +162,65 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     assert clinician is not None
     access_token = create_access_token(subject=clinician.id, extra_claims={"role": clinician.role})
     refresh_token, _ = issue_refresh_token(db, clinician.id)
+    _set_refresh_cookie(response, refresh_token)
+    # Still returned in the body for non-browser callers and the Phase 0.3
+    # tests. The web client ignores this field and relies on the cookie —
+    # see apps/web/src/lib/auth.ts, which never reads it.
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
 
 @router.post("/refresh", response_model=TokenResponse)
-def refresh(payload: RefreshRequest, db: Session = Depends(get_db)) -> TokenResponse:
+def refresh(
+    payload: RefreshRequest, request: Request, response: Response, db: Session = Depends(get_db)
+) -> TokenResponse:
     """Silent-renewal endpoint the mobile client calls when its access
     token is expired (or about to be) — no password/MFA re-entry, no
     Authorization header. Rotates the refresh token on every use; a
     replayed/stolen refresh token gets caught here, not at login.
     """
+    presented = _read_refresh_token(request, payload.refresh_token)
     try:
-        new_refresh_token, row = rotate_refresh_token(db, payload.refresh_token)
+        new_refresh_token, row = rotate_refresh_token(db, presented)
     except RefreshTokenInvalidError as exc:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
+        # Clear the cookie on failure: a rejected refresh token is either
+        # expired, revoked, or a detected reuse, and in every case leaving
+        # the dead value in the browser guarantees the next silent-renewal
+        # attempt fails the same way instead of falling through to a real
+        # login. Carried on the exception, not on `response` — see
+        # _clear_cookie_headers.
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, str(exc), headers=_clear_cookie_headers()
+        ) from exc
 
     clinician = db.get(Clinician, row.clinician_id)
     if clinician is None or not clinician.is_active:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Clinician not found or inactive")
+        # Deactivated mid-session: same reasoning as above, the browser
+        # must not keep a credential it can never successfully use.
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, "Clinician not found or inactive", headers=_clear_cookie_headers()
+        )
 
     access_token = create_access_token(subject=clinician.id, extra_claims={"role": clinician.role})
+    _set_refresh_cookie(response, new_refresh_token)
     return TokenResponse(access_token=access_token, refresh_token=new_refresh_token)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-def logout(payload: LogoutRequest, db: Session = Depends(get_db)) -> None:
+def logout(
+    payload: LogoutRequest, request: Request, response: Response, db: Session = Depends(get_db)
+) -> None:
     """Revokes exactly the one refresh token presented — signing out
     this device without touching any other session the clinician has.
     """
-    revoke_refresh_token(db, payload.refresh_token)
+    # Same precedence as _read_refresh_token, and for the sharper reason:
+    # logout must revoke the session the caller named, not whichever one
+    # the cookie happens to hold.
+    token = payload.refresh_token or request.cookies.get(get_settings().refresh_cookie_name)
+    if token:
+        revoke_refresh_token(db, token)
+    # Cleared unconditionally: logout must leave the browser with no
+    # credential even if the token was already revoked server-side.
+    _clear_refresh_cookie(response)
 
 
 @router.post("/mfa/enroll", response_model=MfaEnrollOut)
