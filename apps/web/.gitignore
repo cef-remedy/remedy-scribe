@@ -3,3 +3,6 @@ dist
 dist-ssr
 .env
 *.local
+
+# TypeScript incremental build cache — a build artifact, not source
+*.tsbuildinfo
