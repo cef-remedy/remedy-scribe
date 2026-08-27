@@ -32,6 +32,15 @@ import { Banner } from "../components/Banner";
 import { formatBytes, formatDuration } from "../lib/format";
 import { TARGET_BITS_PER_SECOND } from "../lib/audio-config";
 import { useOnlineStatus } from "../lib/offline";
+import {
+  abandonRecording,
+  checkStorage,
+  enqueueRecording,
+  markReadyToUpload,
+  markRecordingAlive,
+} from "../lib/queue/queue";
+import { useQueue } from "../lib/queue/useQueue";
+import { QueueStatus, StorageWarning } from "../components/QueueStatus";
 
 export function Record() {
   const { encounterId = "" } = useParams();
@@ -44,6 +53,8 @@ export function Record() {
   const [withdrawal, setWithdrawal] = useState<string | null>(null);
   const [newParticipant, setNewParticipant] = useState<string>(SUGGESTED_PARTICIPANTS[0]);
   const [reconsentError, setReconsentError] = useState<string | null>(null);
+  const [storageBlock, setStorageBlock] = useState<string | null>(null);
+  const { entries, storage, retry, uploadNow } = useQueue();
 
   // Set by the consent screen's redirect. The doctor has just logged consent
   // and now needs to speak the confirmation that becomes segment 1 (P0-1).
@@ -58,6 +69,18 @@ export function Record() {
       cancelled = true;
     };
   }, [encounterId]);
+
+  // Heartbeat while capturing, so the queue can distinguish a live recording
+  // from one the app died in the middle of. Without it the queue "recovers"
+  // an in-progress recording, tells the doctor it was interrupted, and starts
+  // uploading before the last chunks exist.
+  useEffect(() => {
+    if (state.status !== "recording" && state.status !== "paused") return;
+    const beat = () => void markRecordingAlive(encounterId);
+    beat();
+    const timer = setInterval(beat, 5000);
+    return () => clearInterval(timer);
+  }, [state.status, encounterId]);
 
   // Leaving mid-recording loses the un-flushed tail. The browser only allows
   // a generic prompt, but a generic prompt beats silent loss.
@@ -78,6 +101,26 @@ export function Record() {
     setGate(fresh);
     if (!fresh.allowed) return;
 
+    // Device-full check happens here, not mid-consultation: an IndexedDB
+    // write that fails with QuotaExceededError halfway through loses the rest
+    // of the recording, and there is no graceful recovery in the moment.
+    const health = await checkStorage();
+    if (health.level === "critical") {
+      setStorageBlock(
+        `This laptop has only about ${health.minutesRemaining} minutes of recording space left. ` +
+          "Let the upload queue finish, or free space, before starting a consultation.",
+      );
+      return;
+    }
+    setStorageBlock(null);
+
+    // The write-ahead invariant: the record of intent — including the
+    // idempotency key — reaches durable storage BEFORE any audio exists. A
+    // crash mid-recording then leaves both the chunks and the intent on
+    // disk, so the queue recovers the recording on next launch instead of
+    // orphaning it.
+    await enqueueRecording(encounterId, `enc-${encounterId}`);
+
     setSummary(null);
     try {
       await start(encounterId);
@@ -89,13 +132,22 @@ export function Record() {
   const onStop = useCallback(async () => {
     const result = await stop();
     if (!result) return;
+
+    // Hand it to the queue. The gap total travels with the entry so the
+    // upload can eventually tell the server the audio is incomplete (2.2's
+    // open follow-up), rather than that fact living only in this screen.
+    // Only the gap total is passed: the byte total is read from the chunk
+    // store, because `state.bytes` here predates stop()'s final flush.
+    await markReadyToUpload(encounterId, { audioGapMs: result.missingMs });
+    void uploadNow();
+
     const missing = result.missingMs >= 1000 ? formatDuration(result.missingMs) : null;
     setSummary(
       missing
-        ? `Saved ${result.chunkCount} pieces to this laptop. ${missing} of audio is missing — see below.`
-        : `Saved ${result.chunkCount} pieces to this laptop, with no audio gaps detected.`,
+        ? `Saved ${result.chunkCount} pieces to this laptop and queued for upload. ${missing} of audio is missing — see below.`
+        : `Saved ${result.chunkCount} pieces to this laptop and queued for upload, with no audio gaps detected.`,
     );
-  }, [stop]);
+  }, [stop, encounterId, uploadNow]);
 
   const onWithdraw = useCallback(async () => {
     // Order matters and is deliberate: stop capturing first, then destroy the
@@ -112,6 +164,11 @@ export function Record() {
     } catch {
       /* reported below */
     }
+
+    // The queue must stop trying to upload audio that no longer exists, and
+    // the entry is kept (not deleted) as a record that the recording existed
+    // and why it stopped.
+    await abandonRecording(encounterId, "Consent was withdrawn — the audio was deleted.");
 
     const result = await withdrawConsent(encounterId);
     setGate(await checkConsentGate(encounterId));
@@ -200,6 +257,8 @@ export function Record() {
       )}
 
       {withdrawal && <Banner tone="warn">{withdrawal}</Banner>}
+      {storageBlock && <Banner tone="error">{storageBlock}</Banner>}
+      <StorageWarning storage={storage} />
 
       {/* --- controls --- */}
       <section className="card">
@@ -348,6 +407,8 @@ export function Record() {
           )}
         </section>
       )}
+
+      <QueueStatus entries={entries} storage={storage} onRetry={retry} onUploadNow={uploadNow} />
     </main>
   );
 }

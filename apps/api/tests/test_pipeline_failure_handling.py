@@ -416,3 +416,55 @@ def test_sweep_never_touches_terminal_statuses_no_matter_how_old(db, monkeypatch
 
     assert count == 0
     assert calls == []
+
+
+# --- Phase 2.4: the encounter-status read the upload queue polls ----------
+
+
+def test_read_encounter_returns_pipeline_status(db, client):
+    doctor = Clinician(email="doc@example.com", full_name="Dr. Reyes", hashed_password="x", role="doctor")
+    db.add(doctor)
+    db.commit()
+    db.refresh(doctor)
+
+    encounter = Encounter(
+        clinician_id=doctor.id,
+        upload_idempotency_key="idem-read",
+        pipeline_status=EncounterPipelineStatus.TRANSCRIBED,
+    )
+    db.add(encounter)
+    db.commit()
+
+    response = client.get(f"/api/v1/encounters/{encounter.id}", headers=_auth(doctor))
+
+    assert response.status_code == 200
+    assert response.json()["pipeline_status"] == "transcribed"
+
+
+def test_read_encounter_404s_when_missing(db, client):
+    doctor = Clinician(email="doc@example.com", full_name="Dr. Reyes", hashed_password="x", role="doctor")
+    db.add(doctor)
+    db.commit()
+    db.refresh(doctor)
+
+    assert client.get("/api/v1/encounters/nope", headers=_auth(doctor)).status_code == 404
+
+
+def test_literal_worklist_paths_are_not_swallowed_by_the_id_route(db, client):
+    """Route-order regression guard.
+
+    FastAPI matches in registration order, so `GET /{encounter_id}` declared
+    before `/loose` or `/failed` would swallow both — `/encounters/loose`
+    would resolve as encounter_id="loose" and 404. That failure is silent
+    (the worklist just goes empty) and trivially reintroduced by tidying the
+    route file, so it is asserted rather than trusted to convention.
+    """
+    doctor = Clinician(email="doc@example.com", full_name="Dr. Reyes", hashed_password="x", role="doctor")
+    db.add(doctor)
+    db.commit()
+    db.refresh(doctor)
+
+    for path in ("/api/v1/encounters/loose", "/api/v1/encounters/failed"):
+        response = client.get(path, headers=_auth(doctor))
+        assert response.status_code == 200, f"{path} was swallowed by the id route"
+        assert isinstance(response.json(), list), f"{path} returned a single encounter, not a list"

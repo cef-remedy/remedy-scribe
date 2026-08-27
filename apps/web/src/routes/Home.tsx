@@ -9,6 +9,8 @@ import { api, OfflineError } from "../api/client";
 import { useAuth } from "../lib/auth";
 import { useOnlineStatus } from "../lib/offline";
 import { Banner, OfflineBanner } from "../components/Banner";
+import { QueueStatus } from "../components/QueueStatus";
+import { useQueue } from "../lib/queue/useQueue";
 import { estimatedBytesPerMinute, TARGET_BITS_PER_SECOND } from "../lib/audio-config";
 
 type Encounter = { id: string; pipeline_status: string; created_at: string };
@@ -16,6 +18,7 @@ type Encounter = { id: string; pipeline_status: string; created_at: string };
 export function Home() {
   const { signOut } = useAuth();
   const online = useOnlineStatus();
+  const { entries, storage, retry, uploadNow } = useQueue();
   const [loose, setLoose] = useState<Encounter[] | null>(null);
   const [failed, setFailed] = useState<Encounter[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +62,8 @@ export function Home() {
       {!online && <OfflineBanner />}
       {error && <Banner tone="error">{error}</Banner>}
 
+      <QueueStatus entries={entries} storage={storage} onRetry={retry} onUploadNow={uploadNow} />
+
       <section className="card">
         <h2>Loose sessions</h2>
         <p className="muted">Recordings not yet linked to a patient (P0-6).</p>
@@ -100,11 +105,11 @@ export function Home() {
       <section className="card">
         <h2>Not built yet</h2>
         <ul className="muted">
-          <li>Recording — Phase 2.2. Capture is configured for mono Opus at {TARGET_BITS_PER_SECOND / 1000} kbps
-            (~{Math.round(estimatedBytesPerMinute() / 1024)} KB/min), decision 0025.</li>
-          <li>Consent flow — Phase 2.3. Recording must stay blocked until this exists (P0-1).</li>
-          <li>Offline upload queue — Phase 2.4.</li>
-          <li>Patient search and note review — Phases 2.5 and 2.6.</li>
+          <li>Patient search and identity matching — Phase 2.5.</li>
+          <li>Note review, editing, and signing — Phase 2.6.</li>
+          <li>Grounding UI (tap a note line, hear the audio) — Phase 3.</li>
+          <li className="muted">Recording, consent, and the upload queue are built: capture runs at mono Opus
+            {" "}{TARGET_BITS_PER_SECOND / 1000} kbps (~{Math.round(estimatedBytesPerMinute() / 1024)} KB/min).</li>
         </ul>
       </section>
     </main>

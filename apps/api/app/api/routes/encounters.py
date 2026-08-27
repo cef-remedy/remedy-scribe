@@ -152,6 +152,35 @@ def retry_pipeline_stage(
     return EncounterOut.model_validate(encounter)
 
 
+@router.get("/{encounter_id}", response_model=EncounterOut)
+def read_encounter(
+    encounter_id: str,
+    db: Session = Depends(get_db),
+    clinician: Clinician = Depends(require_role("doctor")),
+) -> EncounterOut:
+    """Phase 2.4: the upload queue polls this to decide when local audio may
+    be deleted.
+
+    P0-2 says local audio goes only once the server confirms receipt *and*
+    that note generation has begun — and the checklist's heads-up is sharper
+    still: "the confirmation the device waits for should be about the
+    pipeline, not the bytes." `upload/complete` confirms bytes and enqueues
+    work; only `pipeline_status` says whether that work actually ran. So the
+    queue waits for this, not for the 200 on complete.
+
+    NOTE ON ROUTE ORDER: this must stay registered *after* `/loose` and
+    `/failed`. FastAPI matches in registration order, so a path parameter
+    declared before them would swallow both — `/encounters/loose` would
+    resolve here with encounter_id="loose" and 404. There is a test for
+    exactly that, because the failure is silent and easy to reintroduce by
+    tidying this file.
+    """
+    encounter = db.get(Encounter, encounter_id)
+    if encounter is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Encounter not found")
+    return EncounterOut.model_validate(encounter)
+
+
 # Upload confirmation used to live here as `POST /{encounter_id}/confirm-upload`,
 # taking a client-supplied `audio_object_key` on faith. Phase 1.1 replaced it
 # with the real upload flow in app/api/routes/uploads.py — the server now

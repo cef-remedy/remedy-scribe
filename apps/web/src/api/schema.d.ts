@@ -306,6 +306,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/encounters/{encounter_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Encounter
+         * @description Phase 2.4: the upload queue polls this to decide when local audio may
+         *     be deleted.
+         *
+         *     P0-2 says local audio goes only once the server confirms receipt *and*
+         *     that note generation has begun — and the checklist's heads-up is sharper
+         *     still: "the confirmation the device waits for should be about the
+         *     pipeline, not the bytes." `upload/complete` confirms bytes and enqueues
+         *     work; only `pipeline_status` says whether that work actually ran. So the
+         *     queue waits for this, not for the 200 on complete.
+         *
+         *     NOTE ON ROUTE ORDER: this must stay registered *after* `/loose` and
+         *     `/failed`. FastAPI matches in registration order, so a path parameter
+         *     declared before them would swallow both — `/encounters/loose` would
+         *     resolve here with encounter_id="loose" and 404. There is a test for
+         *     exactly that, because the failure is silent and easy to reintroduce by
+         *     tidying this file.
+         */
+        get: operations["read_encounter_api_v1_encounters__encounter_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/encounters/{encounter_id}/upload/init": {
         parameters: {
             query?: never;
@@ -1328,6 +1363,37 @@ export interface operations {
         };
     };
     retry_pipeline_stage_api_v1_encounters__encounter_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_encounter_api_v1_encounters__encounter_id__get: {
         parameters: {
             query?: never;
             header?: never;

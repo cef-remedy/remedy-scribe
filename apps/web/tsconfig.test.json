@@ -12,7 +12,12 @@
     // Tests run in Node (see vitest.config.ts), so they need node types the
     // app project must NOT have — importing node:crypto from app code should
     // stay a type error.
-    "types": ["node", "vitest/globals"]
+    //
+    // `vite/client` is also required: a test that imports application code
+    // transitively compiles it here, and app modules legitimately use
+    // `import.meta.env`. Without it, adding a test can break the typecheck
+    // for a file the test never touched.
+    "types": ["node", "vitest/globals", "vite/client"]
   },
   "include": ["src/**/*.test.ts", "src/test/**/*.ts", "vitest.config.ts"]
 }

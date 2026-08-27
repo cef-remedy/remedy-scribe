@@ -26,9 +26,23 @@
  */
 
 const DB_NAME = "remedy-scribe";
-const DB_VERSION = 1;
+/**
+ * Bumped to 2 in Phase 2.4 for the upload-queue store.
+ *
+ * One database, one version, one upgrade handler — declared here because
+ * this module owns `openDb`. Two `open` calls with different
+ * `onupgradeneeded` handlers on the same name is a reliable way to get a
+ * VersionError in a second tab, so the queue store is created here rather
+ * than in queue/store.ts even though that is where it is used.
+ *
+ * `onupgradeneeded` is additive and guarded per store, so an existing v1
+ * database (a laptop mid-pilot with queued audio) upgrades in place without
+ * losing chunks.
+ */
+const DB_VERSION = 2;
 const KEY_STORE = "keys";
 const CHUNK_STORE = "chunks";
+const QUEUE_STORE = "uploads";
 const KEY_ID = "audio-aes-gcm-v1";
 
 /** GCM's recommended IV length. A fresh one per chunk, never reused. */
@@ -69,6 +83,12 @@ export function openDb(): Promise<IDBDatabase> {
         // Every read is "all chunks for this recording, in order".
         chunks.createIndex("bySession", ["sessionId", "seq"]);
       }
+      if (!db.objectStoreNames.contains(QUEUE_STORE)) {
+        // Keyed by encounter id: one queue entry per recording, and the
+        // uploader needs to find it by that id after a restart.
+        const uploads = db.createObjectStore(QUEUE_STORE, { keyPath: "id" });
+        uploads.createIndex("byState", "state");
+      }
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -77,6 +97,7 @@ export function openDb(): Promise<IDBDatabase> {
 
 export const CHUNK_STORE_NAME = CHUNK_STORE;
 export const KEY_STORE_NAME = KEY_STORE;
+export const QUEUE_STORE_NAME = QUEUE_STORE;
 
 /* ------------------------------------------------------------------ *
  * Key management

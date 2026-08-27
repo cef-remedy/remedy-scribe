@@ -563,6 +563,54 @@
         }
       }
     },
+    "/api/v1/encounters/{encounter_id}": {
+      "get": {
+        "tags": [
+          "encounters"
+        ],
+        "summary": "Read Encounter",
+        "description": "Phase 2.4: the upload queue polls this to decide when local audio may\nbe deleted.\n\nP0-2 says local audio goes only once the server confirms receipt *and*\nthat note generation has begun \u2014 and the checklist's heads-up is sharper\nstill: \"the confirmation the device waits for should be about the\npipeline, not the bytes.\" `upload/complete` confirms bytes and enqueues\nwork; only `pipeline_status` says whether that work actually ran. So the\nqueue waits for this, not for the 200 on complete.\n\nNOTE ON ROUTE ORDER: this must stay registered *after* `/loose` and\n`/failed`. FastAPI matches in registration order, so a path parameter\ndeclared before them would swallow both \u2014 `/encounters/loose` would\nresolve here with encounter_id=\"loose\" and 404. There is a test for\nexactly that, because the failure is silent and easy to reintroduce by\ntidying this file.",
+        "operationId": "read_encounter_api_v1_encounters__encounter_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "encounter_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Encounter Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/encounters/{encounter_id}/upload/init": {
       "post": {
         "tags": [
