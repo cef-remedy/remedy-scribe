@@ -31,7 +31,7 @@ from app.schemas.upload import (
     UploadInitResponse,
     UploadPartsStatusResponse,
 )
-from app.services import storage
+from app.services import audit, storage
 from app.services.consent import ConsentNotValidError, assert_consent_valid
 
 router = APIRouter(prefix="/encounters/{encounter_id}/upload", tags=["uploads"])
@@ -61,6 +61,11 @@ def init_upload(
         # fresh-creation branch below) — this makes that coupling explicit
         # for the type checker rather than leaving it an unverified assumption.
         assert encounter.audio_object_key is not None
+        # Not audited: nothing new is granted or disclosed here. The
+        # session this returns was already recorded when it was opened
+        # below, and re-recording it would make a flaky phone's retries
+        # look like repeated access. The `encounter.upload.init` row for
+        # this encounter already exists.
         return UploadInitResponse(
             object_key=encounter.audio_object_key,
             upload_id=encounter.audio_upload_id,
@@ -78,6 +83,19 @@ def init_upload(
     encounter.audio_upload_id = upload_id
     db.add(encounter)
     db.commit()
+
+    # Phase 4.2: opening an upload session is the moment this encounter
+    # acquires an audio object at all. The object key is deliberately not
+    # recorded — decision 0030's rule, restated in
+    # app/models/audit_log.py: a key is a direct pointer to the bytes, and
+    # an audit row outlives the retention window of what it points at.
+    audit.record(
+        db,
+        actor_clinician_id=clinician.id,
+        action="encounter.upload.init",
+        entity_type="encounter",
+        entity_id=encounter_id,
+    )
 
     return UploadInitResponse(
         object_key=object_key,
@@ -101,6 +119,24 @@ def get_part_upload_url(
 
     settings = get_settings()
     url = storage.presign_part_upload(encounter.audio_object_key, encounter.audio_upload_id, part_number)
+
+    # A presigned PUT is a live, writable handle on this encounter's audio
+    # object — the same class of thing as the playback URL Phase 3 audits,
+    # pointed the other way, so it is logged for the same reason. Coalesced
+    # (60s) because a long consultation mints one of these per part in a
+    # tight loop and a client resuming an interrupted upload re-mints
+    # several at once; the fact worth keeping is "this clinician was
+    # uploading to this encounter around this time", not the part count,
+    # which storage already knows (see GET /upload/parts). Neither the part
+    # number nor the object key is recorded.
+    audit.record(
+        db,
+        actor_clinician_id=clinician.id,
+        action="encounter.upload.part_url",
+        entity_type="encounter",
+        entity_id=encounter_id,
+        coalesce_seconds=audit.POLL_COALESCE_SECONDS,
+    )
     return PartUploadUrlResponse(
         part_number=part_number,
         url=url,
@@ -124,6 +160,14 @@ def list_upload_parts(
     assert encounter.audio_object_key is not None  # set alongside audio_upload_id
 
     parts = storage.list_uploaded_parts(encounter.audio_object_key, encounter.audio_upload_id)
+    # Deliberately **not** audited, and this is the one place in Phase 4.2
+    # where that call was made. It discloses part numbers, sizes and ETags
+    # from S3 — no PHI, no patient, no clinical content — and grants
+    # nothing: it cannot read or write a byte of the recording. The
+    # enclosing session is already accounted for at init and complete. The
+    # rule this follows is "log every disclosure of, or capability over,
+    # PHI", not "log every request"; the latter is the request log, and
+    # conflating them is what makes an audit trail unreadable.
     return UploadPartsStatusResponse(parts=[UploadedPart(**p) for p in parts])
 
 
@@ -174,6 +218,18 @@ def complete_upload(
     db.add(encounter)
     db.commit()
     db.refresh(encounter)
+
+    # Phase 4.2: the encounter now holds a finalized recording of a real
+    # consultation, and this is the row that says who put it there and
+    # when. The retention clock stamped just above starts from this moment,
+    # which is the other reason it is worth a durable record.
+    audit.record(
+        db,
+        actor_clinician_id=clinician.id,
+        action="encounter.upload.complete",
+        entity_type="encounter",
+        entity_id=encounter_id,
+    )
 
     from app.tasks.pipeline import run_pipeline  # deferred import: avoids a hard Celery/Redis dependency at import time for routes that never touch the pipeline
 

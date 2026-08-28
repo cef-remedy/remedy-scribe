@@ -8,7 +8,12 @@ from pathlib import Path
 
 from cryptography.fernet import Fernet
 
-_DB_PATH = Path(__file__).parent / "test.db"
+# One shared SQLite file per checkout, which is fine for one test run at a
+# time and silently corrupting for two: `_fresh_schema` below drops and
+# recreates every table per test, so a second concurrent run sees tables
+# vanish mid-test and fails with "no such table" in unrelated files.
+# TEST_DB_PATH lets a run opt into its own file. Default is unchanged.
+_DB_PATH = Path(os.environ.get("TEST_DB_PATH") or Path(__file__).parent / "test.db")
 os.environ["DATABASE_URL"] = f"sqlite:///{_DB_PATH}"
 os.environ.setdefault("PHI_ENCRYPTION_KEY", Fernet.generate_key().decode())
 os.environ.setdefault("JWT_SECRET", "test-secret")

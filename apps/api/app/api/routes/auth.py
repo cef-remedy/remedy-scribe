@@ -6,7 +6,9 @@ from app.core.config import get_settings
 from app.core.security import (
     create_access_token,
     generate_mfa_secret,
+    hash_password,
     mfa_provisioning_uri,
+    password_needs_rehash,
     verify_mfa_code,
     verify_password,
 )
@@ -160,6 +162,20 @@ def login(
     # this makes the already-true invariant explicit rather than leaving it
     # for the type checker to (wrongly) flag as unverified.
     assert clinician is not None
+
+    # Decision 0034: upgrade the stored credential in place, now that the
+    # plaintext has been proven correct and exists for exactly this instant.
+    # Without this, argon2 would apply only to accounts created after the
+    # migration and every existing bcrypt hash would stay bcrypt forever —
+    # the migration would look done while changing nothing for real users.
+    # Deliberately after record_login_attempt: a rehash is a consequence of a
+    # successful login, never a precondition for recording one.
+    if password_needs_rehash(clinician.hashed_password):
+        clinician.hashed_password = hash_password(payload.password)
+        db.add(clinician)
+        db.commit()
+        db.refresh(clinician)
+
     access_token = create_access_token(subject=clinician.id, extra_claims={"role": clinician.role})
     refresh_token, _ = issue_refresh_token(db, clinician.id)
     _set_refresh_cookie(response, refresh_token)

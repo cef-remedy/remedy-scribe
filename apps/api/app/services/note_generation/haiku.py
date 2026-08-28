@@ -1,28 +1,41 @@
-"""Claude Haiku 4.5 — the sole note generator (decision 0021: Luna
-dropped, not kept dormant as a role-swapped fallback).
+"""Claude Haiku 4.5 — the **configured fallback** as of decision 0035.
+
+Not the default any more: note generation moved to Groq
+(`groq.py`) to consolidate onto the vendor that already receives every
+consultation's audio and transcript (decision 0018). This provider is
+kept rather than deleted, which is a deliberate departure from how
+decision 0021 treated `LunaNoteGenerator` and 0018 treated ElevenLabs.
+Those were removed on the principle that "an unused alternative with no
+real distinguishing capability left is dead weight, not a safety net" —
+and the test is exactly that clause. Haiku *does* have a distinguishing
+capability now: Groq's free tier caps throughput at roughly 8,000 tokens
+per minute, which a full 20-40 minute consultation transcript exceeds
+outright, and Groq's BAA excludes free-tier usage. Until that is
+resolved commercially, a second provider that has neither limit is a
+real escape hatch, not dead weight. Select it with
+`NOTE_GENERATOR_PROVIDER=haiku`.
 
 Design choices worth knowing before reading `generate()`:
 
-- **Structured output via a forced tool call**, not free-text parsing
-  (checklist's explicit ask). `tool_choice` pins the model to exactly one
-  tool, so the response is always the shape `_build_tool_schema()`
-  describes — no regex-scraping a chat completion.
+- **Structured output via a forced tool call**, not free-text parsing.
+  `tool_choice` pins the model to exactly one tool, so the response is
+  always the shape `_build_tool_schema()` describes. (Groq cannot do
+  this — its structured-output mode and tool use are mutually exclusive —
+  which is why the two providers differ in transport but not in schema.)
 - **Suppression is mechanical, not a polite request.** Low-confidence
   words are replaced with a literal `[INAUDIBLE]` marker in the prompt
-  *before* the model ever sees them (`_format_transcript`) — the model
-  cannot smooth over a gap it was never shown. Per-section `suppressed`
-  is also a schema field the model must set explicitly, not an
-  after-the-fact inference from empty text.
-- **Citations are transcript segment IDs, not character offsets.**
-  Asking an LLM to count characters produces confident, wrong numbers
-  (the checklist's own phrase for exactly this failure). The model cites
-  `segment_ids` (e.g. `"seg0"`) that were handed to it in the prompt;
-  `text_start`/`text_end` — offsets into the *note's own text* — are
-  computed server-side by concatenation, never claimed by the model.
-- **Citations are verified, not trusted.** Any cited segment_id that
-  doesn't correspond to a real input segment is dropped before the note
-  is ever saved (`_build_section`) — a hallucinated citation is worse
-  than an under-cited sentence, since it looks like evidence.
+  *before* the model ever sees them — the model cannot smooth over a gap
+  it was never shown.
+- **Citations are transcript segment IDs, not character offsets.** Asking
+  an LLM to count characters produces confident, wrong numbers.
+  `text_start`/`text_end` are computed server-side, never claimed by the
+  model.
+- **Citations are verified, not trusted.** A cited ID that doesn't
+  correspond to a real input segment is dropped before the note is saved.
+
+The last three now live in `shared.py`, so both providers enforce them
+identically — see that module's docstring for why that is a correctness
+requirement rather than tidiness.
 """
 
 from __future__ import annotations
@@ -33,7 +46,19 @@ import httpx
 
 from app.core.config import get_settings
 from app.services.asr.base import TranscriptSegment
-from app.services.note_generation.base import GeneratedNote, GeneratedSection, NoteGenerator, SourceSpan
+from app.services.note_generation.base import (
+    GeneratedNote,
+    GeneratedSection,
+    NoteGenerator,
+)
+from app.services.note_generation.shared import (
+    SECTION_NAMES,
+    SYSTEM_PROMPT_BODY,
+    build_section,
+    build_sections,
+    format_transcript,
+    section_schema,
+)
 
 ANTHROPIC_MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
@@ -45,87 +70,21 @@ MAX_TOKENS = 2048
 # edit burden shifts, not from memory after the fact.
 PROMPT_VERSION = "haiku-v1"
 
-SECTION_NAMES = ("assessment", "plan", "subjective", "objective")
 TOOL_NAME = "emit_note"
 
-SYSTEM_PROMPT = """You are producing a clinical note from a diarized Taglish \
-consultation transcript. The transcript is given to you as a series of \
-lines, each tagged with a stable ID like [seg3 | speaker_unknown], in \
-chronological order. Some words are replaced with the literal marker \
-[INAUDIBLE] — that word's transcription was too unreliable to trust; do \
-not guess what it might have been, and do not paraphrase around it as if \
-you know what was said.
+SYSTEM_PROMPT = (
+    "You are producing a clinical note from a diarized Taglish consultation "
+    "transcript. Call the emit_note tool with the four sections.\n\n" + SYSTEM_PROMPT_BODY
+)
 
-Call the emit_note tool with exactly four sections, in this order: \
-Assessment, Plan, Subjective, Objective. For each section:
-- Write clinical sentences in hedged language ("appears to", "reports") \
-rather than flat certainty.
-- Preserve Filipino speech verbatim in quoted excerpts — never silently \
-translate.
-- For every sentence, cite the segment_ids of every transcript line it \
-draws from. Only cite IDs that actually appear in the transcript you were \
-given — never invent one.
-- If a section has no reliable spoken content to support it (the relevant \
-part of the consult was silent, entirely [INAUDIBLE], or never discussed), \
-set that section's suppressed field to true and leave its sentences empty. \
-Do not invent plausible-sounding content to fill a section that has \
-nothing behind it — an empty, honest section is correct; a fabricated \
-one is not."""
-
-
-def _format_transcript(transcript: list[TranscriptSegment], low_confidence_threshold: float) -> str:
-    """One line per segment: `[seg_id | speaker] word word [INAUDIBLE] ...`.
-    Adjacent [INAUDIBLE] markers are collapsed to one — a run of unreliable
-    words is one gap, not one marker per word lost.
-    """
-    lines: list[str] = []
-    for segment in transcript:
-        rendered_words: list[str] = []
-        for word in segment.words:
-            token = "[INAUDIBLE]" if word.confidence < low_confidence_threshold else word.text
-            if token == "[INAUDIBLE]" and rendered_words and rendered_words[-1] == "[INAUDIBLE]":
-                continue
-            rendered_words.append(token)
-        seg_id = segment.id or "seg?"
-        lines.append(f"[{seg_id} | {segment.speaker}] {' '.join(rendered_words)}")
-    return "\n".join(lines)
-
-
-def _section_schema() -> dict[str, Any]:
-    return {
-        "type": "object",
-        "properties": {
-            "suppressed": {
-                "type": "boolean",
-                "description": (
-                    "True if there is no reliable spoken content for this section — "
-                    "leave `sentences` empty rather than inventing content."
-                ),
-            },
-            "sentences": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "text": {
-                            "type": "string",
-                            "description": "One clinical sentence: hedged language, verbatim Filipino preserved.",
-                        },
-                        "segment_ids": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": (
-                                "IDs (e.g. 'seg0') of every transcript line this sentence draws from. "
-                                "Never invent an ID that wasn't in the input."
-                            ),
-                        },
-                    },
-                    "required": ["text", "segment_ids"],
-                },
-            },
-        },
-        "required": ["suppressed", "sentences"],
-    }
+# Kept as module-level aliases because the existing test suite imports
+# them by these names. That is worth preserving rather than renaming: the
+# 16 tests written against this provider now run unchanged against the
+# shared implementations, which makes them a regression guard proving the
+# extraction into shared.py did not change behaviour.
+_format_transcript = format_transcript
+_section_schema = section_schema
+_build_section = build_section
 
 
 def _build_tool_schema() -> dict[str, Any]:
@@ -134,57 +93,42 @@ def _build_tool_schema() -> dict[str, Any]:
         "description": "Emit the structured Assessment/Plan/Subjective/Objective note.",
         "input_schema": {
             "type": "object",
-            "properties": {name: _section_schema() for name in SECTION_NAMES},
+            "properties": {name: section_schema() for name in SECTION_NAMES},
             "required": list(SECTION_NAMES),
         },
     }
 
 
 def _extract_tool_input(response_json: dict[str, Any]) -> dict[str, Any]:
-    for block in response_json.get("content", []):
+    """⚠️ The error path here deliberately says nothing about *what* came
+    back.
+
+    An earlier version interpolated the entire response
+    (`f"...: {response_json!r}"`). `app/tasks/pipeline.py:_mark_stage_failure`
+    writes `str(exc)[:500]` into `Encounter.last_pipeline_error` — a plain,
+    **unencrypted** `String(500)` column whose stated safety argument is
+    that pipeline exceptions are always vendor/infrastructure errors and
+    "can never leak PHI the way a raw request/response log could". A
+    response that failed to include the tool block usually contains the
+    model's prose *about the consultation*, so that claim was false on this
+    one path: generated clinical content would have been written to an
+    unencrypted column. Report the structure, never the content.
+    """
+    blocks = response_json.get("content") or []
+    for block in blocks:
         if block.get("type") == "tool_use" and block.get("name") == TOOL_NAME:
             return block["input"]
-    raise RuntimeError(f"Anthropic response did not include a '{TOOL_NAME}' tool_use block: {response_json!r}")
-
-
-def _build_section(raw: dict[str, Any], valid_segment_ids: set[str]) -> GeneratedSection:
-    if raw.get("suppressed"):
-        # Suppression wins over content even if the model inconsistently
-        # also supplied sentences — mechanical enforcement, not trust.
-        return GeneratedSection(text="", spans=[], suppressed=True)
-
-    parts: list[str] = []
-    spans: list[SourceSpan] = []
-    cursor = 0
-    for sentence in raw.get("sentences", []):
-        text = sentence.get("text") or ""
-        if not text:
-            continue
-
-        # Verified, not trusted: a cited ID that isn't one of the
-        # segments we actually sent is dropped, not kept as if it were
-        # real evidence.
-        cited_ids = [sid for sid in sentence.get("segment_ids", []) if sid in valid_segment_ids]
-
-        if parts:
-            cursor += 1  # the separator " ".join(parts) will insert
-        start = cursor
-        end = start + len(text)
-        spans.append(SourceSpan(text_start=start, text_end=end, segment_ids=cited_ids))
-        parts.append(text)
-        cursor = end
-
-    return GeneratedSection(text=" ".join(parts), spans=spans, suppressed=False)
+    kinds = sorted({str(b.get("type")) for b in blocks})
+    raise RuntimeError(
+        f"Anthropic response did not include a '{TOOL_NAME}' tool_use block "
+        f"(stop_reason={response_json.get('stop_reason')!r}, block types={kinds})."
+    )
 
 
 class HaikuNoteGenerator(NoteGenerator):
-    """The sole note generator as of the 2026-08-25 planning update
-    (docs/decisions/0021) — Claude Haiku 4.5, not P0-4's originally
-    stated "Luna primary, Haiku configured fallback." `LunaNoteGenerator`
-    (GPT-5.6, committed to without a bake-off per the roadmap) is deleted,
-    not kept dormant — see the ASR vendor swap in Phase 1.3 for the same
-    reasoning: an unused alternative with no real distinguishing capability
-    left is dead weight, not a safety net.
+    """Claude Haiku 4.5. See the module docstring for why this is now the
+    fallback rather than the default, and why it was kept when two earlier
+    alternatives were deleted.
     """
 
     provider_name = "haiku"
@@ -209,8 +153,7 @@ class HaikuNoteGenerator(NoteGenerator):
             )
 
         valid_segment_ids = {segment.id for segment in transcript if segment.id is not None}
-        transcript_text = _format_transcript(transcript, settings.note_generation_low_confidence_threshold)
-        tool_schema = _build_tool_schema()
+        transcript_text = format_transcript(transcript, settings.note_generation_low_confidence_threshold)
 
         response = httpx.post(
             ANTHROPIC_MESSAGES_ENDPOINT,
@@ -224,7 +167,7 @@ class HaikuNoteGenerator(NoteGenerator):
                 "max_tokens": MAX_TOKENS,
                 "system": SYSTEM_PROMPT,
                 "messages": [{"role": "user", "content": transcript_text}],
-                "tools": [tool_schema],
+                "tools": [_build_tool_schema()],
                 "tool_choice": {"type": "tool", "name": TOOL_NAME},
             },
             # A single-fused-call clinical note is a slow-but-real
@@ -234,9 +177,8 @@ class HaikuNoteGenerator(NoteGenerator):
             timeout=httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=10.0),
         )
         response.raise_for_status()
-        tool_input = _extract_tool_input(response.json())
 
-        sections = {name: _build_section(tool_input.get(name, {}), valid_segment_ids) for name in SECTION_NAMES}
+        sections = build_sections(_extract_tool_input(response.json()), valid_segment_ids)
 
         return GeneratedNote(
             assessment=sections["assessment"],

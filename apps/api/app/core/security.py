@@ -9,44 +9,127 @@ whatever disk/volume encryption the deployment target provides.
 docs/tech-stack.md specifies pgcrypto for this; EncryptedString is an
 application-layer equivalent that works identically against Postgres and
 SQLite (so the test suite doesn't require a live Postgres), encrypting
-before the value ever reaches the driver. Swap to native pgcrypto
-functions later if key-rotation/HSM requirements demand it (see
-docs/tech-stack.md §9, deferred items) — the column contract (opaque
-ciphertext at rest) stays the same either way.
+before the value ever reaches the driver. Phase 4.1 confirmed that
+divergence as a decision rather than leaving it an accident — see
+docs/decisions/0031-phi-encryption-stays-in-the-application-layer.md, which
+also records that the final choice between this, pgcrypto and KMS envelope
+encryption belongs to Remedy's DPO, not to this implementation.
 """
 
 import hashlib
 import json
 import secrets
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 
+import argon2
+import bcrypt
 import pyotp
-from cryptography.fernet import Fernet
+from argon2.exceptions import InvalidHashError, VerificationError
+from cryptography.fernet import Fernet, MultiFernet
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy import String, Text
 from sqlalchemy.types import TypeDecorator
 
 from app.core.config import get_settings
 
 
-def _fernet_from_settings() -> Fernet:
-    key = get_settings().phi_encryption_key
-    if not key:
-        raise RuntimeError(
-            "PHI_ENCRYPTION_KEY is not set — refusing to read/write an encrypted PHI column without it."
-        )
-    return Fernet(key.encode())
+def build_phi_cipher(primary_key: str, previous_keys: list[str] | None = None) -> MultiFernet:
+    """The PHI cipher, over an explicitly supplied key set.
 
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    MultiFernet is what makes rotation possible without downtime: it
+    *encrypts* with the first key only, and on *decrypt* tries each key in
+    turn (verified against cryptography 43.0.1's own source — MultiFernet.
+    encrypt delegates to `self._fernets[0]`, decrypt loops and re-raises
+    InvalidToken only when every key fails). So during a rotation, with the
+    new key first and the outgoing key second, the app writes new
+    ciphertext while still reading everything the rewrite has not reached.
+
+    Kept separate from phi_cipher() below so scripts/rotate_phi_key.py can
+    hold two differently-ordered cipher sets in one process without
+    touching, or being confused by, the app's cached settings singleton.
+    """
+    return MultiFernet([Fernet(k.encode()) for k in [primary_key, *(previous_keys or [])]])
+
+
+@lru_cache(maxsize=1)
+def phi_cipher() -> MultiFernet:
+    """The process-wide cipher, from settings.
+
+    Cached because it is constructed on *every* encrypted column read and
+    write — decision 0029 measured a single patient search decrypting the
+    whole directory, and rebuilding the key schedule per value there is
+    pure overhead. Settings are an lru_cache singleton anyway, so the
+    inputs cannot change under a running process; a test that swaps keys
+    must call reset_phi_cipher_cache().
+    """
+    settings = get_settings()
+    key = settings.phi_encryption_key
+    if not key:
+        raise RuntimeError("PHI_ENCRYPTION_KEY is not set — refusing to read/write an encrypted PHI column without it.")
+    return build_phi_cipher(key, settings.phi_previous_key_list)
+
+
+def reset_phi_cipher_cache() -> None:
+    """For tests and for the rotation script's post-rotation verification,
+    which both need the cipher rebuilt after the key set changes.
+    """
+    phi_cipher.cache_clear()
+
+
+# P0-8, decision 0034. Argon2id for new credentials; bcrypt kept
+# verify-only so anything hashed before this change still logs in.
+# passlib is gone: 1.7.4 (Oct 2020) is unmaintained, and its bcrypt
+# backend is the sole reason requirements.txt pinned `bcrypt==4.0.1` --
+# a security-critical library held backwards to keep a dead wrapper's
+# start-up self-test passing. Calling both hashers directly removes the
+# reason for the pin instead of carrying it forward.
+_argon2 = argon2.PasswordHasher()
+
+_BCRYPT_PREFIXES = ("$2a$", "$2b$", "$2y$")
+# bcrypt ignores everything past 72 bytes, and legacy hashes were
+# produced under that truncation -- so verification has to reproduce it.
+# bcrypt>=4.1 raises rather than truncating silently, which would turn a
+# correct long password into a 500 instead of a login.
+_BCRYPT_MAX_BYTES = 72
 
 
 def hash_password(plain: str) -> str:
-    return _pwd_context.hash(plain)
+    return _argon2.hash(plain)
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return _pwd_context.verify(plain, hashed)
+    if hashed.startswith("$argon2"):
+        try:
+            return _argon2.verify(hashed, plain)
+        except (VerificationError, InvalidHashError):
+            return False
+    if hashed.startswith(_BCRYPT_PREFIXES):
+        try:
+            return bcrypt.checkpw(plain.encode()[:_BCRYPT_MAX_BYTES], hashed.encode())
+        except ValueError:
+            return False
+    # Anything else is a corrupt or placeholder row, not a match. False
+    # rather than an exception: a malformed stored hash should be a failed
+    # login, not a 500 that tells an attacker this account is different.
+    return False
+
+
+def password_needs_rehash(hashed: str) -> bool:
+    """True when an already-verified password should be stored again: a
+    bcrypt credential predating decision 0034, or an argon2 hash below the
+    current cost parameters.
+
+    Deliberately not folded into verify_password. The plaintext exists
+    only for the instant of a successful login, and only the caller
+    (app/api/routes/auth.py) holds the session to write the upgrade back.
+    """
+    if hashed.startswith("$argon2"):
+        try:
+            return _argon2.check_needs_rehash(hashed)
+        except InvalidHashError:
+            return True
+    return True
 
 
 def create_access_token(subject: str, extra_claims: dict | None = None) -> str:
@@ -112,12 +195,12 @@ class EncryptedString(TypeDecorator):
     def process_bind_param(self, value: str | None, dialect) -> str | None:
         if value is None:
             return None
-        return _fernet_from_settings().encrypt(value.encode()).decode()
+        return phi_cipher().encrypt(value.encode()).decode()
 
     def process_result_value(self, value: str | None, dialect) -> str | None:
         if value is None:
             return None
-        return _fernet_from_settings().decrypt(value.encode()).decode()
+        return phi_cipher().decrypt(value.encode()).decode()
 
 
 class EncryptedJSON(TypeDecorator):
@@ -145,9 +228,9 @@ class EncryptedJSON(TypeDecorator):
     def process_bind_param(self, value, dialect):
         if value is None:
             return None
-        return _fernet_from_settings().encrypt(json.dumps(value).encode()).decode()
+        return phi_cipher().encrypt(json.dumps(value).encode()).decode()
 
     def process_result_value(self, value, dialect):
         if value is None:
             return None
-        return json.loads(_fernet_from_settings().decrypt(value.encode()).decode())
+        return json.loads(phi_cipher().decrypt(value.encode()).decode())

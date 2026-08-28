@@ -30,6 +30,7 @@ import os
 import subprocess
 import sys
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -37,6 +38,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import sessionmaker
 
+from app.models.audit_log import AuditLog
 from app.models.clinician import Clinician
 from app.models.consent import ConsentEventType, ConsentLedgerEntry
 from app.models.encounter import Encounter
@@ -205,3 +207,122 @@ def test_note_status_check_constraint(postgres_session):
         postgres_session.execute(text("UPDATE notes SET status = 'bogus' WHERE id = :id"), {"id": note.id})
         postgres_session.commit()
     postgres_session.rollback()
+
+
+# --- Phase 4.2: the audit log's own append-only trigger (P0-8) -------------
+# Same reasoning as the consent ledger's above, and the same reason it can
+# only be tested here: SQLite has run zero migrations, so a version of these
+# assertions in tests/test_audit_logging.py would pass while proving nothing.
+#
+# The audit log's trigger differs from the ledger's in two ways, and each
+# difference gets a test: DELETE is permitted once retention has elapsed
+# (something has to be able to enforce a retention period), and TRUNCATE is
+# blocked (row-level triggers do not fire on it).
+
+
+def _seed_audit_row(session, *, expires_in_days: int = 2555) -> AuditLog:
+    row = AuditLog(
+        actor_clinician_id=None,
+        action="note.read",
+        entity_type="note",
+        entity_id=str(uuid.uuid4()),
+        retention_expires_at=datetime.now(timezone.utc) + timedelta(days=expires_in_days),
+    )
+    session.add(row)
+    session.commit()
+    return row
+
+
+def test_audit_log_rejects_update(postgres_session):
+    row = _seed_audit_row(postgres_session)
+
+    with pytest.raises(DBAPIError) as exc_info:
+        postgres_session.execute(text("UPDATE audit_logs SET action = 'note.edit' WHERE id = :id"), {"id": row.id})
+        postgres_session.commit()
+    postgres_session.rollback()
+
+    assert "append-only" in str(exc_info.value)
+
+
+def test_audit_log_rejects_delete_before_retention_expires(postgres_session):
+    row = _seed_audit_row(postgres_session)
+
+    with pytest.raises(DBAPIError) as exc_info:
+        postgres_session.execute(text("DELETE FROM audit_logs WHERE id = :id"), {"id": row.id})
+        postgres_session.commit()
+    postgres_session.rollback()
+
+    assert "append-only" in str(exc_info.value)
+
+
+def test_audit_log_permits_delete_once_retention_has_elapsed(postgres_session):
+    """The one mutation the trigger allows, and the reason it keys off a
+    column rather than refusing everything: Phase 4.4's purge job has to be
+    able to do its job without a superuser escape hatch that would also be
+    an escape hatch for anyone who steals its credentials.
+    """
+    row = _seed_audit_row(postgres_session, expires_in_days=-1)
+    row_id = row.id
+
+    postgres_session.execute(text("DELETE FROM audit_logs WHERE id = :id"), {"id": row_id})
+    postgres_session.commit()
+
+    remaining = postgres_session.execute(
+        text("SELECT count(*) FROM audit_logs WHERE id = :id"), {"id": row_id}
+    ).scalar()
+    assert remaining == 0
+
+
+def test_retention_date_cannot_be_moved_to_unlock_a_row(postgres_session):
+    """The property that makes the expiry-aware DELETE safe. If
+    `retention_expires_at` could be updated, anyone able to write to this
+    table could back-date a row and then delete it — the append-only
+    guarantee would be one UPDATE deep. UPDATE is refused unconditionally,
+    so the only way to a deletable row is to wait seven years.
+    """
+    row = _seed_audit_row(postgres_session)
+
+    with pytest.raises(DBAPIError) as exc_info:
+        postgres_session.execute(
+            text("UPDATE audit_logs SET retention_expires_at = now() - interval '1 day' WHERE id = :id"),
+            {"id": row.id},
+        )
+        postgres_session.commit()
+    postgres_session.rollback()
+
+    assert "append-only" in str(exc_info.value)
+
+
+def test_audit_log_rejects_truncate(postgres_session):
+    """Row-level triggers do not fire on TRUNCATE, so without a
+    statement-level guard `TRUNCATE audit_logs` erases the entire access
+    log while leaving the "append-only" claim technically intact. The
+    consent ledger still has this gap (see docs/progress/4.2-audit-logging.md).
+    """
+    _seed_audit_row(postgres_session)
+
+    with pytest.raises(DBAPIError) as exc_info:
+        postgres_session.execute(text("TRUNCATE audit_logs"))
+        postgres_session.commit()
+    postgres_session.rollback()
+
+    assert "TRUNCATE is not permitted" in str(exc_info.value)
+
+
+def test_audit_log_review_indexes_exist(postgres_session):
+    """The review interface's three questions each have an index behind
+    them in the migration, not only on the ORM model. A "reviewable" log
+    that sequential-scans the largest table in the system is one nobody
+    runs twice.
+    """
+    names = {
+        r[0]
+        for r in postgres_session.execute(text("SELECT indexname FROM pg_indexes WHERE tablename = 'audit_logs'")).all()
+    }
+
+    assert {
+        "ix_audit_logs_entity",
+        "ix_audit_logs_actor",
+        "ix_audit_logs_action",
+        "ix_audit_logs_retention_expires_at",
+    } <= names

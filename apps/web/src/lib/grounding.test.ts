@@ -153,6 +153,17 @@ describe("audioNotice — the degradation ladder in words", () => {
 
     expect(notice).toContain("no longer available to check against");
   });
+
+  it("says a withdrawn transcript was withdrawn, not that it expired", () => {
+    // Phase 4.4's retention purge deletes a withdrawn encounter's transcript
+    // as well as its audio. Calling that "the retention period elapsed" tells
+    // the doctor the wrong reason — the same mistake decision 0030 built the
+    // five-state audio ladder to avoid.
+    const notice = audioNotice("withdrawn", "withdrawn")!;
+
+    expect(notice).toContain("withdrew consent");
+    expect(notice).not.toContain("retention period");
+  });
 });
 
 describe("formatTimestamp", () => {

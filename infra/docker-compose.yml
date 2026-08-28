@@ -88,7 +88,14 @@ services:
         condition: service_healthy
 
   # Phase 1.5: runs sweep_stuck_encounters on the beat_schedule declared in
-  # app/tasks/celery_app.py. A separate process from `worker` by Celery's
+  # app/tasks/celery_app.py — and, since Phase 4.4, sweep_expired_retention
+  # on the same schedule table. Adding a periodic task needs no change here:
+  # beat reads its schedule from celery_app.conf, and the `worker` service
+  # above is what actually executes the task. A clinic running the API
+  # without this service still has the bucket lifecycle rule expiring audio
+  # (decision 0033), but nothing deleting expired transcripts or note
+  # revisions from Postgres.
+  # A separate process from `worker` by Celery's
   # own design — beat only schedules, it never executes a task itself, so
   # it needs no S3/Postgres access of its own beyond what scheduling state
   # it keeps (the default file-based scheduler, fine for one periodic task).

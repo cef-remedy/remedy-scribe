@@ -68,7 +68,10 @@ class GeneratedNote:
         }
         return json.dumps(
             {
-                name: {"suppressed": section.suppressed, "spans": [dataclasses.asdict(s) for s in section.spans]}
+                name: {
+                    "suppressed": section.suppressed,
+                    "spans": [dataclasses.asdict(s) for s in section.spans],
+                }
                 for name, section in sections.items()
             }
         )

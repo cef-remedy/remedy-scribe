@@ -244,3 +244,84 @@ def test_mfa_enroll_confirm_rejects_wrong_code(db, client):
     assert response.status_code == 401
     db.refresh(clinician)
     assert clinician.mfa_secret is None  # still not activated
+
+
+# --- credential upgrade on login (decision 0034) --------------------------
+
+
+def test_a_legacy_bcrypt_credential_still_logs_in(db, client):
+    """The migration's first obligation: nobody is locked out by it. Every
+    existing clinician's password is a bcrypt hash, and `hash_password` no
+    longer produces those.
+    """
+    import bcrypt
+
+    clinician = _seed_clinician(db)
+    clinician.hashed_password = bcrypt.hashpw(_PASSWORD.encode(), bcrypt.gensalt()).decode()
+    db.add(clinician)
+    db.commit()
+
+    _login(client, clinician)  # asserts 200 internally
+
+
+def test_logging_in_upgrades_a_bcrypt_credential_to_argon2(db, client):
+    """Without this, argon2 would apply only to accounts created after the
+    migration: every existing credential would stay bcrypt forever and the
+    migration would look done while changing nothing for real users.
+
+    The upgrade can only happen here, at login — it is the one instant the
+    plaintext exists and has just been proven correct.
+    """
+    import bcrypt
+
+    clinician = _seed_clinician(db)
+    clinician.hashed_password = bcrypt.hashpw(_PASSWORD.encode(), bcrypt.gensalt()).decode()
+    db.add(clinician)
+    db.commit()
+    assert clinician.hashed_password.startswith("$2b$")
+
+    _login(client, clinician)
+
+    db.refresh(clinician)
+    assert clinician.hashed_password.startswith("$argon2")
+    # And the upgraded credential still works on the next login, which is the
+    # part that would be catastrophic to get wrong.
+    _login(client, clinician)
+
+
+def test_a_wrong_password_against_a_legacy_hash_is_still_rejected(db, client):
+    import bcrypt
+
+    clinician = _seed_clinician(db)
+    clinician.hashed_password = bcrypt.hashpw(b"a-different-password", bcrypt.gensalt()).decode()
+    db.add(clinician)
+    db.commit()
+
+    code = pyotp.TOTP(clinician.mfa_secret).now()
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"email": clinician.email, "password": _PASSWORD, "mfa_code": code},
+    )
+
+    assert response.status_code == 401
+    # And a failed login must not rewrite the stored hash.
+    db.refresh(clinician)
+    assert clinician.hashed_password.startswith("$2b$")
+
+
+def test_a_corrupt_stored_hash_is_a_failed_login_not_a_500(db, client):
+    """A malformed hash should not tell an attacker this account is
+    different from any other.
+    """
+    clinician = _seed_clinician(db)
+    clinician.hashed_password = "not-a-hash-at-all"
+    db.add(clinician)
+    db.commit()
+
+    code = pyotp.TOTP(clinician.mfa_secret).now()
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"email": clinician.email, "password": _PASSWORD, "mfa_code": code},
+    )
+
+    assert response.status_code == 401

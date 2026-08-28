@@ -159,6 +159,12 @@ export interface paths {
          *     confirmation (client calls POST /patients with the confirmed name if
          *     the doctor picks a candidate, or accepts the exact match directly);
          *     no match means the client should create a new record.
+         *
+         *     Audited as a PHI read (Phase 4.2). It is easy to read this route as a
+         *     write path — it is a POST, and the client usually follows it with one —
+         *     but it decrypts and ranks patient names to answer, and on an exact or
+         *     near match it *discloses* an existing patient's identity to the caller.
+         *     That is exactly the shape of access P0-8 asks to be accountable for.
          */
         post: operations["match_api_v1_patients_match_post"];
         delete?: never;
@@ -649,8 +655,51 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Audit Logs */
+        /**
+         * List Audit Logs
+         * @description The drill-down: every matching audit row, newest first.
+         *
+         *     `action_prefix` exists because the vocabulary is deliberately dotted
+         *     (see app/services/audit.py) — "show me everything anyone did to notes"
+         *     is `note.`, and "every disclosure of audio" is
+         *     `encounter.audio.`. Without it a reviewer has to know the exact action
+         *     strings before they can look for anything.
+         */
         get: operations["list_audit_logs_api_v1_audit_logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/audit-logs/access-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Access Report
+         * @description **"Who looked at this record, and when?"** — the question P0-8 exists
+         *     to make answerable, in one call.
+         *
+         *     One row per (actor, action), ordered by most recent activity, with the
+         *     actor's real name resolved so the report reads as names rather than
+         *     UUIDs. `LEFT OUTER JOIN` on the clinician: `actor_clinician_id` is
+         *     nullable (a system-initiated action has no human actor) and the row
+         *     must still appear — an unattributed access is the *most* interesting
+         *     line in a breach investigation, and an inner join would silently drop
+         *     exactly those.
+         *
+         *     Note that this only reports what the trail contains. A record with no
+         *     rows returns an empty report, which means "no logged access", not "no
+         *     access" — the two are the same claim only because every disclosure path
+         *     in the API writes here (Phase 4.2's actual work).
+         */
+        get: operations["access_report_api_v1_audit_logs_access_report_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -699,8 +748,59 @@ export interface components {
          * @enum {string}
          */
         AudioState: "available" | "never_recorded" | "withdrawn" | "expired" | "unreachable";
-        /** AuditLogOut */
-        AuditLogOut: {
+        /**
+         * AuditAccessReportRow
+         * @description One (actor, action) pair in the access report for a single record.
+         *
+         *     Grouped rather than listed because the question P0-8 exists to answer —
+         *     "who looked at this patient's record?" — is answered by a handful of
+         *     names, not by five hundred individual rows. The raw rows are still one
+         *     `GET /audit-logs?entity_id=...` away.
+         *
+         *     The actor's name/email/role are joined in here (they are staff
+         *     identity, not PHI) because an audit report naming only UUIDs is one
+         *     nobody can review, which is the failure mode "reviewable" is guarding
+         *     against. They are read live from `clinicians`, never copied into
+         *     `audit_logs`, so a renamed or deactivated account reports its current
+         *     identity and a deleted one degrades to nulls rather than to a stale
+         *     name frozen years ago.
+         */
+        AuditAccessReportRow: {
+            /** Actor Clinician Id */
+            actor_clinician_id: string | null;
+            /** Actor Email */
+            actor_email: string | null;
+            /** Actor Full Name */
+            actor_full_name: string | null;
+            /** Actor Role */
+            actor_role: string | null;
+            /** Action */
+            action: string;
+            /** Access Count */
+            access_count: number;
+            /**
+             * First At
+             * Format: date-time
+             */
+            first_at: string;
+            /**
+             * Last At
+             * Format: date-time
+             */
+            last_at: string;
+        };
+        /**
+         * AuditLogEntryOut
+         * @description One audit row as the review interface renders it.
+         *
+         *     `diff` is safe to expose because nothing may put PHI in it — see
+         *     `app/models/audit_log.py`'s class docstring. `retention_expires_at` is
+         *     exposed because a reviewer looking at a nearly-expired row needs to
+         *     know it is about to become unavailable, and because it is the value the
+         *     append-only trigger keys off: before this date the row cannot be
+         *     deleted by anyone, including the app's own DB role.
+         */
+        AuditLogEntryOut: {
             /** Id */
             id: string;
             /** Actor Clinician Id */
@@ -716,6 +816,13 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Diff */
+            diff: string | null;
+            /**
+             * Retention Expires At
+             * Format: date-time
+             */
+            retention_expires_at: string;
         };
         /** ConsentEntryCreate */
         ConsentEntryCreate: {
@@ -1173,9 +1280,21 @@ export interface components {
         };
         /**
          * TranscriptState
+         * @description The same ladder as AudioState, and it needs the same rung for the
+         *     same reason.
+         *
+         *     Phase 4.4 added a retention job that deletes a withdrawn encounter's
+         *     transcript, not just its audio — correctly, since the transcript is
+         *     verbatim PHI derived from a recording the patient asked to have
+         *     destroyed. But with only EXPIRED available, that deletion was
+         *     described to the doctor as "the retention period elapsed", which is
+         *     the wrong reason. Decision 0030's whole argument for a five-state
+         *     audio ladder was that a withdrawal and a retention expiry are
+         *     observably identical and mean entirely different things; a
+         *     three-state transcript ladder quietly contradicted it.
          * @enum {string}
          */
-        TranscriptState: "available" | "never_transcribed" | "expired";
+        TranscriptState: "available" | "never_transcribed" | "withdrawn" | "expired";
         /**
          * UploadInitRequest
          * @description `content_type` is optional and not enforced against an allowlist
@@ -2109,7 +2228,24 @@ export interface operations {
     };
     list_audit_logs_api_v1_audit_logs_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Everything this clinician did */
+                actor_clinician_id?: string | null;
+                /** @description e.g. "patient", "note", "encounter" */
+                entity_type?: string | null;
+                /** @description Everything done to this one record */
+                entity_id?: string | null;
+                /** @description Exact action, e.g. note.grounding.read */
+                action?: string | null;
+                /** @description Dotted prefix, e.g. "note." or "encounter.upload." */
+                action_prefix?: string | null;
+                /** @description Inclusive lower bound on created_at */
+                since?: string | null;
+                /** @description Exclusive upper bound on created_at */
+                until?: string | null;
+                limit?: number;
+                offset?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2122,7 +2258,54 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AuditLogOut"][];
+                    "application/json": components["schemas"]["AuditLogEntryOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    access_report_api_v1_audit_logs_access_report_get: {
+        parameters: {
+            query: {
+                /** @description The record's type, e.g. "patient", "note", "encounter" */
+                entity_type: string;
+                /** @description The record's id */
+                entity_id: string;
+                /** @description Inclusive lower bound on created_at */
+                since?: string | null;
+                /** @description Exclusive upper bound on created_at */
+                until?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditAccessReportRow"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

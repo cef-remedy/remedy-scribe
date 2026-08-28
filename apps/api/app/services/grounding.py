@@ -6,7 +6,8 @@ This is the product's trust mechanism. The doctor's rational response to
 upstream exists to make it honest: segment IDs assigned at persist time
 (1.2), the model citing those IDs rather than inventing character offsets
 (1.4), and citations verified against the segments actually sent rather
-than trusted (haiku.py's `_build_section`).
+than trusted (`note_generation/shared.py`'s `build_section`, shared by
+every provider precisely so this guarantee cannot vary by vendor).
 
 Four decisions here are deliberate, and each one is a place where the
 obvious implementation would produce a *confidently wrong* answer — which
@@ -93,8 +94,25 @@ class AudioState(str, Enum):
 
 
 class TranscriptState(str, Enum):
+    """The same ladder as AudioState, and it needs the same rung for the
+    same reason.
+
+    Phase 4.4 added a retention job that deletes a withdrawn encounter's
+    transcript, not just its audio — correctly, since the transcript is
+    verbatim PHI derived from a recording the patient asked to have
+    destroyed. But with only EXPIRED available, that deletion was
+    described to the doctor as "the retention period elapsed", which is
+    the wrong reason. Decision 0030's whole argument for a five-state
+    audio ladder was that a withdrawal and a retention expiry are
+    observably identical and mean entirely different things; a
+    three-state transcript ladder quietly contradicted it.
+    """
+
     AVAILABLE = "available"
     NEVER_TRANSCRIBED = "never_transcribed"
+    #: Deleted at the patient's request (P0-1), by the same purge that
+    #: removed the audio.
+    WITHDRAWN = "withdrawn"
     EXPIRED = "expired"
 
 
@@ -166,7 +184,8 @@ def spans_fit_text(text: str, spans: list[dict]) -> bool:
 
     Generation builds a section by joining per-sentence strings with a
     single space and recording each sentence's offsets as it goes (see
-    haiku.py `_build_section`). That makes the invariant checkable without
+    `note_generation/shared.py`'s `build_section`, which every provider
+    uses for exactly this reason). That makes the invariant checkable without
     storing the sentences a second time: slicing the text by the spans and
     re-joining with a space must reproduce the text exactly.
 
@@ -183,12 +202,7 @@ def spans_fit_text(text: str, spans: list[dict]) -> bool:
     ordered = sorted(spans, key=lambda s: s["text_start"])
     if ordered[0]["text_start"] != 0 or ordered[-1]["text_end"] != len(text):
         return False
-    if any(
-        s["text_start"] < 0
-        or s["text_end"] > len(text)
-        or s["text_start"] > s["text_end"]
-        for s in ordered
-    ):
+    if any(s["text_start"] < 0 or s["text_end"] > len(text) or s["text_start"] > s["text_end"] for s in ordered):
         return False
     return " ".join(text[s["text_start"] : s["text_end"]] for s in ordered) == text
 
@@ -200,11 +214,7 @@ def _section_edited(db: Session, note_id: str, section: str) -> bool:
     PHI-bearing text, so there is no reason to decrypt any of it.
     """
     return bool(
-        db.query(
-            exists()
-            .where(NoteRevision.note_id == note_id)
-            .where(NoteRevision.section == section)
-        ).scalar()
+        db.query(exists().where(NoteRevision.note_id == note_id).where(NoteRevision.section == section)).scalar()
     )
 
 
@@ -220,11 +230,7 @@ def _audio_state(db: Session, encounter: Encounter) -> AudioState:
         return AudioState.NEVER_RECORDED
 
     if encounter.audio_deleted_at is not None:
-        return (
-            AudioState.WITHDRAWN
-            if _was_withdrawn(db, encounter.id)
-            else AudioState.EXPIRED
-        )
+        return AudioState.WITHDRAWN if _was_withdrawn(db, encounter.id) else AudioState.EXPIRED
 
     # The database says the object is there. That is not evidence: the
     # bucket lifecycle rule (storage.ensure_bucket_configured) expires
@@ -233,9 +239,7 @@ def _audio_state(db: Session, encounter: Encounter) -> AudioState:
     try:
         head = storage.head_object(encounter.audio_object_key)
     except Exception:  # noqa: BLE001 - any storage failure is "we don't know"
-        logger.warning(
-            "Could not check audio object for encounter %s", encounter.id, exc_info=True
-        )
+        logger.warning("Could not check audio object for encounter %s", encounter.id, exc_info=True)
         return AudioState.UNREACHABLE
 
     if head is not None:
@@ -271,9 +275,7 @@ def _was_withdrawn(db: Session, encounter_id: str) -> bool:
     )
 
 
-def _select_segments(
-    all_segments: list[TranscriptSegment], cited_ids: set[str]
-) -> list[GroundedSegment]:
+def _select_segments(all_segments: list[TranscriptSegment], cited_ids: set[str]) -> list[GroundedSegment]:
     """Cited segments plus `CONTEXT_SEGMENTS` either side, in transcript
     order, each flagged with whether it was actually cited.
     """
@@ -312,11 +314,7 @@ def resolve_grounding(db: Session, note: Note) -> Grounding:
     hear. `presign_playback_url` does that on demand instead.
     """
     encounter = db.get(Encounter, note.encounter_id)
-    audio_state = (
-        _audio_state(db, encounter)
-        if encounter is not None
-        else AudioState.NEVER_RECORDED
-    )
+    audio_state = _audio_state(db, encounter) if encounter is not None else AudioState.NEVER_RECORDED
 
     raw_spans: dict[str, dict] = {}
     try:
@@ -326,17 +324,20 @@ def resolve_grounding(db: Session, note: Note) -> Grounding:
         # that the note cannot be read. Sections fall through to "no spans".
         logger.warning("Note %s has unparseable source_spans", note.id)
 
-    transcript_row = (
-        db.query(Transcript)
-        .filter(Transcript.encounter_id == note.encounter_id)
-        .one_or_none()
-    )
+    transcript_row = db.query(Transcript).filter(Transcript.encounter_id == note.encounter_id).one_or_none()
     if transcript_row is None:
         # A note exists, so generation ran, so a transcript existed once —
         # its absence now is a deletion, not "never transcribed". The
         # distinction matters: one is a permanent loss of the source, the
         # other is a pipeline that has not finished.
-        transcript_state = TranscriptState.EXPIRED
+        #
+        # Which *kind* of deletion is read from the consent ledger, exactly
+        # as the audio state is: the retention purge removes a withdrawn
+        # encounter's transcript too, and reporting that as retention
+        # expiry would tell the doctor the wrong reason.
+        transcript_state = (
+            TranscriptState.WITHDRAWN if _was_withdrawn(db, note.encounter_id) else TranscriptState.EXPIRED
+        )
         all_segments: list[TranscriptSegment] = []
     else:
         transcript_state = TranscriptState.AVAILABLE

@@ -1,0 +1,34 @@
+# Phase 4.3. Until now this repo had no ruff config at all, which meant
+# ruff's defaults were the standard by accident rather than by choice —
+# and the codebase does not match them. `ruff format --check` reports 57
+# of 98 files would be rewritten at the default 88 columns, because this
+# code was written to a wider line. So anyone who runs `ruff format`
+# (which has happened) reformats half the repo as a side effect of
+# touching one file, and the real change disappears into the diff.
+#
+# 120 is close to the width the code was actually written to: the widest
+# line of real code is 123 (app/tasks/pipeline.py); the single 161-column
+# outlier in app/api/routes/uploads.py is a trailing explanatory comment,
+# which ruff never rewraps. Choosing 120 records the existing convention
+# instead of imposing a new one.
+#
+# It does not make the repo format-clean, and that is stated rather than
+# implied: `ruff format --check` still reports 44 of 98 files at 120
+# (down from 57 at 88). See the note below.
+line-length = 120
+
+# Deliberately NOT enabling E501. The lint job's job in CI is to catch
+# real defects (F, E4/E7/E9 — ruff's default set), and turning a
+# line-length preference into a build failure on a repo with a dozen
+# pre-existing long lines would mean either a noisy mass edit or a
+# noqa-sprinkle. Formatting is a `ruff format` concern, not a gate.
+#
+# The repo is not format-clean at 120 either (see docs/progress/4.3);
+# making it so is a separate, mechanical commit that should not be
+# smuggled in alongside a security phase.
+
+[lint]
+# Ruff's defaults, stated rather than inherited, so a ruff upgrade that
+# changes the default set is a visible diff instead of a surprise CI
+# failure on unrelated code.
+select = ["E4", "E7", "E9", "F"]

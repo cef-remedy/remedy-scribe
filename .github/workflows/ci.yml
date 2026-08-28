@@ -1,0 +1,168 @@
+# Phase 4.3 (P0-8). The repository's first CI. Until this file existed,
+# "ruff and mypy clean, 206 passing" was a claim each phase's progress doc
+# made about one developer's laptop -- true when written, unverifiable
+# afterwards, and never re-checked against a dependency tree that keeps
+# moving underneath it.
+#
+# Actions are pinned to major tags, not commit SHAs. SHA-pinning is the
+# stronger supply-chain posture and is the intended follow-up; it is not
+# done here because the SHAs could not be verified from this environment,
+# and a pin nobody checked is worse than an honest tag.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # The audit jobs are the reason this runs on a timer as well as on
+  # change. A new advisory lands against code that did not change, so an
+  # audit that only fires on push tells you nothing on the weeks that
+  # matter most.
+  schedule:
+    - cron: "17 2 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.13"
+  NODE_VERSION: "24"
+
+jobs:
+  api:
+    name: API - lint, types, tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: apps/api/requirements-dev.txt
+
+      - run: pip install -r requirements-dev.txt
+
+      - name: ruff
+        run: ruff check .
+
+      - name: mypy
+        run: mypy app
+
+      # tests/conftest.py generates its own PHI key and points DATABASE_URL
+      # at a temp SQLite file, so this job needs no secrets at all. That is
+      # deliberate: a CI job holding a real PHI key would be the largest
+      # single-secret exposure in the system (docs/runbooks/secrets-management.md).
+      #
+      # The `postgres` and `s3` marked tests spin up real Postgres and MinIO
+      # containers via testcontainers. GitHub's ubuntu runners have a Docker
+      # daemon, so unlike a developer laptop they actually run here rather
+      # than skipping -- which is the point: the raw-SQL migrations (the
+      # consent ledger's append-only trigger, 0.4's CHECK constraints) are
+      # invisible to the SQLite path.
+      - name: pytest
+        run: pytest -q
+
+  api-audit:
+    name: API - dependency audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - run: pip install pip-audit==2.10.1
+
+      # Audits the pinned requirements, not the installed environment:
+      # what a deploy would install is the thing under review.
+      #
+      # This job is allowed to fail the build. The escape valve is the
+      # explicit ignore list below, not a soft-fail -- a red check that
+      # everyone has learned to scroll past protects nothing.
+      #
+      # PYSEC-2026-1325 / CVE-2024-23342 (ecdsa): a Minerva timing attack on
+      # P-256 signing and ECDH. There is no fix and there will not be one --
+      # python-ecdsa's maintainers consider side channels out of scope. It
+      # arrives as a hard dependency of python-jose, and this app issues and
+      # verifies HS256 tokens only (config.jwt_algorithm), so no ECDSA code
+      # path is ever entered. The real remedy is dropping python-jose for
+      # PyJWT, which needs app/core/security.py; tracked in
+      # docs/progress/4.3-operational-security.md. Re-examine when that
+      # lands, or if any asymmetric JWT algorithm is ever configured.
+      - name: pip-audit
+        run: |
+          pip-audit \
+            --requirement requirements.txt \
+            --requirement requirements-dev.txt \
+            --progress-spinner off \
+            --ignore-vuln PYSEC-2026-1325
+
+  web:
+    name: Web - types, build, tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      # `ci`, not `install`: it installs exactly the lockfile and fails if
+      # package.json and package-lock.json have drifted apart, which is the
+      # one thing a local `npm install` will silently fix for you.
+      - run: npm ci
+
+      - name: typecheck
+        run: npm run typecheck
+
+      - name: build
+        run: npm run build
+
+      - name: unit tests
+        run: npm test
+
+  web-audit:
+    name: Web - dependency audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - run: npm ci
+
+      # `high` rather than `moderate`, and stated as a decision rather than
+      # left at the default: this bundle is a browser client with no server
+      # side, and npm's advisory feed is dense with transitive dev-only
+      # findings (a build tool's regex backtracking) that are not reachable
+      # from anything a patient's browser executes. As of 2026-08-28 the
+      # tree reports 0 vulnerabilities at any level, so this threshold is
+      # not hiding anything today -- it is the level at which a failure is
+      # worth waking someone for.
+      - name: npm audit
+        run: npm audit --audit-level=high

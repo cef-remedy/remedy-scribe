@@ -48,7 +48,7 @@ export type GroundedSection = {
 };
 
 export type AudioState = "available" | "never_recorded" | "withdrawn" | "expired" | "unreachable";
-export type TranscriptState = "available" | "never_transcribed" | "expired";
+export type TranscriptState = "available" | "never_transcribed" | "withdrawn" | "expired";
 
 export type Grounding = {
   note_id: string;
@@ -154,6 +154,12 @@ export function passagesForLine(grounding: Grounding, segmentIds: string[]): Gro
  * no explanation is the failure, not the fix.
  */
 export function audioNotice(state: AudioState, transcript: TranscriptState): string | null {
+  if (transcript === "withdrawn") {
+    // The bottom rung, but with the reason that matters. A withdrawal is a
+    // legal event under P0-1, not the passage of time, and the retention
+    // purge deletes the transcript alongside the audio.
+    return "The patient withdrew consent, so both the recording and the transcript were deleted. This note remains a permanent record, but there is no longer a source to check it against.";
+  }
   if (transcript !== "available") {
     return "The source transcript has passed its retention period and been deleted. This note is a permanent record, but its source is no longer available to check against.";
   }

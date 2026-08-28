@@ -8,7 +8,7 @@ celery_app = Celery(
     "remedy_scribe",
     broker=settings.redis_url,
     backend=settings.redis_url,
-    include=["app.tasks.pipeline"],
+    include=["app.tasks.pipeline", "app.tasks.retention"],
 )
 
 celery_app.conf.update(
@@ -33,10 +33,33 @@ celery_app.conf.update(
     # encounter is caught within minutes of crossing it, not by luck.
     # Requires a `celery -A app.tasks.celery_app beat` process running
     # alongside the worker — see infra/docker-compose.yml's `beat` service.
+    # Phase 4.4: retention enforcement (decision 0033). The bucket
+    # lifecycle rule already expires the audio *objects* whether or not
+    # this app is running; this job exists for what the bucket cannot
+    # see — the transcript and note-revision rows Postgres holds, which
+    # are derived PHI with the same retention clock.
+    #
+    # Hourly, not every 5 minutes and not daily. `audio_retention_days`
+    # gives the policy day granularity, so an hour of lag is invisible
+    # against a 90-day clock — a tighter interval buys nothing. But this
+    # job is also the backstop for a withdrawal whose immediate delete
+    # failed (object storage briefly unreachable), and P0-1 says "without
+    # undue delay"; a nightly cron would turn a patient's withdrawal into
+    # an up-to-24-hour wait for the derived rows. An hour is the longest
+    # interval that still reads as "without undue delay" and the shortest
+    # one the retention policy can actually tell apart.
+    #
+    # Same beat process as sweep-stuck-encounters (see
+    # infra/docker-compose.yml's `beat` service) — beat only schedules,
+    # so a second periodic task costs nothing there.
     beat_schedule={
         "sweep-stuck-encounters": {
             "task": "pipeline.sweep_stuck_encounters",
             "schedule": 300.0,
+        },
+        "sweep-expired-retention": {
+            "task": "retention.sweep_expired_retention",
+            "schedule": 3600.0,
         },
     },
 )

@@ -1,4 +1,9 @@
-fastapi==0.115.0
+# Phase 4.3 (P0-8, decision 0034): every pin below was re-audited with
+# `pip-audit` on 2026-08-28. Bumps are recorded here rather than in a
+# commit message because a version number with no reason attached is the
+# thing nobody dares to move later.
+
+fastapi==0.141.1  # 0.115.0 carried starlette 0.38.6: CVE-2024-47874, CVE-2026-48710, CVE-2026-54282/54283
 uvicorn[standard]==0.30.6
 pydantic[email]==2.9.2
 pydantic-settings==2.5.2
@@ -8,10 +13,40 @@ psycopg[binary]==3.2.3
 celery==5.4.0
 redis==5.0.8
 boto3==1.35.24
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-bcrypt==4.0.1  # passlib 1.7.4's self-test breaks against bcrypt>=4.1's stricter 72-byte check
+
+# 3.3.0 was algorithm-confusable with non-HS keys (CVE-2024-33663) and
+# DoS-able through jwe.decrypt (CVE-2024-33664). Neither was reachable
+# here -- decode_access_token passes an explicit `algorithms=` allow-list
+# and nothing calls jwe -- but "not reachable today" is not a pin.
+# python-jose still drags in `ecdsa`, which has an unfixed Minerva timing
+# flaw (CVE-2024-23342) its maintainers decline to fix; that is the open
+# argument for moving to PyJWT, tracked in docs/progress/4.3.
+python-jose[cryptography]==3.5.0
+
+# Decision 0034: passlib is gone. It was unmaintained since 2020, and its
+# bcrypt backend is the *only* reason this file used to pin
+# `bcrypt==4.0.1` -- a security-critical library held backwards so a dead
+# wrapper's start-up self-test would keep passing. argon2-cffi is now the
+# hashing default; bcrypt stays as a verify-only path for credentials
+# hashed before the change.
+#   NOTE: these two lines and app/core/security.py must land together.
+#   Installing this file against the old security.py fails on `import passlib`.
+argon2-cffi==25.1.0
+bcrypt==5.0.0
+
 pyotp==2.9.0
-cryptography==43.0.1
+
+# 43.0.1 shipped a statically linked OpenSSL with CVE-2024-12797, plus
+# X.509 name-constraint bypasses (CVE-2026-69248/69249) and an ECDSA
+# small-subgroup gap (CVE-2026-26007). This app only uses Fernet and
+# HMAC, so none were reachable -- but Fernet is what every PHI column
+# depends on, and this is not the dependency to be a version behind on.
+cryptography==50.0.1
+
 httpx==0.27.2
-python-multipart==0.0.9
+
+# Seven advisories against 0.0.9, all DoS/parser-differential in
+# multipart and urlencoded form parsing. No route in this app declares a
+# Form/File/UploadFile parameter, so Starlette never invokes the parser --
+# unreachable today, and one `Form(...)` away from reachable.
+python-multipart==0.0.32

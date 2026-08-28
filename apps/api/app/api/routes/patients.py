@@ -34,8 +34,29 @@ def match(
     confirmation (client calls POST /patients with the confirmed name if
     the doctor picks a candidate, or accepts the exact match directly);
     no match means the client should create a new record.
+
+    Audited as a PHI read (Phase 4.2). It is easy to read this route as a
+    write path — it is a POST, and the client usually follows it with one —
+    but it decrypts and ranks patient names to answer, and on an exact or
+    near match it *discloses* an existing patient's identity to the caller.
+    That is exactly the shape of access P0-8 asks to be accountable for.
     """
-    return match_patient(db, payload.name, payload.birthdate)
+    result = match_patient(db, payload.name, payload.birthdate)
+    audit.record(
+        db,
+        actor_clinician_id=clinician.id,
+        action="patient.match",
+        entity_type="patient",
+        # The matched patient when there is one; "*" when the answer was
+        # "nobody" — which still read the directory to find out. The
+        # submitted name and birthdate are deliberately not recorded: they
+        # are PHI, and this table keeps what it is given for years (see
+        # app/models/audit_log.py). `match_type` is not PHI and is what
+        # makes the row interpretable later.
+        entity_id=result.patient.id if result.patient is not None else "*",
+        diff={"match_type": result.match_type, "candidate_count": len(result.candidates)},
+    )
+    return result
 
 
 @router.post("", response_model=PatientOut, status_code=201)

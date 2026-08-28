@@ -58,6 +58,19 @@ def start_or_resume(
         db.query(Encounter).filter(Encounter.upload_idempotency_key == payload.upload_idempotency_key).one_or_none()
     )
     if existing is not None:
+        # Audited distinctly from a create (Phase 4.2). A resume returns an
+        # encounter that may belong to a different clinician's recording —
+        # the idempotency key is client-supplied — so "who picked this
+        # session back up" is a real access question, and collapsing it
+        # into `encounter.create` would hide it behind an event that did
+        # not happen.
+        audit.record(
+            db,
+            actor_clinician_id=clinician.id,
+            action="encounter.resume",
+            entity_type="encounter",
+            entity_id=existing.id,
+        )
         return EncounterOut.model_validate(existing)
 
     encounter = Encounter(
@@ -69,6 +82,18 @@ def start_or_resume(
     db.add(encounter)
     db.commit()
     db.refresh(encounter)
+    audit.record(
+        db,
+        actor_clinician_id=clinician.id,
+        action="encounter.create",
+        entity_type="encounter",
+        entity_id=encounter.id,
+        # Whether a recording started already attached to a patient is the
+        # one fact about a new encounter worth reconstructing later (P0-6
+        # allows recording before identity is known). The patient id itself
+        # is a surrogate key, not PHI.
+        diff={"patient_linked_at_start": encounter.patient_id is not None},
+    )
     return EncounterOut.model_validate(encounter)
 
 
@@ -82,6 +107,20 @@ def list_loose_sessions(
     action" — every encounter with no patient linked yet.
     """
     rows = db.query(Encounter).filter(Encounter.patient_id.is_(None)).order_by(Encounter.created_at.desc()).all()
+    # A list read is still a read (Phase 4.2). It discloses every unlinked
+    # recording in the clinic, not just this doctor's, so "who pulled the
+    # loose tray" is worth knowing. entity_id is "*" for the same reason
+    # patient.search uses it: there is no single subject, and enumerating
+    # the ids returned would write a row proportional to the clinic's
+    # backlog on every poll of a tray screen.
+    audit.record(
+        db,
+        actor_clinician_id=clinician.id,
+        action="encounter.list.loose",
+        entity_type="encounter",
+        entity_id="*",
+        diff={"result_count": len(rows)},
+    )
     return [_encounter_out(db, r) for r in rows]
 
 
@@ -97,10 +136,27 @@ def link_patient(
     if encounter is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Encounter not found")
 
+    previous_patient_id = encounter.patient_id
     encounter.patient_id = payload.patient_id
     db.add(encounter)
     db.commit()
     db.refresh(encounter)
+
+    # Phase 4.2: the change that decides *whose* chart a recording ends up
+    # in, and it was unlogged. Attaching a consultation to the wrong
+    # patient is the identity error P0-6 exists to prevent, and when it
+    # happens the first question is "who linked this, and to what before?"
+    # — which needs the previous value, hence the before/after shape the
+    # `diff` column was designed for. Both are patient ids: surrogate keys,
+    # not PHI.
+    audit.record(
+        db,
+        actor_clinician_id=clinician.id,
+        action="encounter.link_patient",
+        entity_type="encounter",
+        entity_id=encounter.id,
+        diff={"previous_patient_id": previous_patient_id, "patient_id": payload.patient_id},
+    )
     return EncounterOut.model_validate(encounter)
 
 
@@ -121,6 +177,15 @@ def list_failed_encounters(
         .filter(Encounter.pipeline_status.in_(_FAILED_STATUSES))
         .order_by(Encounter.pipeline_updated_at.desc())
         .all()
+    )
+    # Same reasoning as /loose above: a clinic-wide list read.
+    audit.record(
+        db,
+        actor_clinician_id=clinician.id,
+        action="encounter.list.failed",
+        entity_type="encounter",
+        entity_id="*",
+        diff={"result_count": len(rows)},
     )
     return [_encounter_out(db, r) for r in rows]
 
@@ -154,6 +219,7 @@ def retry_pipeline_stage(
             f"Encounter is not in a failed state (currently {encounter.pipeline_status.value})",
         )
 
+    failed_from = encounter.pipeline_status.value
     was_transcription_failure = encounter.pipeline_status == EncounterPipelineStatus.TRANSCRIPTION_FAILED
     encounter.pipeline_status = (
         EncounterPipelineStatus.UPLOADED if was_transcription_failure else EncounterPipelineStatus.TRANSCRIBED
@@ -164,6 +230,21 @@ def retry_pipeline_stage(
     db.add(encounter)
     db.commit()
     db.refresh(encounter)
+
+    # Phase 4.2: a retry re-runs ASR and/or the note generator over a
+    # patient's consultation — it sends PHI to a third-party processor
+    # again, and it can replace a draft a doctor has already read. Both
+    # facts belong in the trail, with the state it was retried *from*,
+    # which is the only part not reconstructable afterwards (the row is
+    # about to be overwritten).
+    audit.record(
+        db,
+        actor_clinician_id=clinician.id,
+        action="encounter.retry",
+        entity_type="encounter",
+        entity_id=encounter.id,
+        diff={"failed_from": failed_from, "resumed_at": encounter.pipeline_status.value},
+    )
 
     # Deferred import: same reasoning as uploads.py's — avoids a hard
     # Celery/Redis dependency at import time for routes that never touch
@@ -204,6 +285,24 @@ def read_encounter(
     encounter = db.get(Encounter, encounter_id)
     if encounter is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Encounter not found")
+
+    # Phase 4.2, and the one call site in the API that needed the
+    # coalescing valve. This is a real read of an encounter (it discloses
+    # the patient linkage, the pipeline state and the note id), so it must
+    # be logged — but the upload queue polls it every 15 seconds until the
+    # pipeline confirms, so a 20-minute transcription would write ~80
+    # identical rows for one recording and bury the human reads either side
+    # of them. A 60-second window keeps the first access, keeps the shape
+    # of a long polling session, and drops only the repeat count. See
+    # docs/decisions/0032.
+    audit.record(
+        db,
+        actor_clinician_id=clinician.id,
+        action="encounter.read",
+        entity_type="encounter",
+        entity_id=encounter.id,
+        coalesce_seconds=audit.POLL_COALESCE_SECONDS,
+    )
     return _encounter_out(db, encounter)
 
 

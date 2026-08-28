@@ -362,6 +362,33 @@ def test_a_missing_transcript_under_an_existing_note_is_a_deletion_not_a_pending
     assert grounding.segments == []
 
 
+def test_a_withdrawn_transcript_says_withdrawn_rather_than_expired(db, audio_present):
+    """Phase 4.4's retention purge deletes a withdrawn encounter's transcript
+    alongside its audio. Reporting that as "the retention period elapsed"
+    gives the doctor the wrong reason — the exact mistake decision 0030 built
+    the five-state audio ladder to avoid, repeated one ladder over.
+    """
+    encounter, note = _scenario(db, with_transcript=False)
+    db.add(
+        ConsentLedgerEntry(
+            encounter_id=encounter.id,
+            event=ConsentEventType.WITHDRAWN,
+            participant_roster="[]",
+            purposes="[]",
+            script_language="en",
+        )
+    )
+    db.commit()
+
+    assert resolve_grounding(db, note).transcript_state is TranscriptState.WITHDRAWN
+
+
+def test_a_deleted_transcript_with_no_withdrawal_is_still_expiry(db, audio_present):
+    _, note = _scenario(db, with_transcript=False)
+
+    assert resolve_grounding(db, note).transcript_state is TranscriptState.EXPIRED
+
+
 def test_audio_never_uploaded_is_distinguished_from_audio_deleted(db):
     _, note = _scenario(db, audio_object_key=None)
 

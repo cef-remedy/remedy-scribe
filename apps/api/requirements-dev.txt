@@ -1,10 +1,13 @@
 -r requirements.txt
-pytest==8.3.3
-pytest-asyncio==0.24.0
+pytest==9.1.1  # 8.3.3: CVE-2025-71176, a predictable /tmp/pytest-of-<user> path on Unix CI runners
+pytest-asyncio==1.4.0
 mypy==1.11.2
 types-python-jose==3.5.0.20260408
-types-passlib==1.7.7.20260211
 ruff==0.6.8
+# Phase 4.3: pinned so a local `pip-audit -r requirements.txt` reports the
+# same set of advisories the CI job does, rather than whatever version the
+# developer happened to install.
+pip-audit==2.10.1
 # Phase 0.5: Postgres-backed test path (tests/test_postgres_specific.py).
 # Spins up a real, disposable Postgres and runs actual Alembic migrations
 # against it -- SQLite's Base.metadata.create_all() silently skips

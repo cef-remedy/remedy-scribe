@@ -112,6 +112,25 @@ def edit_section(
     db.add(note)
     db.commit()
     db.refresh(note)
+
+    # Phase 4.2: this was the one *change* to clinical content in the whole
+    # API that wrote no audit row. A NoteRevision was written (P0-5's
+    # edit-burden metric) and that is a change record of a sort, but it is
+    # not the audit trail: it is deleted alongside the note under retention
+    # (4.4), it holds the before/after PHI text, and it is not visible to
+    # the compliance review interface. "Access and change logs" means both.
+    #
+    # Only the section name goes in the diff. The before/after text is the
+    # note itself — it lives in note_revisions, under the note's own
+    # retention, which is where PHI belongs.
+    audit.record(
+        db,
+        actor_clinician_id=clinician.id,
+        action="note.edit",
+        entity_type="note",
+        entity_id=note.id,
+        diff={"section": payload.section},
+    )
     return NoteOut.model_validate(note)
 
 
