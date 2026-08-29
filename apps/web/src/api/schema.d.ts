@@ -715,8 +715,58 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Health */
-        get: operations["health_health_get"];
+        /**
+         * Liveness — is the process answering?
+         * @description Checks nothing but its own ability to produce a response.
+         *
+         *     The shape is unchanged from the inline `/health` this replaced
+         *     (Phase 0), because a probe path and payload that shift under a
+         *     refactor un-monitor a deployment quietly.
+         */
+        get: operations["liveness_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Readiness — can this instance serve traffic?
+         * @description 503 when Postgres or Redis is unreachable; 200 with a per-check
+         *     breakdown otherwise.
+         *
+         *     **Object storage is deliberately not checked here**, and that is a
+         *     decision rather than an omission (decision 0036). Three reasons:
+         *
+         *     1. *It would convert a partial outage into a total one.* With object
+         *        storage down, uploads and audio playback fail — but consent
+         *        capture, the worklist, patient matching, note review and signing
+         *        all still work, and P0-2's offline queue is built precisely so a
+         *        doctor keeps recording through it. Pulling every instance out of
+         *        the load balancer would take those working paths down too.
+         *     2. *The check is slow and remote.* `HeadBucket` is a network round
+         *        trip to a possibly off-site endpoint, wrapped in botocore's retry
+         *        and backoff. Paying it every ten seconds risks the probe exceeding
+         *        its own timeout and taking the instance out of traffic *because the
+         *        check was slow*, which is the failure in (1) arriving by accident.
+         *     3. *A `HeadBucket` proves little.* What matters is whether a presigned
+         *        multipart round trip works, and that is verified once per deploy by
+         *        the smoke step in docs/runbooks/deployment.md — stronger evidence,
+         *        paid once instead of continuously.
+         *
+         *     Object-storage reachability is a monitoring and alerting concern
+         *     (Phase 5.2), not a traffic gate.
+         */
+        get: operations["readiness_ready_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1343,6 +1393,10 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
         };
         /**
          * WithdrawalOutcomeOut
@@ -2310,7 +2364,29 @@ export interface operations {
             };
         };
     };
-    health_health_get: {
+    liveness_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
+    readiness_ready_get: {
         parameters: {
             query?: never;
             header?: never;

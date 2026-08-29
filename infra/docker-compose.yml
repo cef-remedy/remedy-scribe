@@ -1,3 +1,26 @@
+# ⚠️ DEVELOPMENT ONLY. The production topology is
+# infra/docker-compose.prod.yml (Phase 5.1, decision 0036), and this file
+# must never be deployed or copied to a server. Three reasons, each of
+# which is on its own sufficient:
+#
+# 1. `env_file: ../apps/api/.env` mounts secrets as a file on the host.
+#    docs/runbooks/secrets-management.md §2 names this as the one pattern
+#    that must not reach a server; the production file has no `env_file`
+#    anywhere and injects everything through the process environment.
+# 2. The host ports below are shifted (5433/6380/9002-3) as a workaround
+#    for a native Postgres/Redis holding the standard ports on one
+#    developer's machine. That offset is local trivia. Carrying it into
+#    production would mean Postgres, Redis and the object store all
+#    published to the host at all — and the production file publishes
+#    nothing but 80 and 443, from one container.
+# 3. Every credential here (`remedy`/`remedy`, `remedy-dev-secret`) is
+#    published in this repository on purpose, so that Phase 4.1's boot
+#    guard can refuse them *by value* in production. They are public.
+#
+# What this file is for: `docker compose -f infra/docker-compose.yml up -d
+# postgres redis minio` to get the three backing services a local
+# alembic/uvicorn/pytest run needs.
+
 name: remedy-scribe
 
 services:

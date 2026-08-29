@@ -60,6 +60,8 @@ from enum import Enum
 from sqlalchemy import and_, exists, or_, select
 from sqlalchemy.orm import Session
 
+from app.core import metrics
+from app.core.observability import correlation_scope, log_event
 from app.db.session import SessionLocal
 from app.models.consent import ConsentEventType, ConsentLedgerEntry
 from app.models.encounter import Encounter
@@ -466,9 +468,29 @@ def sweep_expired_retention() -> dict[str, int]:
     A NULL actor in `audit_logs` is the honest representation of "the
     retention policy did it", and inventing a service account to blame
     would make the log less true, not more complete.
+
+    **Correlation for a job with no request (Phase 5.2).** Same answer as
+    `sweep_stuck_encounters`: one `sweep-retention-...` ID per run, minted
+    here, covering every deletion the run performs. That is what makes an
+    hour's worth of purges attributable to a single run rather than to
+    nothing — and it is the same identifier the audit trail's own reader
+    will want when asked "what else did the job that deleted this touch?".
+    The audit row itself still records no actor, because a correlation ID
+    is an operational trace and an actor is a legal claim about who did it;
+    conflating them would put a fabricated actor in the compliance record.
+
+    The heartbeat is the other half. This job's failure mode is silent,
+    lawful-looking and cumulative — PHI simply stops being deleted on
+    schedule — so "it has not run in N minutes" is the only symptom there
+    will ever be, and `monitor_pipeline_health` alerts on it.
     """
-    db = SessionLocal()
-    try:
-        return run_retention_sweep(db)
-    finally:
-        db.close()
+    with correlation_scope(None, origin="sweep-retention"):
+        db = SessionLocal()
+        try:
+            counts = run_retention_sweep(db)
+            log_event(logger, "sweep.retention.finished", count=counts["encounters"])
+            # After the work, never before — see sweep_stuck_encounters.
+            metrics.record_heartbeat(metrics.HEARTBEAT_RETENTION_SWEEP)
+            return counts
+        finally:
+            db.close()

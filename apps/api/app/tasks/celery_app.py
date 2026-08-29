@@ -1,8 +1,27 @@
 from celery import Celery
+from celery.signals import setup_logging
 
 from app.core.config import get_settings
+from app.core.observability import configure_logging
 
 settings = get_settings()
+
+
+@setup_logging.connect
+def _configure_worker_logging(**_kwargs) -> None:
+    """Phase 5.2 (P0-8): install this app's PHI-scrubbing logging in the
+    worker and beat processes.
+
+    Connecting to `setup_logging` at all is what stops Celery hijacking the
+    root logger — the signal is documented as "if it has a receiver, Celery
+    will not configure logging itself". That matters more here than in the
+    web process: Celery's own default handlers would emit records our
+    formatter never sees, and the worker is where the *transcript* and the
+    *generated note* are in memory. The one process that must not have an
+    unscrubbed log handler is exactly the one Celery configures for you.
+    """
+    configure_logging(settings, force=True)
+
 
 celery_app = Celery(
     "remedy_scribe",
@@ -60,6 +79,23 @@ celery_app.conf.update(
         "sweep-expired-retention": {
             "task": "retention.sweep_expired_retention",
             "schedule": 3600.0,
+        },
+        # Phase 5.2 (P0-8): the job that watches the two above. Every five
+        # minutes, matching the faster of the two sweeps — an alert saying
+        # "the stuck-encounter sweep has not run in 20 minutes" is worth
+        # very little if the thing that notices only looks every hour.
+        #
+        # It runs in the same beat process as its subjects, which is a
+        # genuine limitation rather than an oversight: if beat dies, the
+        # monitor dies with the sweeps it watches and nothing fires. The
+        # honest fix is an external check (the deployment runbook's
+        # process supervisor, or an uptime ping) and it is written up as
+        # such in docs/runbooks/observability.md rather than pretended
+        # away here. What this *does* catch is the far more common case —
+        # beat alive, a sweep failing or wedged on a query.
+        "monitor-pipeline-health": {
+            "task": "pipeline.monitor_pipeline_health",
+            "schedule": 300.0,
         },
     },
 )

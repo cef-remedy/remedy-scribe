@@ -6,10 +6,26 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from app.api.routes import audit_logs, auth, consent, encounters, notes, patients, uploads
+from app.api.routes import audit_logs, auth, consent, encounters, health, notes, patients, uploads
 from app.core.config import Settings, get_settings
+from app.core.observability import (
+    CORRELATION_HEADER,
+    CorrelationIdMiddleware,
+    configure_logging,
+    init_error_tracking,
+    log_event,
+)
 
 settings = get_settings()
+
+# Phase 5.2 (P0-8). Before anything else, and at import time rather than in
+# `lifespan`: this installs the PHI-scrubbing log-record factory
+# (app/core/observability.py), and any line logged before it runs is a line
+# that never passed the scrubber. Route imports above can log at import
+# time, and `Settings` validation failures are logged by uvicorn — so
+# "first statement after settings" is the earliest honest place for it.
+configure_logging(settings)
+
 logger = logging.getLogger(__name__)
 
 API_PREFIX = "/api/v1"
@@ -118,7 +134,25 @@ async def lifespan(app: FastAPI):
     own docstring for why a locked-down production IAM role failing this
     is expected, not fatal. Off in tests (S3_PROVISION_BUCKET_ON_STARTUP) —
     see tests/conftest.py for why.
+
+    Phase 5.2 adds error-tracking init here rather than at import time:
+    `sentry_sdk.init` opens a background transport thread, and doing that
+    at module import means every `from app.main import app` in the test
+    suite starts one.
     """
+    # Never fatal, in either direction. A missing DSN is the normal state in
+    # development and in tests; a *production* deploy without one is a real
+    # gap but not a reason to refuse to serve a clinic, so it is reported
+    # loudly instead of raised (contrast the secret checks in
+    # core/config.py, where serving would mean writing unreadable PHI).
+    if not init_error_tracking(settings) and settings.is_production:
+        log_event(
+            logger,
+            "observability.error_tracking.missing_in_production",
+            level=logging.ERROR,
+            reason="no_dsn",
+        )
+
     if settings.s3_provision_bucket_on_startup:
         from app.services.storage import ensure_bucket_configured
 
@@ -158,13 +192,27 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Phase 5.2: a response header is invisible to a cross-origin browser
+    # unless it is exposed. Without this the API stamps a correlation ID the
+    # web client cannot read, which breaks the one thing a correlation ID is
+    # for — a doctor's error report naming the same ID the server logged.
+    expose_headers=[CORRELATION_HEADER],
 )
 
-# Added last, so it sits outermost and stamps its headers on *every*
-# response — including the ones CORSMiddleware short-circuits (a rejected
-# preflight is still a response leaving this API) and the ones an unhandled
-# exception produces.
+# Added before the correlation middleware, so it sits inside it and still
+# stamps its headers on *every* response CORSMiddleware short-circuits (a
+# rejected preflight is still a response leaving this API).
 app.add_middleware(SecurityHeadersMiddleware, settings=settings)
+
+# Phase 5.2 (P0-8). Added last, so it is the outermost of the three. That
+# ordering is the point rather than an accident: a request logger mounted
+# inside CORSMiddleware never sees the responses CORS short-circuits, which
+# is exactly how a CORS misconfiguration becomes invisible — Phase 2.1's own
+# note, "the preflight is rejected and the request never reaches a route, so
+# nothing appears in the API log at all". Outermost also means the
+# correlation ID is bound before any other middleware can log, and that an
+# exception escaping the router is recorded on its way past.
+app.add_middleware(CorrelationIdMiddleware)
 
 app.include_router(auth.router, prefix=API_PREFIX)
 app.include_router(patients.router, prefix=API_PREFIX)
@@ -173,8 +221,10 @@ app.include_router(uploads.router, prefix=API_PREFIX)
 app.include_router(consent.router, prefix=API_PREFIX)
 app.include_router(notes.router, prefix=API_PREFIX)
 app.include_router(audit_logs.router, prefix=API_PREFIX)
-
-
-@app.get("/health")
-def health() -> dict:
-    return {"status": "ok", "environment": settings.environment}
+# Phase 5.2 leaves this line free deliberately: the liveness/readiness
+# router belongs here, unprefixed, so a load balancer probe does not have to
+# know the API version. Its paths are already in observability.py's
+# `_QUIET_PATHS`, so a probe every few seconds does not drown the log —
+# while a *failing* probe is still logged, which is the one line about a
+# health check anybody ever wants.
+app.include_router(health.router)

@@ -1,0 +1,453 @@
+# Remedy Scribe — PRODUCTION topology (Phase 5.1, decision 0036).
+#
+# ⚠️⚠️ WRITTEN, PARSE-CHECKED, NEVER DEPLOYED. ⚠️⚠️
+# No host has run this. `docker compose config` validates it and nothing
+# more. See docs/progress/5.1-deployment.md for exactly what was and was
+# not executed, and docs/runbooks/deployment.md for the procedure.
+#
+# THIS IS NOT infra/docker-compose.yml. That file is development-only and
+# says so; in particular its host ports are shifted (5433/6380/9002-3) as a
+# workaround for a native Postgres/Redis already holding the standard ports
+# on one developer machine. Nothing in that workaround belongs on a server,
+# and nothing here inherits it — this file publishes **only** 80 and 443,
+# and publishes them from one container.
+#
+# ---------------------------------------------------------------------
+# THE TOPOLOGY, IN ONE PARAGRAPH
+# ---------------------------------------------------------------------
+# One Linux VM. Docker Compose. A managed Postgres with automated backups
+# and PITR — bought, not run, because PITR is the one thing on this list
+# that is genuinely hard to operate correctly and the one whose absence is
+# a reportable availability incident under the Data Privacy Act. Redis is
+# self-hosted on the same VM, because it holds no durable state here and
+# the data-loss window is already covered by an existing compensating
+# control (see the `redis` service). Object storage is external and its
+# provider is **blocked on Legal** (residency). Kubernetes and managed
+# containers are both rejected as disproportionate for one clinic and a
+# handful of doctors on laptops. Full reasoning: decision 0036.
+#
+# ---------------------------------------------------------------------
+# SECRETS
+# ---------------------------------------------------------------------
+# There is deliberately NO `env_file:` anywhere below. That is the one
+# concrete instruction docs/runbooks/secrets-management.md §2 leaves to
+# this phase: "a production compose file must not carry `env_file`, and no
+# `.env` may be copied to the host."
+#
+# Every value arrives through the *process environment* of the
+# `docker compose` invocation, which infra/deploy.sh supplies with
+# `sops exec-env`. The plaintext therefore exists only in the memory of
+# the deploying shell and the containers it starts, and never as a file
+# anyone can `cat`.
+#
+# `${VAR:?...}` rather than `${VAR}` for everything that must not default:
+# compose refuses to render the file at all if one is missing, so a
+# forgotten secret fails at `docker compose config` — before any container
+# starts — instead of at Phase 4.1's boot guard, or worse, at first PHI
+# write.
+
+name: remedy-scribe-prod
+
+# ---------------------------------------------------------------------
+# Anchors: the API image is built once and run in three roles (api,
+# worker, beat). Sharing the environment block is not tidiness — it is the
+# guarantee that the worker holds the *same* PHI_ENCRYPTION_KEY as the API.
+# A worker with a different key writes ciphertext the API cannot read, and
+# nothing fails until a doctor opens the note.
+# ---------------------------------------------------------------------
+x-api-image: &api-image
+  build:
+    context: ../apps/api
+  image: remedy-scribe-api:${REMEDY_RELEASE:?set REMEDY_RELEASE to the git sha or tag being deployed}
+  restart: unless-stopped
+  networks:
+    - internal
+  # No `ports:` on any of these three. The API is reachable only from the
+  # `edge` container over the compose network. This is what makes
+  # X-Forwarded-Proto trustworthy (4.1's runbook: "set it at the proxy, and
+  # make sure nothing else can") — the header is only as good as the
+  # guarantee that every request passed through Caddy, and an unpublished
+  # port is that guarantee.
+
+x-api-environment: &api-environment
+  ENVIRONMENT: production
+
+  # --- managed Postgres ---------------------------------------------
+  # `sslmode=verify-full` and not `require`: `require` encrypts and does
+  # not authenticate, so it stops a passive eavesdropper and not an active
+  # one. PHI columns are Fernet ciphertext, but every non-PHI column
+  # (birthdates, clinician emails, audit rows, the whole consent ledger)
+  # travels in the clear on this connection — that is the 4.1-owed "TLS to
+  # Postgres" leg, and it lives in this URL rather than at the edge.
+  #
+  # ⚠️ The URL must also carry `connect_timeout`. Measured: with Postgres
+  # unreachable, the readiness probe answers in 2.0 s per resolved address
+  # — 4.1 s for a hostname with both an A and a AAAA record, since libpq
+  # tries each in turn. That is the *refused* case; a host that accepts
+  # the SYN and never completes the handshake (a security-group change, a
+  # failover mid-flight) is unbounded without it. See
+  # infra/env/production.env.example for the exact string.
+  DATABASE_URL: ${DATABASE_URL:?the managed Postgres URL, with sslmode=verify-full and connect_timeout}
+
+  # --- self-hosted Redis, on this VM's loopback-equivalent network ----
+  # `redis://` and not `rediss://` on purpose: this connection never
+  # leaves the Docker bridge on a single host, so there is no network
+  # segment for TLS to protect. Swap to `rediss://` the moment Redis moves
+  # off this VM — which is also the moment the argument in the `redis`
+  # service below stops applying.
+  REDIS_URL: redis://redis:6379/0
+
+  # --- object storage (provider BLOCKED on Legal — see decision 0036) --
+  # `https://` is not optional here whatever the provider turns out to be:
+  # this is the endpoint consultation audio is PUT to and GET from.
+  S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:?the object-storage endpoint, https}
+  S3_BUCKET: ${S3_BUCKET:?}
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY:?}
+  S3_SECRET_KEY: ${S3_SECRET_KEY:?}
+
+  # --- secrets whose loss or leak is the incident ---------------------
+  # Phase 4.1 refuses to boot a production process holding any secret
+  # published in this repository, so a copy-pasted dev value fails here
+  # loudly. That guard is a backstop, not the control: the control is that
+  # these come from sops and the production age key does not exist on a
+  # developer machine.
+  PHI_ENCRYPTION_KEY: ${PHI_ENCRYPTION_KEY:?generate one per environment; see docs/runbooks/key-rotation.md}
+  # Empty except during a rotation. Set it, deploy, run the rewrite, verify,
+  # then clear it and deploy again — a retired key still listed is a
+  # retired key still able to read PHI.
+  PHI_ENCRYPTION_KEY_PREVIOUS: ${PHI_ENCRYPTION_KEY_PREVIOUS:-}
+  JWT_SECRET: ${JWT_SECRET:?}
+
+  # --- vendor ---------------------------------------------------------
+  # One processor for both audio and note generation as of Phase 4
+  # (decision 0035). ⚠️ The paid tier: Groq's BAA excludes services
+  # "provided for free or at no additional charge", so the free tier is
+  # precisely the tier carrying no data-protection undertaking.
+  GROQ_API_KEY: ${GROQ_API_KEY:?}
+  NOTE_GENERATOR_PROVIDER: ${NOTE_GENERATOR_PROVIDER:-groq}
+
+  # --- transit, app half (Phase 4.1) ---------------------------------
+  # The boot guard refuses production with this false. It is stated
+  # explicitly anyway rather than left to the default, because "the
+  # default happens to be right" is not a control.
+  REFRESH_COOKIE_SECURE: "true"
+  # `lax`, not `none`, and that is the whole reason for the same-origin
+  # topology (apps/web/Dockerfile). If the client is ever split onto its
+  # own hostname this must become `none` — a strictly weaker cookie.
+  REFRESH_COOKIE_SAMESITE: lax
+  # A production allow-list containing localhost is refused at boot as a
+  # sign of a leaked developer .env. Same-origin means CORS is not
+  # load-bearing here; it is set correctly anyway.
+  CORS_ALLOW_ORIGINS: https://${REMEDY_PUBLIC_DOMAIN:?the public hostname, e.g. scribe.remedy.example}
+  HSTS_MAX_AGE_SECONDS: ${HSTS_MAX_AGE_SECONDS:-63072000}
+  HSTS_INCLUDE_SUBDOMAINS: ${HSTS_INCLUDE_SUBDOMAINS:-true}
+  # Close to irreversible. Remedy's call once the domain is permanent.
+  HSTS_PRELOAD: ${HSTS_PRELOAD:-false}
+
+  # --- compliance: Legal owns these numbers, not engineering ----------
+  AUDIO_RETENTION_DAYS: ${AUDIO_RETENTION_DAYS:?Legal owns this number}
+  AUDIT_LOG_RETENTION_DAYS: ${AUDIT_LOG_RETENTION_DAYS:?Legal owns this number}
+
+services:
+  # ==================================================================
+  # edge — TLS termination, the static PWA, and the only published port
+  # ==================================================================
+  edge:
+    build:
+      context: ../apps/web
+      args:
+        # Same-origin. See apps/web/Dockerfile for why this is "/" rather
+        # than the API's own hostname.
+        VITE_API_BASE_URL: /
+    image: remedy-scribe-edge:${REMEDY_RELEASE:?}
+    restart: unless-stopped
+    environment:
+      REMEDY_PUBLIC_DOMAIN: ${REMEDY_PUBLIC_DOMAIN:?}
+      ACME_EMAIL: ${ACME_EMAIL:?an address that a certificate-expiry warning will actually be read at}
+      # Presigned audio URLs point straight at object storage (decision
+      # 0013), so the page's CSP has to allow that one origin for media
+      # and fetch — and only that one. Scheme + host, no path.
+      S3_PUBLIC_ORIGIN: ${S3_PUBLIC_ORIGIN:?the object-storage origin the browser will fetch audio from}
+    ports:
+      # The only two published ports in this file. 80 exists solely to
+      # redirect to 443 (infra/caddy/Caddyfile) — the app's HSTS header
+      # cannot help a browser's first, pre-HSTS request.
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Read-only: edge policy is configuration, and a compromised edge
+      # container should not be able to rewrite its own TLS floor.
+      - ../infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Caddy's certificates and ACME account key. **This volume is not
+      # optional and it is not cache.** Losing it means re-issuing on
+      # every restart, and Let's Encrypt's rate limit is 5 duplicate
+      # certificates per week — exceed it during an incident and the
+      # clinic has no working TLS until the window rolls.
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      internal:
+        # Pinned, because it is the address `api` trusts as its proxy
+        # (`--forwarded-allow-ips` in the api command above). A dynamic
+        # address here would mean the trust list is right until the next
+        # `docker compose up` reorders container creation — at which
+        # point uvicorn stops trusting the proxy, `request.client.host`
+        # silently becomes the bridge gateway, and the per-IP login rate
+        # limit becomes a clinic-wide one with nothing in any log to say
+        # so.
+        ipv4_address: 10.89.7.10
+      public: {}
+    depends_on:
+      api:
+        condition: service_started
+    # Not `service_healthy`: Caddy's own /ready health check (see the
+    # Caddyfile) is what decides whether to send traffic, and it retries
+    # forever. Gating startup on the API being ready would mean a
+    # Postgres blip during a deploy leaves the clinic with no TLS
+    # endpoint at all rather than an error page.
+
+  # ==================================================================
+  # api — FastAPI under uvicorn
+  # ==================================================================
+  api:
+    <<: *api-image
+    environment: *api-environment
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      # Two workers, not one and not eight. This is a single clinic: the
+      # concurrency that matters is a handful of doctors, and the slow
+      # work (ASR, note generation) is in Celery, not here. Two so that
+      # one blocking call — a synchronous boto3 presign, a slow patient
+      # match (decision 0029 measured ~194 ms at 5,000 patients) — cannot
+      # stall the readiness probe and take the instance out of rotation.
+      - --workers
+      - "2"
+      # ⚠️ Read the X-Forwarded-For comment in infra/caddy/Caddyfile
+      # before touching these two flags. `--proxy-headers` is what makes
+      # `request.client.host` the real client rather than this bridge
+      # network's gateway — and app/api/routes/auth.py keys the per-IP
+      # login rate limit and lockout on exactly that value, so getting it
+      # wrong turns a per-attacker limit into a clinic-wide one.
+      #
+      # The address is the edge container's *static* IP, assigned below.
+      # NOT `*`: uvicorn 0.30.6's ProxyHeadersMiddleware takes
+      # `x_forwarded_for_hosts[0]` — the leftmost, client-supplied entry —
+      # when it always-trusts, which would let an attacker rotate their
+      # apparent IP per login attempt and defeat the rate limiter
+      # entirely. With a specific address it scans from the right for the
+      # first untrusted hop instead. (uvicorn does not accept CIDR at
+      # this version, which is why the IP is pinned rather than a subnet.)
+      - --proxy-headers
+      - --forwarded-allow-ips
+      - "10.89.7.10"
+    # No healthcheck: here. Container health belongs to the orchestrator's
+    # liveness probe and traffic belongs to Caddy's readiness probe, and
+    # those are different questions with opposite consequences
+    # (app/api/routes/health.py). A compose healthcheck hitting /ready
+    # would mark the container unhealthy — and, with a restart policy,
+    # eventually restart it — because Postgres blinked.
+    healthcheck:
+      # Liveness only. Deliberately /health and not /ready.
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # ==================================================================
+  # worker — the pipeline: transcription, note generation, retention
+  # ==================================================================
+  worker:
+    <<: *api-image
+    environment: *api-environment
+    command:
+      - celery
+      - -A
+      - app.tasks.celery_app
+      - worker
+      - --loglevel=info
+      # One clinic's consultations, and each task's cost is dominated by
+      # waiting on Groq. Four gives some parallelism across a busy
+      # morning's uploads without four concurrent large transcript
+      # requests hitting a rate limit at once (the Groq quota is the real
+      # constraint here, not this VM's CPU).
+      - --concurrency=4
+    # ⚠️ Scaling THIS service is safe and is the right knob if uploads
+    # queue up. Scaling `beat` is not — see below.
+
+  # ==================================================================
+  # beat — the periodic scheduler. EXACTLY ONE. EVER.
+  # ==================================================================
+  beat:
+    <<: *api-image
+    environment: *api-environment
+    # ⚠️⚠️ THIS `container_name` IS A SAFETY CONTROL, NOT A LABEL. ⚠️⚠️
+    #
+    # Docker refuses to create two containers with the same name, so
+    # compose refuses to scale a service that has one. Verified rather
+    # than assumed (docs/progress/5.1-deployment.md):
+    # `docker compose up --scale beat=2` prints *"The 'beat' service is
+    # using the custom container name ... Docker requires each container
+    # to have a unique name. Remove the custom name to scale the
+    # service"* and starts exactly one, while `--scale worker=3` starts
+    # three. Note the precise behaviour: it **warns and refuses to
+    # scale**, it does not exit non-zero. The property that matters holds
+    # anyway — there is no way to get two — which is the entire point:
+    #
+    # app/tasks/celery_app.py declares two Beat schedules —
+    # `sweep-stuck-encounters` (300 s) and, since Phase 4.4,
+    # `sweep-expired-retention` (hourly). The second one **deletes PHI**:
+    # transcripts, note revisions and audio objects past their retention
+    # clock, plus the backstop delete for a patient's withdrawal
+    # (decision 0033). Two beat processes fire it twice. Celery's default
+    # scheduler holds no distributed lock, so the second fire is not
+    # deduplicated — it is a second concurrent pass over the same
+    # deletion candidates, racing the first, against rows and objects
+    # that are gone forever afterwards.
+    #
+    # `sweep-stuck-encounters` double-firing is merely wasteful. The
+    # retention purge double-firing is unrecoverable. If beat ever needs
+    # to be genuinely redundant, the answer is a scheduler with a lock
+    # (celery-redbeat), not a second copy of this one.
+    container_name: remedy-scribe-beat
+    working_dir: /var/lib/remedy-beat
+    volumes:
+      # Beat's default scheduler writes `celerybeat-schedule` (a shelve
+      # DB) in its working directory, and the container runs as a
+      # non-root user against a read-only-by-convention /app. The
+      # directory is created owned by uid 10001 in apps/api/Dockerfile so
+      # that a fresh named volume inherits that ownership.
+      #
+      # Persisted rather than tmpfs so that `last_run_at` survives a
+      # restart: a beat that forgets fires everything immediately on
+      # boot, which for the hourly retention sweep means a deploy
+      # triggers a PHI purge pass rather than waiting its turn.
+      - beat_state:/var/lib/remedy-beat
+
+  # ==================================================================
+  # redis — self-hosted, and the data-loss window is accepted in writing
+  # ==================================================================
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - internal
+    # No `ports:`. On the internal network only — the broker is task
+    # injection into the PHI pipeline for anyone who can reach it.
+    command:
+      - redis-server
+      # ---------------------------------------------------------------
+      # 5.1 asks for "managed Redis, or accept and document the data-loss
+      # window." This is the acceptance, and here is the window.
+      #
+      # WHAT REDIS HOLDS HERE: the Celery broker and result backend, and
+      # nothing else. No cache of PHI, no sessions (the refresh token is
+      # a cookie plus a database row), no rate-limit counters — decision
+      # 0008 deliberately put login rate limiting in Postgres rather than
+      # Redis. Task arguments are encounter *ids*, never PHI:
+      # `run_pipeline(encounter_id)`, `transcribe_encounter(encounter_id)`.
+      #
+      # WHAT IS LOST: enqueued-but-unstarted task messages, up to one
+      # second of them with the AOF settings below. In clinical terms, a
+      # consultation whose audio finished uploading but whose
+      # transcription had not yet been picked up.
+      #
+      # WHY THAT IS ACCEPTABLE, AND IT IS NOT "it's only a queue":
+      # Phase 1.5 already built the compensating control, for a different
+      # reason. `sweep-stuck-encounters` runs every 300 s and re-kicks any
+      # encounter sitting in a non-terminal pipeline_status for longer
+      # than PIPELINE_STUCK_THRESHOLD_MINUTES (default 30) — and its own
+      # comment says it exists precisely to catch "the task that never
+      # ran at all — the broker down, or the worker pool at zero, at the
+      # moment run_pipeline fired." A lost enqueue is therefore not a lost
+      # consultation; it is a delayed one, bounded at 30 min + 5 min. The
+      # audio is already in object storage and the encounter row already
+      # records it, so nothing a doctor did is discarded.
+      #
+      # Managed Redis would shorten the delay, not remove the failure
+      # mode: a managed instance failing over also drops unpersisted
+      # state. It would buy an operator not patching this container — real
+      # but small — at the cost of another vendor to name in the Data
+      # Privacy Act processor disclosure and another residency question
+      # for Legal. Revisit if the sweeper's 30-minute worst case ever
+      # becomes clinically visible.
+      # ---------------------------------------------------------------
+      - --appendonly
+      - "yes"
+      # `everysec`, not `always`: `always` fsyncs per write and would make
+      # every task enqueue wait on a disk flush. `everysec` bounds the
+      # loss at ~1 s of enqueues, which is far inside the sweeper's
+      # recovery window and therefore buys nothing to tighten.
+      - --appendfsync
+      - everysec
+      # Nothing here is a cache, so silently evicting a queued task under
+      # memory pressure is the wrong failure. `noeviction` makes a full
+      # Redis reject writes loudly instead — an enqueue that raises is
+      # visible; one that succeeds into a key that gets evicted is not.
+      - --maxmemory-policy
+      - noeviction
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==================================================================
+  # migrate — one-shot, and structurally unable to run on boot
+  # ==================================================================
+  migrate:
+    <<: *api-image
+    environment: *api-environment
+    # `profiles:` is the mechanism, and it is the reason this is a
+    # structural guarantee rather than a rule someone remembers.
+    # `docker compose up -d` — the command anyone will actually type,
+    # including at 2 a.m. — skips every service with a profile. This
+    # service only exists when the profile is named explicitly, which
+    # infra/deploy.sh does, once, as its own gated step.
+    #
+    # Checklist 5.1: "run migrations as an explicit deploy step, never
+    # automatically on boot." Three long-lived services start from the
+    # same image; a migration in an entrypoint means three processes
+    # racing for the same Alembic lock on every restart, and a container
+    # that OOM-restarts at 3 a.m. quietly applying a schema change nobody
+    # triggered.
+    profiles:
+      - deploy
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+    # Deliberately no depends_on: Postgres is managed and external, so
+    # there is nothing here to wait for. Failure to connect is the
+    # migration failing, which is what deploy.sh gates on.
+
+networks:
+  # The bridge the edge container publishes 80/443 onto.
+  public:
+
+  internal:
+    # A fixed subnet, and a static address for `edge`, because uvicorn
+    # 0.30.6's `--forwarded-allow-ips` takes literal addresses and not
+    # CIDR — see the `api` command above. Docker's default bridge
+    # addressing is dynamic, so without this the trusted-proxy address
+    # would change under the deployment.
+    #
+    # Chosen from RFC1918 space unlikely to collide with Docker's own
+    # default pools (172.17-172.31) or a clinic LAN (192.168.x).
+    ipam:
+      config:
+        - subnet: 10.89.7.0/24
+
+volumes:
+  # Certificates and the ACME account key. See the `edge` service.
+  caddy_data:
+  caddy_config:
+  # The AOF. See the `redis` service's data-loss argument.
+  redis_data:
+  # Beat's last-run state. See the `beat` service.
+  beat_state:

@@ -1,0 +1,21 @@
+# node_modules is ~hundreds of MB of host-platform binaries. `npm ci` in
+# the build stage installs the lockfile's tree for the image's platform;
+# copying the host's over it would both slow the build and risk shipping a
+# native module built for Windows.
+node_modules/
+
+# The host's previous build output. `vite build` writes a fresh dist/ in
+# the build stage, and copying a stale one in first means a build that
+# fails can still produce an image full of the *last* build's assets.
+dist/
+
+# Incremental typecheck state. tsc -b will happily trust a .tsbuildinfo
+# from the host and skip checking files it believes are unchanged — which
+# turns the deploy's typecheck into a no-op.
+*.tsbuildinfo
+
+# Test-only and local files that never belong in a deployed artifact.
+smoke/
+*.local
+.env
+.env.*

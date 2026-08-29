@@ -195,6 +195,87 @@ class Settings(BaseSettings):
     # queued" and re-kicks the next stage. See app/tasks/pipeline.py.
     pipeline_stuck_threshold_minutes: int = 30
 
+    # --- Phase 5.2: observability (P0-8) --------------------------------
+    #
+    # Note what is *not* here: no setting turns PHI scrubbing off, lowers
+    # Sentry's guards, or enables request-body capture. Phase 4.0 showed
+    # how an accidental leak happens (docs/progress/4.0), and a leak you
+    # can cause with an environment variable is a leak that will eventually
+    # be caused by an environment variable — at 2am, by whoever is
+    # debugging. The scrubbing boundary is code, not configuration.
+
+    log_level: str = "INFO"
+    # JSON in anything deployed, because the line has to survive a log
+    # shipper; text is only for a developer reading a terminal. Both
+    # formatters scrub identically (app/core/observability.py) — the choice
+    # is about who reads it, never about how safe it is.
+    log_format: Literal["json", "text"] = "json"
+    # The length above which a *free-text* fragment is replaced by its
+    # length and digest instead of being emitted. This is the backstop that
+    # catches a transcript or a generated note reaching a log line, and it
+    # works because all three of this system's large PHI artifacts are
+    # prose. Raising it widens the hole; 200 is comfortably above every
+    # vendor error string this codebase has actually produced.
+    log_max_free_text_chars: int = 200
+    # A volume guard on the assembled line (template + already-scrubbed
+    # args), not a PHI control.
+    log_max_line_chars: int = 2000
+
+    # Error tracking. Absent by default and that is the normal state in
+    # development and in the test suite — app/core/observability.py
+    # degrades to "no error tracking" rather than refusing to boot.
+    sentry_dsn: str | None = None
+    sentry_release: str | None = None
+    # 0.0, not a small sample: a one-clinic pilot has no distributed-tracing
+    # question, and every enabled Sentry channel is another surface whose
+    # default capture behaviour has to be audited for PHI.
+    sentry_traces_sample_rate: float = 0.0
+
+    # How far back the snapshot in app/core/metrics.py looks. A clinic day
+    # is the unit people reason in, so 24h makes "how did today go?" the
+    # default question the numbers answer.
+    metrics_window_hours: int = 24
+
+    # Alert thresholds. Every rate rule also requires a minimum sample, or
+    # the first failure of a quiet morning is a 100% failure rate and
+    # everyone learns to ignore the alert within a week.
+    alert_pipeline_failure_rate: float = 0.10
+    alert_pipeline_min_sample: int = 5
+    alert_stuck_encounters: int = 3
+    alert_queue_depth: int = 20
+    alert_upload_failure_rate: float = 0.10
+    # How long after an encounter row is created an unconfirmed upload
+    # stops being "the doctor is still recording / still offline" and
+    # starts being a failure worth counting. Generous on purpose: P0-2
+    # explicitly allows a device to hold audio locally until it has
+    # connectivity, and counting that as a failure would alert on the
+    # feature working.
+    alert_upload_stall_minutes: int = 60
+    # "The sweep has not run in N minutes." Both are set at roughly three
+    # times the job's own interval (5 min and 60 min in celery_app.py), so
+    # a single missed run is not an alert but a stopped Beat process is.
+    alert_stuck_sweep_max_age_minutes: int = 20
+    alert_retention_sweep_max_age_minutes: int = 200
+
+    # Per-consult cost (PRD target: under $0.10). Published Groq list
+    # prices, kept as settings because a vendor's price sheet is not a
+    # constant and an invoice is the only authority — see
+    # docs/runbooks/observability.md for how to check them against one.
+    cost_target_usd_per_consult: float = 0.10
+    cost_asr_usd_per_audio_hour: float = 0.111  # whisper-large-v3
+    cost_note_usd_per_million_input_tokens: float = 0.15  # openai/gpt-oss-120b
+    cost_note_usd_per_million_output_tokens: float = 0.75
+    # The weakest number in the cost model, and the one most likely to be
+    # wrong *for this product specifically*: byte-pair vocabularies trained
+    # mostly on English tokenise Taglish worse than English, so the real
+    # figure is probably below 4. Under-estimating chars-per-token
+    # under-estimates cost, so this errs optimistic — which is why the
+    # dashboard labels every figure as an estimate.
+    cost_chars_per_token: float = 4.0
+    # System prompt + JSON schema, sent on every generation regardless of
+    # transcript length.
+    cost_prompt_overhead_tokens: int = 900
+
     # --- Phase 4.1: environment separation, enforced at boot ------------
 
     @property

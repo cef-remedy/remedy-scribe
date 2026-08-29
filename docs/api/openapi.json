@@ -1613,8 +1613,38 @@
     },
     "/health": {
       "get": {
-        "summary": "Health",
-        "operationId": "health_health_get",
+        "tags": [
+          "ops"
+        ],
+        "summary": "Liveness \u2014 is the process answering?",
+        "description": "Checks nothing but its own ability to produce a response.\n\nThe shape is unchanged from the inline `/health` this replaced\n(Phase 0), because a probe path and payload that shift under a\nrefactor un-monitor a deployment quietly.",
+        "operationId": "liveness_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Liveness Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Readiness \u2014 can this instance serve traffic?",
+        "description": "503 when Postgres or Redis is unreachable; 200 with a per-check\nbreakdown otherwise.\n\n**Object storage is deliberately not checked here**, and that is a\ndecision rather than an omission (decision 0036). Three reasons:\n\n1. *It would convert a partial outage into a total one.* With object\n   storage down, uploads and audio playback fail \u2014 but consent\n   capture, the worklist, patient matching, note review and signing\n   all still work, and P0-2's offline queue is built precisely so a\n   doctor keeps recording through it. Pulling every instance out of\n   the load balancer would take those working paths down too.\n2. *The check is slow and remote.* `HeadBucket` is a network round\n   trip to a possibly off-site endpoint, wrapped in botocore's retry\n   and backoff. Paying it every ten seconds risks the probe exceeding\n   its own timeout and taking the instance out of traffic *because the\n   check was slow*, which is the failure in (1) arriving by accident.\n3. *A `HeadBucket` proves little.* What matters is whether a presigned\n   multipart round trip works, and that is verified once per deploy by\n   the smoke step in docs/runbooks/deployment.md \u2014 stronger evidence,\n   paid once instead of continuously.\n\nObject-storage reachability is a monitoring and alerting concern\n(Phase 5.2), not a traffic gate.",
+        "operationId": "readiness_ready_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1622,7 +1652,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "title": "Response Health Health Get"
+                  "title": "Response Readiness Ready Get"
                 }
               }
             }
@@ -2889,6 +2919,13 @@
           "type": {
             "type": "string",
             "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
         "type": "object",

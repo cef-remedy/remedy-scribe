@@ -1,0 +1,181 @@
+# Remedy Scribe edge configuration (Phase 5.1, decision 0036).
+#
+# This file is the deployment half of Phase 4.1's "TLS everywhere, HSTS,
+# modern cipher suites". docs/runbooks/key-rotation.md §"What Phase 5 still
+# owes" lists five items; four of them are discharged here and the fifth
+# (TLS to Postgres/Redis/object storage) is in the connection strings, not
+# at the edge — see infra/env/production.env.example.
+#
+# ⚠️ Written and parse-checked, never served. No domain exists, no
+# certificate has been issued, and nothing has terminated a real TLS
+# handshake with this config. See docs/progress/5.1-deployment.md.
+{
+	# The ACME account address. Not decoration: it is where Let's Encrypt
+	# sends expiry warnings, and an unread mailbox here is how a clinic
+	# discovers an expired certificate from a doctor rather than from a
+	# monitor. infra/docker-compose.prod.yml requires it explicitly
+	# (`${ACME_EMAIL:?}`) so it cannot be left empty by omission.
+	email {$ACME_EMAIL}
+}
+
+# --- http: redirect only, never proxy --------------------------------
+#
+# 4.1's app-side HSTS cannot help a browser's *first* request, which is
+# plain http by default. This is that missing redirect. It deliberately
+# proxies nothing: an http listener that could reach the API is a path on
+# which PHI travels in the clear, one misconfiguration away.
+http://{$REMEDY_PUBLIC_DOMAIN} {
+	redir https://{$REMEDY_PUBLIC_DOMAIN}{uri} permanent
+}
+
+https://{$REMEDY_PUBLIC_DOMAIN} {
+	tls {
+		# The "TLS 1.2 minimum, 1.3 preferred, modern cipher list" item,
+		# stated rather than inherited. Caddy's default floor is already
+		# 1.2 and its default cipher suites are already the modern set —
+		# writing it down means a Caddy upgrade that changes a default is
+		# a visible diff here instead of a silent change to what a clinic
+		# negotiates. (Same reasoning as apps/api/ruff.toml's [lint]
+		# select block.)
+		protocols tls1.2 tls1.3
+	}
+
+	# --- the API ------------------------------------------------------
+	handle /api/* {
+		reverse_proxy api:8000 {
+			# =========================================================
+			# The two headers below are security controls, not plumbing.
+			# =========================================================
+
+			# X-Forwarded-Proto. app/main.py's SecurityHeadersMiddleware
+			# decides whether to emit HSTS from this header, and 4.1's
+			# runbook is explicit that the proxy must set it "and make
+			# sure nothing else can". `header_up NAME value` compiles to
+			# a Set, which replaces every value a client may have sent —
+			# it does not append.
+			#
+			# Do NOT "harden" this by adding `header_up -X-Forwarded-Proto`
+			# first: Caddy applies header operations in the order add,
+			# set, delete, so a delete alongside a set removes the header
+			# entirely and the app would then see no evidence of TLS at
+			# all.
+			#
+			# A literal `https` rather than `{scheme}`: this handler only
+			# ever exists inside the https site block, and the http block
+			# above proxies nothing, so the fact is constant and stating
+			# it constant removes a placeholder from a security decision.
+			header_up X-Forwarded-Proto https
+
+			# X-Forwarded-For, and this one is load-bearing in a way that
+			# is easy to miss. app/api/routes/auth.py's `_client_ip` uses
+			# `request.client.host` to key the per-IP login rate limit and
+			# the lockout counter (LOGIN_RATE_LIMIT_PER_IP_PER_MINUTE).
+			# Behind a proxy, every request appears to come from *this
+			# container*, so a per-IP limit of 10/min silently becomes a
+			# clinic-wide limit of 10/min — a self-inflicted lockout the
+			# moment two doctors mistype a password in the same minute.
+			#
+			# The fix is uvicorn's ProxyHeadersMiddleware, enabled in
+			# infra/docker-compose.prod.yml with an explicit trusted
+			# address. But read uvicorn 0.30.6's implementation before
+			# trusting it: with `--forwarded-allow-ips=*` it takes
+			# `x_forwarded_for_hosts[0]` — the **leftmost**, entirely
+			# client-supplied entry — so a wildcard turns the rate
+			# limiter into something an attacker rotates at will by
+			# sending a fresh X-Forwarded-For per attempt. With a
+			# specific trusted address it instead scans from the right
+			# for the first untrusted hop, which is correct.
+			#
+			# `{remote_host}` **replaces** the header with the address
+			# Caddy actually accepted the connection from, so the header
+			# has exactly one entry and leftmost == rightmost == the real
+			# client. Both controls are applied because either alone is one
+			# config edit away from being wrong.
+			#
+			# `caddy validate` emits "Unnecessary header_up
+			# X-Forwarded-For: the reverse proxy's default behavior is to
+			# pass headers to the upstream" for this line. **Do not delete
+			# it on the strength of that warning.** The lint is about
+			# forwarding; this line is about *replacing*. Caddy applies
+			# header_up after it has built the forwarded request, so the
+			# Set wins — and in the ordering where it does not, the result
+			# is the peer address twice, which uvicorn still resolves
+			# correctly. Either way there is no client-supplied entry left.
+			header_up X-Forwarded-For {remote_host}
+
+			# Readiness, not liveness. Caddy takes an unready instance out
+			# of rotation and puts it back on its own; it must never be
+			# what restarts a container (that is the orchestrator's
+			# liveness probe — see app/api/routes/health.py).
+			health_uri /ready
+			health_interval 10s
+			# 10 s against a **measured** 4.1 s worst case with Postgres
+			# unreachable (docs/progress/5.1-deployment.md). Not 5 s,
+			# which looks tidier and would report a slow dependency as a
+			# timeout — an outcome that reads identically and diagnoses
+			# far worse.
+			health_timeout 10s
+			health_status 200
+		}
+	}
+
+	# The API sets its own no-store on /api/v1 responses and its own
+	# strict CSP; nothing here should second-guess those. What the edge
+	# adds is the header the app cannot set for a static asset it does
+	# not serve.
+	handle {
+		root * /srv
+
+		# The service worker and the manifest must never be served from a
+		# cache, or a deployed fix cannot reach a laptop that has the old
+		# one: the browser only looks for a new service worker when it
+		# revalidates the old one's bytes. vite-plugin-pwa's
+		# `registerType: "autoUpdate"` depends on this being right.
+		@sw path /sw.js /registerSW.js /manifest.webmanifest
+		header @sw Cache-Control "no-cache"
+
+		# Vite emits content-hashed filenames under /assets, so those are
+		# immutable by construction. index.html is not hashed and is the
+		# entry point that names the current hashes, so it must revalidate.
+		@immutable path /assets/*
+		header @immutable Cache-Control "public, max-age=31536000, immutable"
+
+		@index path / /index.html
+		header @index Cache-Control "no-cache"
+
+		# A single-page app: unknown paths are client routes
+		# (/notes/{id}, /encounters/...), not missing files. The API is
+		# handled above and never reaches here, so this cannot swallow a
+		# genuine API 404 into an HTML page.
+		try_files {path} /index.html
+		file_server
+	}
+
+	# HSTS is emitted by the API for its own responses (4.1). Static
+	# assets get it here, so the *first* document a browser ever loads
+	# from this domain carries it — which is the request that decides
+	# whether there is ever another plain-http one. Values match
+	# HSTS_MAX_AGE_SECONDS / HSTS_INCLUDE_SUBDOMAINS defaults.
+	#
+	# `preload` is deliberately absent: HSTS_PRELOAD defaults to false
+	# because submitting a domain to the browser preload list is close to
+	# irreversible, and that is Remedy's call once the domain is settled.
+	header Strict-Transport-Security "max-age=63072000; includeSubDomains"
+
+	# Mirrors the API's static header set for the HTML surface. The API's
+	# CSP is `default-src 'none'` because it serves only JSON; this one
+	# has to allow the app to load its own assets, and nothing else. No
+	# 'unsafe-inline' on script-src — Vite emits external modules — and
+	# `connect-src 'self'` is what the same-origin topology buys: the app
+	# cannot be made to send PHI to another host even if a dependency
+	# tries.
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		Cross-Origin-Opener-Policy same-origin
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' {$S3_PUBLIC_ORIGIN}; connect-src 'self' {$S3_PUBLIC_ORIGIN}; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+		# Caddy announces itself by default. Not a control, but it is free.
+		-Server
+	}
+}

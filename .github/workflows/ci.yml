@@ -4,6 +4,22 @@
 # afterwards, and never re-checked against a dependency tree that keeps
 # moving underneath it.
 #
+# Phase 5.3 extended it rather than replacing it, adding the two gates the
+# checklist asks for and one artifact it does not:
+#   * `migrations` -- fails the build when a model change has no Alembic
+#     revision, and then proves the staging seed still satisfies the real
+#     constraints. See scripts/check_migrations.py for why this cannot be
+#     done on SQLite.
+#   * `web` now publishes the built client bundle as a workflow artifact.
+#     The checklist's "build the mobile bundle" / "mobile release pipeline
+#     (EAS Build)" items are OBSOLETE: decision 0024 re-platformed the
+#     client from an Expo app to a browser app on a clinic laptop, and
+#     there is no app store in the plan. A static `dist/` that Phase 5.1's
+#     deployment can fetch is the whole of what replaces them --
+#     docs/decisions/0038 and docs/runbooks/ci-cd.md say so at length,
+#     because silently dropping a checklist line reads the same as
+#     forgetting it.
+#
 # Actions are pinned to major tags, not commit SHAs. SHA-pinning is the
 # stronger supply-chain posture and is the intended follow-up; it is not
 # done here because the SHAs could not be verified from this environment,
@@ -68,8 +84,97 @@ jobs:
       # than skipping -- which is the point: the raw-SQL migrations (the
       # consent ledger's append-only trigger, 0.4's CHECK constraints) are
       # invisible to the SQLite path.
+      #
+      # REMEDY_REQUIRE_POSTGRES turns tests/test_migration_safety.py's
+      # Docker-unavailable skip into a failure (Phase 5.3). Those tests are
+      # a safety gate, and a safety gate that quietly skips when its
+      # dependency is missing is indistinguishable from one that passed.
+      # It covers that file only; the older postgres/s3 suites still skip
+      # silently, which is a known gap listed in docs/progress/5.3-ci-cd.md
+      # rather than papered over here.
       - name: pytest
+        env:
+          REMEDY_REQUIRE_POSTGRES: "1"
         run: pytest -q
+
+  migrations:
+    name: DB - migration safety + staging seed
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    # A real Postgres as a service container rather than testcontainers.
+    # The `api` job above already proves the testcontainers path works; the
+    # point of a second, plainer path here is that this gate must not be
+    # able to skip for an environmental reason. A service container either
+    # comes up or the job fails.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: remedy
+          POSTGRES_PASSWORD: remedy
+          POSTGRES_DB: remedy_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U remedy -d remedy_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://remedy:remedy@localhost:5432/remedy_ci
+      ENVIRONMENT: ci
+      # The PHI key published in apps/api/.env.example, on purpose
+      # (decision 0031). The app refuses to start in production while
+      # holding it, so it can never be mistaken for a real one -- and using
+      # it here means this job, like the `api` job, needs no secret at all.
+      PHI_ENCRYPTION_KEY: jy8XzNfhCgDamDDLM0DAGmlpYmLKFQNpt6XLt402fyw=
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: apps/api/requirements-dev.txt
+
+      - run: pip install -r requirements-dev.txt
+
+      # The real deploy step, run as itself. A failure here is a migration
+      # bug, not an environment problem.
+      - name: alembic upgrade head
+        run: alembic upgrade head
+
+      # The gate the checklist asks for: "fail CI if a migration is missing
+      # for a model change." Everything else in this workflow is blind to
+      # that -- the test suite builds its schema with create_all(), so a
+      # model change with no revision is green everywhere until the deploy.
+      # --skip-upgrade because the step above already did it, visibly.
+      - name: migration drift check
+        run: python scripts/check_migrations.py --skip-upgrade
+
+      # Seeding the synthetic staging dataset against a freshly migrated
+      # database, every build. Two things this catches that nothing else
+      # does: a model change that breaks the seed (which would otherwise be
+      # discovered by whoever next needed a staging environment, under time
+      # pressure), and a note whose citations no longer resolve -- the seed
+      # reads every note back through resolve_grounding and fails if one
+      # with a live transcript resolves zero cited segments.
+      #
+      # --no-audio because there is no object store in this job: those
+      # encounters are seeded as never-recorded rather than pointing at
+      # bytes that do not exist. That distinction is not pedantry -- see
+      # the comment in seed_staging.py's seed(); a key with no object
+      # behind it makes the grounding read-back record a retention expiry
+      # that never happened. The real presigned-multipart path is covered
+      # by tests/test_storage_specific.py against a MinIO container in the
+      # `api` job, so the gap is named rather than hidden: what this step
+      # proves is the database-level dataset, not the upload.
+      - name: staging seed (synthetic data only)
+        env:
+          REMEDY_ALLOW_SYNTHETIC_SEED: "1"
+        run: python scripts/seed_staging.py --yes --no-audio
 
   api-audit:
     name: API - dependency audit
@@ -138,6 +243,32 @@ jobs:
 
       - name: unit tests
         run: npm test
+
+      # The deployable client, kept. This is what replaces the checklist's
+      # "build the mobile bundle": decision 0024 made the client a browser
+      # app served as static files, so the release artifact is a directory
+      # of hashed assets, not a signed binary going to a store.
+      #
+      # It matters that this is uploaded rather than rebuilt at deploy time.
+      # `npm run build` embeds VITE_ variables at build time, so a bundle
+      # built in one place and deployed in another is a different artifact
+      # from one rebuilt on the deploy host -- and "the thing we tested is
+      # the thing we shipped" only holds if the bytes are carried forward.
+      # Phase 5.1 owns what consumes this; docs/runbooks/ci-cd.md records
+      # the hand-off, including that the build here uses Vite's defaults
+      # because no staging API URL exists yet.
+      #
+      # 14 days: long enough to redeploy last week's build during an
+      # incident, short enough that this is not a permanent store.
+      - name: upload client bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-client-dist-${{ github.sha }}
+          path: apps/web/dist
+          retention-days: 14
+          # A missing dist here means the build step silently produced
+          # nothing, which must not pass as a successful build.
+          if-no-files-found: error
 
   web-audit:
     name: Web - dependency audit

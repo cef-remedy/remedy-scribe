@@ -50,3 +50,12 @@ httpx==0.27.2
 # Form/File/UploadFile parameter, so Starlette never invokes the parser --
 # unreachable today, and one `Form(...)` away from reachable.
 python-multipart==0.0.32
+
+# Phase 5.2. Error tracking. The API boots fine without this package and
+# without a DSN -- that is the state in dev and in the test suite, and
+# app/core/observability.py fails closed rather than degrading quietly: an
+# SDK that rejects any of the PHI-safety kwargs gets no DSN at all.
+# Pinned to the current release rather than the one the phase was written
+# against, because include_local_variables has already been renamed once
+# (from with_locals) and the init is asserted against the real kwarg names.
+sentry-sdk==2.68.1

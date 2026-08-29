@@ -1,0 +1,35 @@
+# Phase 5.1. This file exists because `COPY . .` in the Dockerfile was
+# copying `apps/api/.env` — a real, working file on every developer
+# machine — straight into the image.
+#
+# docs/runbooks/secrets-management.md §2 says the production deploy must
+# carry no `.env` and inject secrets into the process environment instead.
+# Without this file that rule was defeated before the deploy started: the
+# secrets would have been baked into an image layer, readable by anyone
+# who can `docker save` or pull it, and *unaffected by removing them from
+# the environment later* — a layer is immutable and keeps the value
+# forever.
+#
+# Phase 4.1's boot guard would have caught the specific case of a
+# production process holding the published dev key. It would not have
+# caught a real staging key baked into an image.
+.env
+.env.*
+!.env.example
+
+# The developer's virtualenv: Windows binaries, ~hundreds of MB, and
+# wrong for the container's platform. `pip install -r requirements.txt`
+# in the build is what populates site-packages.
+.venv/
+
+# Local state that would otherwise change the image digest on every build
+# and defeat layer caching, for no benefit inside the container.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# The SQLite test databases (tests/conftest.py, TEST_DB_PATH). Not
+# secret, but they are somebody's local test data in a production image.
+tests/*.db
