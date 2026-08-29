@@ -30,6 +30,7 @@ import { useParams } from "react-router-dom";
 import { api, OfflineError } from "../api/client";
 import { Banner } from "../components/Banner";
 import { PatientPicker } from "../components/PatientPicker";
+import { RatingPrompt } from "../components/RatingPrompt";
 import { GroundedSection } from "../components/GroundedSection";
 import { audioNotice, fetchGrounding, type Grounding } from "../lib/grounding";
 import { fetchPriorVisit, type PriorVisit } from "../lib/patients";
@@ -224,6 +225,11 @@ export function NoteReview() {
 
       {error && <Banner tone="error">{error}</Banner>}
       {info && <Banner tone="info">{info}</Banner>}
+
+      {/* Phase 6: the one pilot signal nothing can derive. After signing,
+          never before — asking mid-workflow buys a rating at the cost of
+          interrupting the clinical task. */}
+      {signed && <RatingPrompt encounterId={note.encounter_id} />}
 
       {signed && (
         <Banner tone="info">

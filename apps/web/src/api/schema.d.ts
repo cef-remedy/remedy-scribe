@@ -708,6 +708,81 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pilot/encounters/{encounter_id}/rating": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rate Encounter
+         * @description The post-encounter five-star prompt.
+         *
+         *     An existing rating is **updated, not duplicated**: a doctor rating the
+         *     same encounter twice has changed their mind, and counting both would
+         *     weight one consultation double in the mean. The unique constraint on
+         *     `encounter_id` enforces that in the schema as well, so a concurrent
+         *     double-submit cannot get around it.
+         */
+        post: operations["rate_encounter_api_v1_pilot_encounters__encounter_id__rating_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pilot/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pilot Report
+         * @description Everything the PRD promised to measure, in one read.
+         *
+         *     Contains no PHI: counts, ratios, durations and clinician ids only.
+         *     Audited anyway -- knowing who is watching the pilot's numbers is
+         *     ordinary accountability, and the row costs nothing.
+         */
+        get: operations["pilot_report_api_v1_pilot_report_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pilot/review-sample": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Weekly Review Sample
+         * @description The weekly manual-review sample for unsafe-acceptance rate.
+         *
+         *     Deterministic for a given week, so two reviewers read the same notes and
+         *     a reviewer can stop and resume; safety-flagged notes come first, because
+         *     the point is catching an unsafe acceptance rather than estimating a mean
+         *     over a mostly-fine population.
+         */
+        get: operations["weekly_review_sample_api_v1_pilot_review_sample_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -874,6 +949,17 @@ export interface components {
              */
             retention_expires_at: string;
         };
+        /** ClinicianUsageOut */
+        ClinicianUsageOut: {
+            /** Clinician Id */
+            clinician_id: string;
+            /** Encounters */
+            encounters: number;
+            /** Weeks Active */
+            weeks_active: number;
+            /** Last Encounter At */
+            last_encounter_at: string | null;
+        };
         /** ConsentEntryCreate */
         ConsentEntryCreate: {
             /** Encounter Id */
@@ -943,6 +1029,39 @@ export interface components {
             /** Entry Count */
             entry_count: number;
         };
+        /** DocumentationTimeOut */
+        DocumentationTimeOut: {
+            /** Median Total Seconds */
+            median_total_seconds: number | null;
+            /** Median Review Seconds */
+            median_review_seconds: number | null;
+            /** Sample Size */
+            sample_size: number;
+        };
+        /**
+         * EditBurdenOut
+         * @description The PRD's headline: "≥70% of signed notes require only minor edits".
+         */
+        EditBurdenOut: {
+            /** Definition Version */
+            definition_version: string;
+            /** Signed Notes */
+            signed_notes: number;
+            /** Measured Notes */
+            measured_notes: number;
+            /** Minor Only */
+            minor_only: number;
+            /** Minor Only Rate */
+            minor_only_rate: number | null;
+            /** Median Similarity */
+            median_similarity: number | null;
+            /** Safety Flagged Notes */
+            safety_flagged_notes: number;
+            /** Ambiguous Reconstructions */
+            ambiguous_reconstructions: number;
+            /** Coverage */
+            coverage: number | null;
+        };
         /**
          * EncounterCreate
          * @description Starts (or resumes) an encounter. `upload_idempotency_key` is
@@ -996,6 +1115,23 @@ export interface components {
          * @enum {string}
          */
         EncounterPipelineStatus: "recording" | "uploaded" | "transcribed" | "note_generated" | "blocked_no_consent" | "transcription_failed" | "generation_failed";
+        /**
+         * FilingSummaryOut
+         * @description Caught filing errors, not the true correctly-filed rate.
+         *
+         *     The system sees rejected filings (a confirmed patient that does not
+         *     match the encounter). It cannot see a note filed to the wrong patient
+         *     that the doctor confirmed anyway — at that point every check agrees.
+         *     The real rate needs the weekly manual review.
+         */
+        FilingSummaryOut: {
+            /** Signed Notes */
+            signed_notes: number;
+            /** Linked To Patient */
+            linked_to_patient: number;
+            /** Unlinked */
+            unlinked: number;
+        };
         /** GroundedSectionOut */
         GroundedSectionOut: {
             /** Suppressed */
@@ -1274,6 +1410,20 @@ export interface components {
              */
             match_type: "exact" | "near";
         };
+        /** PilotReportOut */
+        PilotReportOut: {
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            edit_burden: components["schemas"]["EditBurdenOut"];
+            documentation_time: components["schemas"]["DocumentationTimeOut"];
+            ratings: components["schemas"]["RatingSummaryOut"];
+            filing: components["schemas"]["FilingSummaryOut"];
+            /** Usage */
+            usage: components["schemas"]["ClinicianUsageOut"][];
+        };
         /**
          * PriorVisitOut
          * @description Longitudinal context for the review screen (P0-5). Deliberately only
@@ -1296,6 +1446,37 @@ export interface components {
             signed_at: string;
         };
         /**
+         * RatingCreate
+         * @description The post-encounter five-star prompt.
+         */
+        RatingCreate: {
+            /** Stars */
+            stars: number;
+            /** Comment */
+            comment?: string | null;
+        };
+        /** RatingOut */
+        RatingOut: {
+            /** Encounter Id */
+            encounter_id: string;
+            /** Stars */
+            stars: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** RatingSummaryOut */
+        RatingSummaryOut: {
+            /** Count */
+            count: number;
+            /** Mean Stars */
+            mean_stars: number | null;
+            /** Response Rate */
+            response_rate: number | null;
+        };
+        /**
          * RefreshRequest
          * @description Phase 0.3: exchanges a still-valid refresh token for a new
          *     access/refresh pair. Deliberately takes no Authorization header —
@@ -1310,6 +1491,22 @@ export interface components {
         RefreshRequest: {
             /** Refresh Token */
             refresh_token?: string | null;
+        };
+        /**
+         * ReviewSampleOut
+         * @description Note ids for the weekly unsafe-acceptance review.
+         *
+         *     Ids only, on purpose: the reviewer opens each note through the normal
+         *     UI so the read is audited like any other (Phase 4.2). An endpoint that
+         *     returned the text itself would be an unaudited bulk PHI export.
+         */
+        ReviewSampleOut: {
+            /** Week Offset */
+            week_offset: number;
+            /** Sample Size */
+            sample_size: number;
+            /** Note Ids */
+            note_ids: string[];
         };
         /** RevokeSessionsOut */
         RevokeSessionsOut: {
@@ -2351,6 +2548,104 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditAccessReportRow"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rate_encounter_api_v1_pilot_encounters__encounter_id__rating_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RatingCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RatingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pilot_report_api_v1_pilot_report_get: {
+        parameters: {
+            query?: {
+                usage_days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PilotReportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    weekly_review_sample_api_v1_pilot_review_sample_get: {
+        parameters: {
+            query?: {
+                sample_size?: number;
+                week_offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewSampleOut"];
                 };
             };
             /** @description Validation Error */

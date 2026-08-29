@@ -1611,6 +1611,178 @@
         }
       }
     },
+    "/api/v1/pilot/encounters/{encounter_id}/rating": {
+      "post": {
+        "tags": [
+          "pilot"
+        ],
+        "summary": "Rate Encounter",
+        "description": "The post-encounter five-star prompt.\n\nAn existing rating is **updated, not duplicated**: a doctor rating the\nsame encounter twice has changed their mind, and counting both would\nweight one consultation double in the mean. The unique constraint on\n`encounter_id` enforces that in the schema as well, so a concurrent\ndouble-submit cannot get around it.",
+        "operationId": "rate_encounter_api_v1_pilot_encounters__encounter_id__rating_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "encounter_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Encounter Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RatingCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RatingOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/pilot/report": {
+      "get": {
+        "tags": [
+          "pilot"
+        ],
+        "summary": "Pilot Report",
+        "description": "Everything the PRD promised to measure, in one read.\n\nContains no PHI: counts, ratios, durations and clinician ids only.\nAudited anyway -- knowing who is watching the pilot's numbers is\nordinary accountability, and the row costs nothing.",
+        "operationId": "pilot_report_api_v1_pilot_report_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "usage_days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 365,
+              "minimum": 1,
+              "default": 28,
+              "title": "Usage Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PilotReportOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/pilot/review-sample": {
+      "get": {
+        "tags": [
+          "pilot"
+        ],
+        "summary": "Weekly Review Sample",
+        "description": "The weekly manual-review sample for unsafe-acceptance rate.\n\nDeterministic for a given week, so two reviewers read the same notes and\na reviewer can stop and resume; safety-flagged notes come first, because\nthe point is catching an unsafe acceptance rather than estimating a mean\nover a mostly-fine population.",
+        "operationId": "weekly_review_sample_api_v1_pilot_review_sample_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sample_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 10,
+              "title": "Sample Size"
+            }
+          },
+          {
+            "name": "week_offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 52,
+              "minimum": 0,
+              "default": 0,
+              "title": "Week Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewSampleOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -1838,6 +2010,42 @@
         "title": "AuditLogEntryOut",
         "description": "One audit row as the review interface renders it.\n\n`diff` is safe to expose because nothing may put PHI in it \u2014 see\n`app/models/audit_log.py`'s class docstring. `retention_expires_at` is\nexposed because a reviewer looking at a nearly-expired row needs to\nknow it is about to become unavailable, and because it is the value the\nappend-only trigger keys off: before this date the row cannot be\ndeleted by anyone, including the app's own DB role."
       },
+      "ClinicianUsageOut": {
+        "properties": {
+          "clinician_id": {
+            "type": "string",
+            "title": "Clinician Id"
+          },
+          "encounters": {
+            "type": "integer",
+            "title": "Encounters"
+          },
+          "weeks_active": {
+            "type": "integer",
+            "title": "Weeks Active"
+          },
+          "last_encounter_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Encounter At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "clinician_id",
+          "encounters",
+          "weeks_active",
+          "last_encounter_at"
+        ],
+        "title": "ClinicianUsageOut"
+      },
       "ConsentEntryCreate": {
         "properties": {
           "encounter_id": {
@@ -1983,6 +2191,118 @@
         "title": "ConsentStateOut",
         "description": "Phase 2.2: lets the client answer \"may I start recording?\" \u2014 P0-1\nrequires the app to *block* recording when no consent exists, and it\ncannot block what it cannot see. Deliberately a server read rather\nthan client state: a reload mid-encounter loses local state while\nthe ledger entry persists, so local state would fail open.\n\n`can_record` is the same fold the server enforces at upload\nconfirmation and at the head of the transcription task (see\napp/services/consent.py) \u2014 one definition, three consumers, so the\nclient can never believe it may record when the server disagrees."
       },
+      "DocumentationTimeOut": {
+        "properties": {
+          "median_total_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Total Seconds"
+          },
+          "median_review_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Review Seconds"
+          },
+          "sample_size": {
+            "type": "integer",
+            "title": "Sample Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "median_total_seconds",
+          "median_review_seconds",
+          "sample_size"
+        ],
+        "title": "DocumentationTimeOut"
+      },
+      "EditBurdenOut": {
+        "properties": {
+          "definition_version": {
+            "type": "string",
+            "title": "Definition Version"
+          },
+          "signed_notes": {
+            "type": "integer",
+            "title": "Signed Notes"
+          },
+          "measured_notes": {
+            "type": "integer",
+            "title": "Measured Notes"
+          },
+          "minor_only": {
+            "type": "integer",
+            "title": "Minor Only"
+          },
+          "minor_only_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minor Only Rate"
+          },
+          "median_similarity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Similarity"
+          },
+          "safety_flagged_notes": {
+            "type": "integer",
+            "title": "Safety Flagged Notes"
+          },
+          "ambiguous_reconstructions": {
+            "type": "integer",
+            "title": "Ambiguous Reconstructions"
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage"
+          }
+        },
+        "type": "object",
+        "required": [
+          "definition_version",
+          "signed_notes",
+          "measured_notes",
+          "minor_only",
+          "minor_only_rate",
+          "median_similarity",
+          "safety_flagged_notes",
+          "ambiguous_reconstructions",
+          "coverage"
+        ],
+        "title": "EditBurdenOut",
+        "description": "The PRD's headline: \"\u226570% of signed notes require only minor edits\"."
+      },
       "EncounterCreate": {
         "properties": {
           "upload_idempotency_key": {
@@ -2111,6 +2431,30 @@
         ],
         "title": "EncounterPipelineStatus",
         "description": "Phase 0.4: was a free-form String(32) that the codebase wrote at\nleast five different values into across two files (encounters.py,\ntasks/pipeline.py) with nothing checking any of them matched. Now a\nproper enum, the way Note.status already was in name \u2014 see the\n`create_constraint=True` below for why \"already was\" turned out to\nbe only half true."
+      },
+      "FilingSummaryOut": {
+        "properties": {
+          "signed_notes": {
+            "type": "integer",
+            "title": "Signed Notes"
+          },
+          "linked_to_patient": {
+            "type": "integer",
+            "title": "Linked To Patient"
+          },
+          "unlinked": {
+            "type": "integer",
+            "title": "Unlinked"
+          }
+        },
+        "type": "object",
+        "required": [
+          "signed_notes",
+          "linked_to_patient",
+          "unlinked"
+        ],
+        "title": "FilingSummaryOut",
+        "description": "Caught filing errors, not the true correctly-filed rate.\n\nThe system sees rejected filings (a confirmed patient that does not\nmatch the encounter). It cannot see a note filed to the wrong patient\nthat the doctor confirmed anyway \u2014 at that point every check agrees.\nThe real rate needs the weekly manual review."
       },
       "GroundedSectionOut": {
         "properties": {
@@ -2710,6 +3054,44 @@
         "title": "PatientSearchHit",
         "description": "One ranked result from name-first search (P0-6).\n\n`birthdate` is returned so the doctor can disambiguate two people with\nthe same or similar name \u2014 which is the whole reason dedup uses name +\nbirthdate together rather than name alone. It is already stored\nunencrypted (see app/models/patient.py) precisely because it has to be\nusable as a discriminator."
       },
+      "PilotReportOut": {
+        "properties": {
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          },
+          "edit_burden": {
+            "$ref": "#/components/schemas/EditBurdenOut"
+          },
+          "documentation_time": {
+            "$ref": "#/components/schemas/DocumentationTimeOut"
+          },
+          "ratings": {
+            "$ref": "#/components/schemas/RatingSummaryOut"
+          },
+          "filing": {
+            "$ref": "#/components/schemas/FilingSummaryOut"
+          },
+          "usage": {
+            "items": {
+              "$ref": "#/components/schemas/ClinicianUsageOut"
+            },
+            "type": "array",
+            "title": "Usage"
+          }
+        },
+        "type": "object",
+        "required": [
+          "generated_at",
+          "edit_burden",
+          "documentation_time",
+          "ratings",
+          "filing",
+          "usage"
+        ],
+        "title": "PilotReportOut"
+      },
       "PriorVisitOut": {
         "properties": {
           "note_id": {
@@ -2745,6 +3127,95 @@
         "title": "PriorVisitOut",
         "description": "Longitudinal context for the review screen (P0-5). Deliberately only\nassessment and plan: subjective and objective are visit-specific, while\nA and P are what a doctor actually needs carried forward."
       },
+      "RatingCreate": {
+        "properties": {
+          "stars": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Stars"
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stars"
+        ],
+        "title": "RatingCreate",
+        "description": "The post-encounter five-star prompt."
+      },
+      "RatingOut": {
+        "properties": {
+          "encounter_id": {
+            "type": "string",
+            "title": "Encounter Id"
+          },
+          "stars": {
+            "type": "integer",
+            "title": "Stars"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "encounter_id",
+          "stars",
+          "created_at"
+        ],
+        "title": "RatingOut"
+      },
+      "RatingSummaryOut": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "mean_stars": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Stars"
+          },
+          "response_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Rate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "mean_stars",
+          "response_rate"
+        ],
+        "title": "RatingSummaryOut"
+      },
       "RefreshRequest": {
         "properties": {
           "refresh_token": {
@@ -2762,6 +3233,33 @@
         "type": "object",
         "title": "RefreshRequest",
         "description": "Phase 0.3: exchanges a still-valid refresh token for a new\naccess/refresh pair. Deliberately takes no Authorization header \u2014\nthe access token this call is meant to replace may already be\nexpired, which is the whole reason to call it.\n\nPhase 2.1: optional, because the browser client (decision 0024) never\nsees the refresh token \u2014 it rides in an httpOnly cookie the route\nreads instead. The field stays for non-browser callers and for the\nPhase 0.3 tests that exercise rotation/reuse-detection directly."
+      },
+      "ReviewSampleOut": {
+        "properties": {
+          "week_offset": {
+            "type": "integer",
+            "title": "Week Offset"
+          },
+          "sample_size": {
+            "type": "integer",
+            "title": "Sample Size"
+          },
+          "note_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Note Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "week_offset",
+          "sample_size",
+          "note_ids"
+        ],
+        "title": "ReviewSampleOut",
+        "description": "Note ids for the weekly unsafe-acceptance review.\n\nIds only, on purpose: the reviewer opens each note through the normal\nUI so the read is audited like any other (Phase 4.2). An endpoint that\nreturned the text itself would be an unaudited bulk PHI export."
       },
       "RevokeSessionsOut": {
         "properties": {

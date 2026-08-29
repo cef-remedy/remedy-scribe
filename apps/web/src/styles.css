@@ -282,3 +282,21 @@ textarea:disabled { opacity: .75; cursor: not-allowed; }
 }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
 @media (prefers-reduced-motion: reduce) { .playing-dot { animation: none; } }
+
+/* --- post-encounter rating (Phase 6) ------------------------------------
+   Deliberately quiet. This appears after a doctor has just signed a legal
+   document, so it must read as an aside they may ignore — not as another
+   step in the ceremony they just completed. */
+.rating { background: var(--card2); }
+.rating h2 { font-size: 1rem; }
+.stars { display: flex; gap: .2rem; margin: .5rem 0; }
+.star {
+  background: none; border: none; padding: .1rem .15rem; margin: 0;
+  font-size: 1.6rem; line-height: 1; cursor: pointer;
+  color: var(--rule); transition: color .12s ease;
+}
+.star:hover, .star.is-on { color: var(--warn); }
+.star:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.rating label { display: block; font-size: .85rem; color: var(--ink2); margin: .6rem 0 .25rem; }
+.rating .ghost { margin-top: .6rem; padding: .25rem .6rem; font-size: .8rem; }
+@media (prefers-reduced-motion: reduce) { .star { transition: none; } }

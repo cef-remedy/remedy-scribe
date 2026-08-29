@@ -900,7 +900,13 @@ def init_error_tracking(settings: Settings | None = None) -> bool:
             # clinic has no performance question that needs distributed
             # tracing, and every enabled channel is a channel to audit.
             traces_sample_rate=settings.sentry_traces_sample_rate,
-            before_send=_before_send,
+            # `type: ignore` on the callback, not on the whole init: sentry's
+            # `Event` is a TypedDict, and a scrubber that rebuilds an event
+            # cannot be typed as returning the same TypedDict without
+            # asserting keys it deliberately deletes. Narrow ignore so a
+            # future mistake in any *other* init kwarg -- the ones carrying
+            # the PHI-safety guarantees -- still fails the type check.
+            before_send=_before_send,  # type: ignore[arg-type]
             # Not "scrub each breadcrumb" — no breadcrumbs at all. See
             # `_before_send`.
             before_breadcrumb=lambda crumb, hint: None,

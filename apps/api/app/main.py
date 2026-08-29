@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from app.api.routes import audit_logs, auth, consent, encounters, health, notes, patients, uploads
+from app.api.routes import audit_logs, auth, consent, encounters, health, notes, patients, pilot, uploads
 from app.core.config import Settings, get_settings
 from app.core.observability import (
     CORRELATION_HEADER,
@@ -221,6 +221,7 @@ app.include_router(uploads.router, prefix=API_PREFIX)
 app.include_router(consent.router, prefix=API_PREFIX)
 app.include_router(notes.router, prefix=API_PREFIX)
 app.include_router(audit_logs.router, prefix=API_PREFIX)
+app.include_router(pilot.router, prefix=API_PREFIX)
 # Phase 5.2 leaves this line free deliberately: the liveness/readiness
 # router belongs here, unprefixed, so a load balancer probe does not have to
 # know the API version. Its paths are already in observability.py's

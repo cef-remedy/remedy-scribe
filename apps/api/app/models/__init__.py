@@ -9,6 +9,7 @@ from app.models.encounter import Encounter
 from app.models.login_attempt import LoginAttempt
 from app.models.note import Note, NoteRevision, NoteStatus
 from app.models.patient import Patient
+from app.models.pilot import EncounterRating, NoteQualityMetric
 from app.models.refresh_token import RefreshToken
 from app.models.transcript import Transcript
 
@@ -21,6 +22,8 @@ __all__ = [
     "Note",
     "NoteRevision",
     "NoteStatus",
+    "EncounterRating",
+    "NoteQualityMetric",
     "Patient",
     "RefreshToken",
     "Transcript",

@@ -77,6 +77,14 @@ def test_every_encrypted_column_in_the_schema_is_discovered():
         "notes": ["assessment", "objective", "plan", "subjective"],
         "note_revisions": ["new_text", "previous_text"],
         "transcripts": ["segments"],
+        # Phase 6. Added deliberately, which is the whole point of asserting
+        # an exact set: the rotation script discovered this column on its own
+        # (it discovers by type, not from a list), and this test still failed
+        # until someone confirmed the coverage was intended. A rating comment
+        # is the one field in the pilot instrumentation a doctor could type a
+        # patient's name into, so it is encrypted like any other free-text
+        # clinical field -- and therefore has to rotate with the rest.
+        "encounter_ratings": ["comment"],
     }
 
 

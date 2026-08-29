@@ -99,4 +99,19 @@ def transition(
     db.add(note)
     db.commit()
     db.refresh(note)
+
+    if to_status == NoteStatus.SIGNED:
+        # Phase 6. Freeze the edit-burden measurement now, while the note is
+        # final and its revisions still exist -- retention (4.4) will delete
+        # those revisions long before the pilot is assessed, so a metric
+        # computed later would quietly become uncomputable.
+        #
+        # Deliberately AFTER the commit above, and deliberately unable to
+        # raise: capture_note_quality swallows its own errors. A bug in a
+        # similarity ratio must never refuse a doctor's signature or roll one
+        # back. The measurement is recomputable; a refused signature in a
+        # consultation room is not.
+        from app.services.pilot_metrics import capture_note_quality
+
+        capture_note_quality(db, note)
     return note
