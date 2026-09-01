@@ -37,7 +37,7 @@ python scripts/seed_staging.py            # prompts for the database name
 python scripts/seed_staging.py --yes      # non-interactive (CI uses this)
 ```
 
-Sign in as `doctor@staging.remedy.invalid`, password
+Sign in as `doctor@staging.remedy.example`, password
 `staging-not-a-real-password`. Also seeded: `compliance@` and `admin@` on
 the same domain, same password, so RBAC (decision 0005) can actually be
 exercised rather than assumed.
@@ -53,7 +53,7 @@ whose purpose is unclear is a guard someone removes:
 | 1 | `settings.is_production` | `ENVIRONMENT=production` or `prod` |
 | 2 | `ENVIRONMENT` allow-list, **failing closed** | `prod-eu`, `staging2`, a typo, an empty value — anything not in `{development, local, staging, test, ci}` is refused, not assumed safe |
 | 3 | `REMEDY_ALLOW_SYNTHETIC_SEED=1` | A process that inherited an environment it did not mean to opt into. Deliberately absent from every `.env` in this repository |
-| 4 | **Every `clinicians` row must be on `@staging.remedy.invalid`** | A database holding real accounts |
+| 4 | **Every `clinicians` row must be on `@staging.remedy.example`** | A database holding real accounts |
 | 5 | Schema is at the current Alembic head | A half-migrated target, which would otherwise fail partway through with an `UndefinedColumn` traceback |
 | 6 | `--yes`, or type the database name | The wrong terminal |
 
@@ -69,7 +69,7 @@ Observed, on a database seeded with one ordinary-looking account:
 
 ```
 Refusing to seed this database:
-  - 1 clinician account(s) are not on @staging.remedy.invalid
+  - 1 clinician account(s) are not on @staging.remedy.example
     (e.g. 'maria.reyes@remedy.ph'). This database holds real accounts,
     so it is not a staging database. Refusing before writing anything.
 ```

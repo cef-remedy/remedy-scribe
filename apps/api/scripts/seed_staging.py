@@ -57,7 +57,7 @@ INSERT:
      `ENVIRONMENT=prod-eu` must not read as "not production".
   3. `REMEDY_ALLOW_SYNTHETIC_SEED=1` must be set in the environment. A
      deliberate, per-shell opt-in that no `.env` in this repo contains.
-  4. **Every clinician row must be on `@staging.remedy.invalid`.** This is
+  4. **Every clinician row must be on `@staging.remedy.example`.** This is
      the lock that actually makes production impossible rather than merely
      discouraged: a production database has real accounts in `clinicians`,
      so the script refuses before it can write. `.invalid` is reserved by
@@ -121,7 +121,23 @@ from app.services.transcripts import persist_transcript  # noqa: E402
 #: presence of any *other* domain in `clinicians` is proof this is not a
 #: staging database, and the absence of any row at all is proof it is
 #: empty. Neither conclusion depends on a config value being correct.
-SYNTHETIC_EMAIL_DOMAIN = "staging.remedy.invalid"
+SYNTHETIC_EMAIL_DOMAIN = "staging.remedy.example"
+#
+# `.example`, not `.invalid`, and the difference is load-bearing.
+#
+# Both are RFC 2606 reserved, so lock 4's argument is unchanged: neither
+# will ever be a real clinic's domain, so their presence still proves this
+# is not a production database. But `email-validator` -- which Pydantic's
+# `EmailStr` uses, and which `LoginRequest.email` is typed as -- rejects
+# `.invalid`, `.test` and `.localhost` outright as special-use TLDs. So
+# every account seeded on `@staging.remedy.invalid` was refused at the
+# login *schema*, with a 422, before any credential was ever checked.
+#
+# That is the same trap Phase 2.1 hit with a `@remedy.test` fixture, and it
+# is worth naming: the property that made the domain safe (guaranteed never
+# routable) is the property that made it unusable (guaranteed never
+# deliverable). `.example` is reserved without being special-use, so it
+# satisfies both.
 
 #: Published on purpose, same reasoning as .env.example's PHI key
 #: (decision 0031): a shared credential everyone already knows removes the
@@ -130,6 +146,24 @@ SYNTHETIC_EMAIL_DOMAIN = "staging.remedy.invalid"
 #: never reaches that path because it is only ever hashed into a staging
 #: `clinicians` row, which lock 4 then treats as a marker.
 SYNTHETIC_PASSWORD = "staging-not-a-real-password"
+
+#: A fixed, published TOTP secret for every seeded account, for the same
+#: reason as the password above -- and to fix a bug this script had until it
+#: was first used for onboarding.
+#:
+#: Login requires `mfa_secret is not None` AND a valid code (Phase 0.3).
+#: This script previously created clinicians with **no MFA secret at all**,
+#: so every seeded account was unloginnable: the dataset was complete,
+#: realistic, verified end to end, and nobody could sign in to look at it.
+#: `docs/runbooks/staging.md` even told the reader to "sign in as
+#: doctor@staging.remedy.example" -- a documented step that could not
+#: succeed. Nothing caught it because the API tests mint their own tokens
+#: and never go through the login screen.
+#:
+#: Fixed and published rather than randomised per seed: a developer needs a
+#: code in an authenticator app, and a per-run secret means re-enrolling on
+#: every reseed. Valid base32, so `pyotp` accepts it.
+SYNTHETIC_MFA_SECRET = "REMEDYSTAGINGSEEDMFA2222"
 
 #: Fails closed. Anything not on this list -- including an empty string and
 #: including `prod-eu`, `staging2`, or a typo -- is refused.
@@ -874,6 +908,9 @@ def seed(db, *, with_audio: bool) -> Counts:
             email="doctor@" + SYNTHETIC_EMAIL_DOMAIN,
             full_name="Dr. Lourdes Katigbak Arellano",
             hashed_password=hashed,
+            # Without this the account cannot log in at all -- see
+            # SYNTHETIC_MFA_SECRET for the bug this fixes.
+            mfa_secret=SYNTHETIC_MFA_SECRET,
             role="doctor",
             # Signing requires one (P0-5). Format-shaped and obviously fake:
             # PRC numbers are seven digits, and a plausible-looking real one
@@ -885,12 +922,14 @@ def seed(db, *, with_audio: bool) -> Counts:
             email="compliance@" + SYNTHETIC_EMAIL_DOMAIN,
             full_name="Corazon Bautista Lim",
             hashed_password=hashed,
+            mfa_secret=SYNTHETIC_MFA_SECRET,
             role="compliance",
         ),
         "admin": Clinician(
             email="admin@" + SYNTHETIC_EMAIL_DOMAIN,
             full_name="Ramon Delfin Espiritu",
             hashed_password=hashed,
+            mfa_secret=SYNTHETIC_MFA_SECRET,
             role="admin",
         ),
     }
@@ -1111,6 +1150,36 @@ def verify(db) -> tuple[list[str], list[str]]:
     return lines, problems
 
 
+def _print_sign_in_details() -> None:
+    """Print credentials that actually work, including a live TOTP code.
+
+    Printed by the script rather than left to a runbook, because a runbook
+    drifts: this script created accounts with no MFA secret while
+    docs/runbooks/staging.md told the reader to sign in as the doctor, and
+    nothing reconciled the two. Output from the script that created the
+    accounts cannot disagree with the accounts it created.
+    """
+    try:
+        import pyotp
+
+        code = pyotp.TOTP(SYNTHETIC_MFA_SECRET).now()
+        code_line = f"{code}  (valid ~30s -- rerun if rejected)"
+    except Exception:  # noqa: BLE001 - a missing code must never fail the seed
+        code_line = "(unavailable; put the secret in an authenticator app)"
+
+    print(
+        "\nSign in at the web client with any of:"
+        f"\n  doctor@{SYNTHETIC_EMAIL_DOMAIN}      records, reviews and signs"
+        f"\n  compliance@{SYNTHETIC_EMAIL_DOMAIN}  read and audit only"
+        f"\n  admin@{SYNTHETIC_EMAIL_DOMAIN}       system role"
+        f"\n\n  password    {SYNTHETIC_PASSWORD}"
+        f"\n  MFA secret  {SYNTHETIC_MFA_SECRET}"
+        f"\n  MFA code    {code_line}"
+        "\n\nPrint a fresh code any time with:"
+        "\n  python -c \'import pyotp; print(pyotp.TOTP(\\'REMEDYSTAGINGSEEDMFA2222\\').now())\'"
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Seed a staging database with synthetic (never real) clinical data.",
@@ -1173,6 +1242,7 @@ def main(argv: list[str] | None = None) -> int:
             print("\nVERIFICATION FAILED:\n  - " + "\n  - ".join(verify_problems), file=sys.stderr)
             return 1
         print("\nOK: every seeded note with a live transcript resolves at least one cited segment.")
+        _print_sign_in_details()
         return 0
     finally:
         db.close()
