@@ -58,6 +58,14 @@ class Settings(BaseSettings):
 
     # Object storage (Phase 1.1: presigned S3 multipart upload)
     s3_endpoint_url: str = "http://localhost:9000"
+    # The region SigV4 signs with. boto3 silently falls back to us-east-1
+    # when nothing sets this, which is fine for MinIO (it ignores the
+    # region) and fails on providers that do not: Supabase Storage expects
+    # the project's own region and Cloudflare R2 expects the literal
+    # "auto", and a mismatch surfaces as an opaque SignatureDoesNotMatch
+    # rather than anything naming the region. Explicit so a provider swap
+    # is an env change rather than a code change.
+    s3_region: str = "us-east-1"
     s3_bucket: str = "remedy-scribe-audio"
     s3_access_key: str = "remedy"
     s3_secret_key: str = "remedy-dev-secret"
