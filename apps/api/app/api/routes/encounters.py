@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, require_role
@@ -158,6 +158,56 @@ def link_patient(
         diff={"previous_patient_id": previous_patient_id, "patient_id": payload.patient_id},
     )
     return EncounterOut.model_validate(encounter)
+
+
+@router.get("/recent", response_model=list[EncounterOut])
+def list_recent_encounters(
+    limit: int = Query(default=25, ge=1, le=100),
+    db: Session = Depends(get_db),
+    # RBAC (0.2): a doctor's own recent work, and scoped to them below --
+    # unlike /loose, which is deliberately clinic-wide because an unlinked
+    # recording is a backlog anyone may need to clear.
+    clinician: Clinician = Depends(require_role("doctor")),
+) -> list[EncounterOut]:
+    """This doctor's recent encounters, newest first.
+
+    Added because its absence was a real hole, found by walking the
+    onboarding runbook in a browser rather than by any test: **after filing a
+    note there was no way back to it.** The only list endpoints were `/loose`
+    (encounters with no patient yet) and `/failed` (dead-lettered ones), so
+    the moment a doctor linked a patient the encounter left the only tray that
+    showed it, and the note was reachable only by remembering its URL.
+
+    That is the same shape as the Phase 2.6 bug where the review screen was
+    unreachable because nothing exposed `note_id` -- the data was correct, the
+    screens worked, and no navigation path existed. Unit tests cannot see it,
+    because every test addresses an encounter by an id it already holds.
+
+    Scoped to `clinician_id` on purpose. Decision 0004 keeps note *reads* open
+    to any clinician for continuity of care, and that stands -- this is a
+    "what was I just doing" list, and filling it with colleagues' encounters
+    would make it useless for that while disclosing more than the question
+    needs.
+    """
+    rows = (
+        db.query(Encounter)
+        .filter(Encounter.clinician_id == clinician.id)
+        .order_by(Encounter.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    # Same reasoning as /loose: a list read is a read, and the ids are not
+    # enumerated into the row because a polled tray screen would write an
+    # audit row proportional to the backlog every few seconds.
+    audit.record(
+        db,
+        actor_clinician_id=clinician.id,
+        action="encounter.list.recent",
+        entity_type="encounter",
+        entity_id="*",
+        diff={"result_count": len(rows)},
+    )
+    return [_encounter_out(db, r) for r in rows]
 
 
 @router.get("/failed", response_model=list[EncounterOut])

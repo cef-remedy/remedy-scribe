@@ -645,3 +645,57 @@ def test_pilot_reads_are_audited(db, client):
     actions = {row.action for row in db.query(AuditLog).all()}
     assert "pilot.report.read" in actions
     assert "pilot.review_sample.read" in actions
+
+
+# --- reachability: found by walking the runbook, not by a test --------------
+
+
+def test_a_filed_note_is_still_reachable_from_a_list(db, client):
+    """The hole this closes: after linking a patient, an encounter left the
+    only tray that showed it.
+
+    `/loose` returns encounters with no patient and `/failed` returns
+    dead-lettered ones, so a linked, healthy encounter appeared in neither.
+    The note was reachable only by remembering its URL. Same shape as the
+    Phase 2.6 bug where nothing exposed `note_id`: correct data, working
+    screens, no navigation path — and invisible to tests, because every test
+    addresses an encounter by an id it already holds.
+    """
+    c = _doctor(db)
+    encounter = _encounter(db, c, key="idem-reach-1")
+    note = _note(db, encounter, status=NoteStatus.FILED)
+
+    loose = client.get("/api/v1/encounters/loose", headers=_auth(c)).json()
+    recent = client.get("/api/v1/encounters/recent", headers=_auth(c)).json()
+
+    assert encounter.id not in [e["id"] for e in loose], "a linked encounter is not loose"
+    assert encounter.id in [e["id"] for e in recent]
+    # And it carries the note id, which is the only route into the review screen.
+    assert next(e for e in recent if e["id"] == encounter.id)["note_id"] == note.id
+
+
+def test_recent_is_scoped_to_the_asking_clinician(db, client):
+    """A "what was I just doing" list filled with colleagues' encounters is
+    useless for that, and discloses more than the question needs. Note read
+    access stays open per decision 0004 — this is about the list, not the note.
+    """
+    mine = _doctor(db, email="mine@example.com")
+    theirs = _doctor(db, email="theirs@example.com")
+    _encounter(db, mine, key="idem-scope-mine")
+    other = _encounter(db, theirs, key="idem-scope-theirs")
+
+    recent = client.get("/api/v1/encounters/recent", headers=_auth(mine)).json()
+
+    assert other.id not in [e["id"] for e in recent]
+
+
+def test_recent_does_not_shadow_the_other_worklist_routes(db, client):
+    """FastAPI matches in registration order, so `/recent` has to be declared
+    before `/{encounter_id}`. Phase 2.5 already hit this and left a regression
+    test; this is the same guard for the new route.
+    """
+    c = _doctor(db)
+
+    assert client.get("/api/v1/encounters/recent", headers=_auth(c)).status_code == 200
+    assert client.get("/api/v1/encounters/loose", headers=_auth(c)).status_code == 200
+    assert client.get("/api/v1/encounters/failed", headers=_auth(c)).status_code == 200

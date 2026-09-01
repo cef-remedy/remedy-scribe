@@ -314,6 +314,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/encounters/recent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Recent Encounters
+         * @description This doctor's recent encounters, newest first.
+         *
+         *     Added because its absence was a real hole, found by walking the
+         *     onboarding runbook in a browser rather than by any test: **after filing a
+         *     note there was no way back to it.** The only list endpoints were `/loose`
+         *     (encounters with no patient yet) and `/failed` (dead-lettered ones), so
+         *     the moment a doctor linked a patient the encounter left the only tray that
+         *     showed it, and the note was reachable only by remembering its URL.
+         *
+         *     That is the same shape as the Phase 2.6 bug where the review screen was
+         *     unreachable because nothing exposed `note_id` -- the data was correct, the
+         *     screens worked, and no navigation path existed. Unit tests cannot see it,
+         *     because every test addresses an encounter by an id it already holds.
+         *
+         *     Scoped to `clinician_id` on purpose. Decision 0004 keeps note *reads* open
+         *     to any clinician for continuity of care, and that stands -- this is a
+         *     "what was I just doing" list, and filling it with colleagues' encounters
+         *     would make it useless for that while disclosing more than the question
+         *     needs.
+         */
+        get: operations["list_recent_encounters_api_v1_encounters_recent_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/encounters/failed": {
         parameters: {
             query?: never;
@@ -2026,6 +2064,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EncounterOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_recent_encounters_api_v1_encounters_recent_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterOut"][];
                 };
             };
             /** @description Validation Error */

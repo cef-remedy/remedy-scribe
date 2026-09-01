@@ -280,10 +280,20 @@ export function NoteReview() {
           {notice}
         </Banner>
       )}
-      {grounding && grounding.audio_state === "available" && (
+      {/* Gated on grounding being *usable*, not on audio being playable.
+          Gating on audio_state meant a transcript-only encounter rendered
+          clickable lines with nothing telling the reader they were clickable
+          — the feature was there and invisible. And the second sentence is
+          conditional for the same reason: promising "click again to hear it"
+          when the recording is gone would be a lie the screen elsewhere
+          works hard to avoid. Found by walking the onboarding runbook in a
+          browser; no test covered the never-recorded case on this screen. */}
+      {grounding && Object.values(grounding.sections).some((s) => s.spans_fit) && (
         <p className="muted ground-help">
-          Click any line of the note to see the transcript passage it was drafted from. Click it
-          again to hear that moment of the consultation.
+          Click any line of the note to see the transcript passage it was drafted from.
+          {grounding.audio_state === "available"
+            ? " Click it again to hear that moment of the consultation."
+            : " The recording is no longer available, so there is nothing to play."}
         </p>
       )}
 

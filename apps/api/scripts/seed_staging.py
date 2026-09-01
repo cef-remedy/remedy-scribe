@@ -1176,7 +1176,7 @@ def _print_sign_in_details() -> None:
         f"\n  MFA secret  {SYNTHETIC_MFA_SECRET}"
         f"\n  MFA code    {code_line}"
         "\n\nPrint a fresh code any time with:"
-        "\n  python -c \'import pyotp; print(pyotp.TOTP(\\'REMEDYSTAGINGSEEDMFA2222\\').now())\'"
+        "\n  python -c \"import pyotp; print(pyotp.TOTP('REMEDYSTAGINGSEEDMFA2222').now())\""
     )
 
 

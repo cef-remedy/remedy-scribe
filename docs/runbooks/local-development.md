@@ -67,6 +67,21 @@ docker compose -f ../../infra/docker-compose.yml up -d postgres redis minio
 REMEDY_ALLOW_SYNTHETIC_SEED=1 .venv/Scripts/python scripts/seed_staging.py --yes
 ```
 
+⚠️ **If the seed refuses**, saying *"N clinician account(s) are not on
+@staging.remedy.example"* — that is lock 4 working, not a bug. Your database
+holds accounts from something else (a smoke-test run, an earlier experiment),
+so the seed cannot prove it is a staging database and stops **before writing
+anything**. Start from a clean one:
+
+```bash
+docker compose -f ../../infra/docker-compose.yml exec postgres   psql -U remedy -d postgres -c "DROP DATABASE IF EXISTS remedy_scribe;"
+docker compose -f ../../infra/docker-compose.yml exec postgres   psql -U remedy -d postgres -c "CREATE DATABASE remedy_scribe;"
+.venv/Scripts/python -m alembic upgrade head
+```
+
+A fresh clone will not hit this — an empty database is proof enough. You will
+hit it the second time you seed.
+
 The seed refuses to run against anything that looks like production — six
 independent locks, including one that trusts no config at all (every
 clinician row must be on an RFC 2606 reserved domain). It prints its

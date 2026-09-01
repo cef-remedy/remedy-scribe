@@ -624,6 +624,61 @@
         }
       }
     },
+    "/api/v1/encounters/recent": {
+      "get": {
+        "tags": [
+          "encounters"
+        ],
+        "summary": "List Recent Encounters",
+        "description": "This doctor's recent encounters, newest first.\n\nAdded because its absence was a real hole, found by walking the\nonboarding runbook in a browser rather than by any test: **after filing a\nnote there was no way back to it.** The only list endpoints were `/loose`\n(encounters with no patient yet) and `/failed` (dead-lettered ones), so\nthe moment a doctor linked a patient the encounter left the only tray that\nshowed it, and the note was reachable only by remembering its URL.\n\nThat is the same shape as the Phase 2.6 bug where the review screen was\nunreachable because nothing exposed `note_id` -- the data was correct, the\nscreens worked, and no navigation path existed. Unit tests cannot see it,\nbecause every test addresses an encounter by an id it already holds.\n\nScoped to `clinician_id` on purpose. Decision 0004 keeps note *reads* open\nto any clinician for continuity of care, and that stands -- this is a\n\"what was I just doing\" list, and filling it with colleagues' encounters\nwould make it useless for that while disclosing more than the question\nneeds.",
+        "operationId": "list_recent_encounters_api_v1_encounters_recent_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 25,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EncounterOut"
+                  },
+                  "title": "Response List Recent Encounters Api V1 Encounters Recent Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/encounters/failed": {
       "get": {
         "tags": [
