@@ -66,4 +66,16 @@ EXPOSE 8000
 # Production overrides it with an explicit command that sets worker count
 # and proxy-header trust — see infra/docker-compose.prod.yml's `api`, and
 # the X-Forwarded-For reasoning in infra/caddy/Caddyfile.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+#
+# ${PORT:-8000} rather than a bare 8000, and therefore the shell form of
+# CMD rather than the exec form: every PaaS (Render, Railway, Fly, Cloud
+# Run) injects the port it expects the container to bind and routes
+# nothing to a process listening elsewhere. The failure is silent from
+# inside the container — uvicorn logs a healthy startup on 8000 while the
+# platform reports the deploy as unhealthy and never says why. The default
+# keeps docker-compose and the local runbook unchanged.
+#
+# `exec` matters: without it the shell stays PID 1 and swallows SIGTERM,
+# so the platform's graceful-stop window elapses and the container is
+# killed mid-request instead of draining.
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
