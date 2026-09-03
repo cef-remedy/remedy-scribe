@@ -6,6 +6,28 @@
 
 ---
 
+## Refresh log — 2026-09-03 (Deployment enablement — the free-tier track)
+
+**Progress: 117/122, unchanged — and that is the point.** No checklist item was added or ticked, because none of this is new product. It is the work of making an application that runs on a developer's laptop run on hardware nobody has to pay for, which Phase 5 specified (decision 0036: one VM, S3-compatible storage, managed Postgres) but which the actual deployment constraint — free tiers only, **Netlify** because the engineer owns that account, **Google Drive** because he asked for it — does not match.
+
+Four commits of runnable-ness, then one of adaptation:
+
+**The app was not actually runnable, and two independent bugs said so.** Every seeded account was unloginnable: no `mfa_secret` was ever written, and the seed domain `.invalid` is rejected by `email-validator`, so login returned 422 before it could even fail properly. Both now covered by regression tests that go through the **real login endpoint**, because both bugs lived in the gap between "the seed script succeeded" and "a human can log in."
+
+**Path A walked in a real browser, and 6 of 23 checks failed.** There was **no list-encounters endpoint at all** — eight seeded notes existed and the UI could reach none of them — so `GET /encounters/recent` was added. And the grounding help text was gated on `audio_state === "available"`, meaning the text explaining that audio is unavailable **hid itself precisely when it was needed**; it is now gated on `spans_fit`.
+
+**Google Drive is not S3-compatible, so it needed code** (decision 0040). `storage.py` became a dispatcher, the S3 implementation moved verbatim to `storage_s3.py`, Drive lives in `storage_drive.py`, and `STORAGE_BACKEND` selects between them with `s3` still the default — so **no call site changed**. Two facts decided the design and neither is in Google's prose documentation: a browser can PUT to a resumable session URI with no credentials (only demonstrated in sample code), and Google's upload host allows cross-origin PUT with `content-range` — undocumented, so it was tested over the wire *before any code was written*. Had that come back negative, audio would have proxied through the API in **both** directions.
+
+**The adapter found a client bug that would have failed every multi-part Drive upload.** The uploader checked `response.ok`, and `308 Resume Incomplete` is not ok — it is Drive's success for every chunk but the last. Every long consultation would have died at the first chunk with "Part 1 upload failed (HTTP 308)", an error that reads like a server fault and is in fact success.
+
+**Three costs are stated rather than absorbed**, because none is fixable in code: a free Google account **cannot use a service account**, so audio is owned by a named human out of their Gmail-shared 15 GB; Drive has **no presigned GET**, so playback is proxied through `GET /encounters/{id}/audio` (honouring `Range`, `no-store` set by hand) rather than returning a URL that would 401 in a browser — the dead play button decision 0030 exists to prevent; and Drive has **no lifecycle rules**, so decision 0033's storage-layer retention backstop is gone and only the Celery purge remains.
+
+**Verified:** **450 API tests** (up from 419) with Postgres and MinIO up so nothing was skipped, 20 of them new; `ruff`, `mypy` and `tsc` clean; migration `c7e8f9a0b1d2` applied against real Postgres with the drift gate reporting no drift. **Not verified, and listed as such in the runbook:** everything needing real Google credentials — a live browser PUT, `Range` through the playback proxy, and a genuinely resumed upload.
+
+📚 See `docs/runbooks/deploy-free-tier.md`, which now also says which checklist steps need the Drive adapter (recording, playback, retention) and which do not (everything else), so the engineer can stand the stack up and verify most of it before a single Google credential exists — and so a Drive problem stays distinguishable from a Netlify one.
+
+---
+
 ## Refresh log — 2026-08-29 (Phase 6 — pilot instrumentation, and the last engineering phase)
 
 **Progress: 117/122.** All six Phase 6 items. **419 API tests passing, up from 385**; 61 web unit tests; `ruff`, `mypy` and `tsc` clean; the migration gate reports no drift. The five items still open are Phase 7 P1 fast-follows, which are post-go/no-go by design. Three previously-open items were also closed as **obsolete** rather than left to inflate the count — Luna (decision 0021) and the Android and iOS background-audio items (decision 0024) describe work that will never happen.
@@ -310,7 +332,7 @@ What actually runs today, confirmed by executing it this session — not by read
 
 **Wired but hollow:** `Transcript.retention_expires_at` and `Encounter.audio_retention_expires_at` are both written on every relevant row and read by nothing (Phase 4.4 owns turning that into a policy — see its updated wording below).
 
-**Absent entirely:** pilot instrumentation (Phase 6), including the edit-burden metric that decides whether the pilot passes; **any running deployment** — Phase 5 specified and rehearsed the topology, but no VM, domain, certificate or managed database exists, and no CI job has executed on a real runner; **alert delivery**, since the rules exist but nobody has a Sentry account, so the Phase 4 "nothing watches anything" gap is now instrumented rather than closed; a patient **merge** tool; a designated **DPO and breach response team**, both legally required and currently nonexistent; and — a genuine, currently-open gap against a written requirement, not an oversight — speaker diarization (P0-3), which the ASR vendor in use structurally cannot provide.
+**Absent entirely:** **any running deployment** — Phase 5 specified and rehearsed the topology and the free-tier track (2026-09-03) wrote the runbook and the Drive backend for it, but no Netlify site, Render service, Neon database or Google credential exists yet, and no CI job has executed on a real runner; **alert delivery**, since the rules exist but nobody has a Sentry account, so the Phase 4 "nothing watches anything" gap is now instrumented rather than closed; a patient **merge** tool; a designated **DPO and breach response team**, both legally required and currently nonexistent; and — a genuine, currently-open gap against a written requirement, not an oversight — speaker diarization (P0-3), which the ASR vendor in use structurally cannot provide.
 
 The honest headline: **the engineering is done. Every remaining blocker is a signature, an account or a server.** A doctor captures consent, records, gets a draft note, clicks any line to see and hear where it came from, edits, files against a re-confirmed identity, and signs — and the system now measures how much they had to change, how long it took, and whether they came back next week.
 
@@ -321,7 +343,7 @@ The last engineering decision was the one deferred longest, and the obvious answ
 What remains is not engineering:
 
 1. **Legal and the DPO.** Clear the RA 4200 consent script. Answer decision 0036's four data-residency questions. Confirm the breach runbook's obligations, assembled from secondary sources because the NPC site refused direct fetching. And **designate a DPO and a breach response team — both legally required, both currently nonexistent.**
-2. **Three accounts and a server.** A paid Groq plan (the free tier cannot carry a consultation and is excluded from the BAA), a Sentry account (without it every alert rule from 5.2 is an ERROR line nobody reads), a managed Postgres, and a VM. Nothing is deployed; no CI job has run on a real runner.
+2. **Accounts, and someone to press deploy.** For a **real pilot**: a paid Groq plan (the free tier cannot carry a consultation and is excluded from the BAA), a Sentry account (without it every alert rule from 5.2 is an ERROR line nobody reads), a managed Postgres, and a VM. For the **free-tier demo** the engineer asked for, that shrinks to five signups and a runbook — Netlify, Render, Neon, Upstash and a Google account — with the code for all five now written and tested. Either way **nothing is deployed**, and no CI job has run on a real runner. See `docs/runbooks/deploy-free-tier.md`, which is explicit about what the free tier costs you: no resident worker, no lifecycle-rule retention backstop, and audio owned by a named human rather than by the application.
 3. **Two weeks of real notes** to calibrate the edit-burden threshold, which is currently a labelled guess — moved once, before alpha, with the version bumped.
 
 Two numbers to carry into the pilot design. The PRD's **<$0.10/consult** target breaks even at **51.7 minutes of audio**, because ASR costs 15–23× note generation — it is really a *duration* budget. And the **≥70% minor-edit** target is now measurable, but not yet meaningful: nobody has seen the distribution it will be judged against.
