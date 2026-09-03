@@ -19,7 +19,24 @@
 import createClient, { type Middleware } from "openapi-fetch";
 import type { paths } from "./schema";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+/**
+ * Unset means "same origin" in a built bundle, and "the local API" in dev.
+ *
+ * The old default was `http://localhost:8000` unconditionally, which is
+ * right for `npm run dev` and catastrophic for a static host: a Netlify
+ * build with the variable simply *not created* produced a bundle that
+ * compiled, deployed, loaded, and then asked every visitor's own machine
+ * for the API. `apps/web/Dockerfile` already defends against this by
+ * baking `VITE_API_BASE_URL=/`, but a Netlify build runs `npm run build`
+ * directly and never sees that default — so the safe value has to live
+ * here too, where forgetting is not an option.
+ *
+ * `/` rather than `""` because openapi-fetch strips the trailing slash to
+ * `""` anyway, while an *empty* env var is exactly what a shell, a compose
+ * file or Vite's env loading is liable to read as "unset".
+ */
+const BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? "http://localhost:8000" : "/");
 
 /** In-memory only. A module-scoped variable, deliberately not a store. */
 let accessToken: string | null = null;

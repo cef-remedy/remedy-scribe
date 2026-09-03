@@ -96,14 +96,6 @@ export async function uploadSession(
   onProgress?: (p: UploadProgress) => void,
 ): Promise<{ objectKey: string; bytesUploaded: number }> {
   const { parts: plaintextChunks, mimeType } = await decryptSession(sessionId);
-  // The server reports the part size its backend requires — S3 wants 5 MiB
-  // parts, Google Drive wants multiples of 256 KiB (decision 0040). Reading
-  // it rather than assuming S3's floor is what lets the backend change
-  // without touching this file.
-  const plan = planParts(
-    plaintextChunks.map((b) => b.byteLength),
-    init.data.min_part_size_bytes || MIN_PART_SIZE_BYTES,
-  );
   const bytesTotal = plaintextChunks.reduce((n, b) => n + b.byteLength, 0);
 
   // --- init (idempotent: returns the existing session on retry) ---
@@ -120,6 +112,20 @@ export async function uploadSession(
     throw new Error(`Could not start the upload (HTTP ${init.response.status}).`);
   }
   const objectKey = init.data.object_key;
+
+  // The server reports the part size its backend requires — S3 wants 5 MiB
+  // parts, Google Drive wants multiples of 256 KiB (decision 0040). Reading
+  // it rather than assuming S3's floor is what lets the backend change
+  // without touching this file.
+  //
+  // ⚠️ This must stay *after* the init call. It was briefly written above it,
+  // which typechecks as three separate errors and fails at runtime on every
+  // upload with "Cannot access 'init' before initialization" — a bug the unit
+  // tests cannot see, because they do not drive `uploadSession`.
+  const plan = planParts(
+    plaintextChunks.map((b) => b.byteLength),
+    init.data.min_part_size_bytes || MIN_PART_SIZE_BYTES,
+  );
 
   // --- what already landed? S3 is the source of truth (decision 0013) ---
   const existing = await api.GET("/api/v1/encounters/{encounter_id}/upload/parts", {

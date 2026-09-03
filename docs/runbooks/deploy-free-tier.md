@@ -178,32 +178,40 @@ and should be the **first** thing checked after credentials exist:
 You are deploying **only the frontend**: a static Vite/React bundle. The
 backend runs elsewhere; you do not need its credentials.
 
-- [ ] **Base directory:** `apps/web`
-- [ ] **Build command:** `npm run build`
-- [ ] **Publish directory:** `apps/web/dist`
-- [ ] **Node version:** 20 or newer (set `NODE_VERSION=20` if the default is older)
+**`apps/web/netlify.toml` is already in the repo and carries all of this** —
+base directory, build command, publish directory, Node version, the
+environment variable, the rewrites and the headers. **Exactly one line needs
+editing.**
 
-- [ ] **Set one build-time environment variable:**
-      ```
-      VITE_API_BASE_URL=
-      ```
-      Leave it **empty**. The app then calls `/api/v1/...` on its own origin,
-      and the rewrite below forwards those to the backend.
-      ⚠️ Vite inlines this at **build** time, so changing it later requires a
-      **rebuild**, not a redeploy.
-
-- [ ] **Add `apps/web/netlify.toml`** with the API rewrite:
+- [ ] **Edit that one line.** In `apps/web/netlify.toml`, replace
+      `REPLACE-ME` with your Render hostname:
       ```toml
       [[redirects]]
-        from = "/api/*"
-        to = "https://<render-service>.onrender.com/api/:splat"
-        status = 200          # 200, not 301 — this makes it a rewrite, not a redirect
-        force = true
+        from   = "/api/*"
+        to     = "https://<render-service>.onrender.com/api/:splat"
+        status = 200          # 200, not 301 — a rewrite, not a redirect
+        force  = true
       ```
       A `200` rewrite keeps the URL in the address bar and fetches behind the
       scenes, so the API is **same-origin**. That is deliberate: it means no
       CORS, and the session cookie keeps `SameSite=lax` instead of being
       weakened to `None`.
+
+- [ ] **Point Netlify at it.** If you create the site from the repo, Netlify
+      reads `apps/web/netlify.toml` once **Base directory** is set to
+      `apps/web`. Confirm the build log shows `npm run build` and a publish
+      directory of `apps/web/dist`.
+
+- [ ] ⚠️ **Do not set `VITE_API_BASE_URL` in the Netlify UI.** The file
+      already sets it to `/`, and a UI value **overrides** the file. Pointing
+      it at the Render hostname is the tempting mistake and the wrong one: it
+      makes the API cross-site, which forces `SameSite=None` on the refresh
+      cookie and puts CORS back on the critical path. Vite also inlines it at
+      **build** time, so changing it later needs a **rebuild**, not a
+      redeploy.
+      *(If it is somehow lost anyway, a production build now falls back to
+      `/` rather than `http://localhost:8000` — but do not rely on that; a
+      wrong explicit value still wins.)*
 
 - [ ] ⚠️ **Then set up an uptime pinger, and treat it as required, not
       optional.** Netlify's proxy **times out after 26 seconds**; a
@@ -369,8 +377,8 @@ GOOGLE_DRIVE_FOLDER_ID=…        # a folder, not the account root — a human
 - [ ] Log in on the Netlify URL with the seeded credentials.
 - [ ] **Reload the page after logging in.** If you are thrown back to the
       login screen, the session cookie is not surviving — the rewrite isn't
-      in front of `/api/*`, or `VITE_API_BASE_URL` was not empty at build
-      time.
+      in front of `/api/*`, or `VITE_API_BASE_URL` was overridden in the
+      Netlify UI and is not `/`.
 - [ ] Open a seeded note; click a line; confirm a transcript passage appears.
 - [ ] Record 20 seconds and watch the worker log:
       `transcribe_encounter` → `generate_note`.

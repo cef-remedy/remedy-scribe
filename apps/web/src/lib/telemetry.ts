@@ -47,7 +47,10 @@
 
 /** Reads as "not configured" everywhere except a deploy that sets it. */
 const DSN: string = (import.meta.env.VITE_SENTRY_DSN as string | undefined) ?? "";
-const API_BASE: string = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:8000";
+/** Same rule, and the same reasoning, as `api/client.ts` — see the note there. */
+const API_BASE: string =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) ??
+  (import.meta.env.DEV ? "http://localhost:8000" : "/");
 const ENVIRONMENT: string = (import.meta.env.MODE as string | undefined) ?? "development";
 const RELEASE: string | undefined = import.meta.env.VITE_RELEASE as string | undefined;
 
