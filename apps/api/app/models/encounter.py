@@ -69,7 +69,11 @@ class Encounter(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # instead of orphaning a second S3-side session, and complete treats
     # a missing upload_id (already-completed encounter) as a no-op
     # rather than re-calling S3 with a since-consumed UploadId.
-    audio_upload_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # 512, not 128: an S3 UploadId is short, but the Drive backend stores a
+    # whole resumable *session URI* here (decision 0040) and those exceed
+    # 128 characters. A truncated URI fails at the first chunk with an
+    # error that names nothing useful.
+    audio_upload_id: Mapped[str | None] = mapped_column(String(512), nullable=True)
     audio_deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     audio_retention_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

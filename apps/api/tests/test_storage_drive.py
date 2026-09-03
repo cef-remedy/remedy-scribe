@@ -1,0 +1,361 @@
+"""The Google Drive storage backend (decision 0040).
+
+Drive's resumable protocol differs from S3 multipart in ways that fail
+*silently* rather than loudly if the translation is wrong: a 308 read as an
+error, a byte offset converted into the wrong part count, a trashed file
+reported as deleted. Each of those has a test named after the failure.
+
+No live Drive calls — `httpx` is stubbed. What is verified is the
+translation between the two protocols, which is where the bugs live. What
+can only be verified against real credentials is listed in decision 0040.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from app.services import storage_drive
+from app.services.storage_drive import (
+    MIN_PART_SIZE_BYTES,
+    DriveError,
+    UnsupportedByBackendError,
+)
+
+
+class _Resp:
+    """Minimal httpx.Response stand-in."""
+
+    def __init__(self, status: int, *, headers: dict | None = None, payload: dict | None = None, body: bytes = b""):
+        self.status_code = status
+        self.headers = {k.lower(): v for k, v in (headers or {}).items()}
+        self._payload = payload
+        self.content = body
+
+    def json(self):
+        if self._payload is None:
+            raise ValueError("no json")
+        return self._payload
+
+
+@pytest.fixture(autouse=True)
+def _drive_configured(monkeypatch):
+    """Credentials present and a token already cached, so no test needs to
+    stub the OAuth round trip unless it is testing the OAuth round trip."""
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "google_drive_client_id", "cid", raising=False)
+    monkeypatch.setattr(settings, "google_drive_client_secret", "secret", raising=False)
+    monkeypatch.setattr(settings, "google_drive_refresh_token", "refresh", raising=False)
+    monkeypatch.setattr(settings, "google_drive_folder_id", "folder123", raising=False)
+    monkeypatch.setattr(storage_drive, "_access_token", lambda: "test-access-token")
+    yield
+    storage_drive.reset_token_cache()
+
+
+# --- the 308 translation --------------------------------------------------
+
+
+def test_a_308_reports_the_parts_drive_actually_holds(monkeypatch):
+    """`Range: bytes=0-N` is inclusive, so N+1 bytes are stored. Off by one
+    here means the client either re-sends a part needlessly or, far worse,
+    skips one Drive never received.
+    """
+    stored = 3 * MIN_PART_SIZE_BYTES
+    monkeypatch.setattr(
+        storage_drive.httpx,
+        "put",
+        lambda *a, **kw: _Resp(308, headers={"Range": f"bytes=0-{stored - 1}"}),
+    )
+
+    parts = storage_drive.list_uploaded_parts("k", "https://session")
+
+    assert [p["part_number"] for p in parts] == [1, 2, 3]
+
+
+def test_a_partially_received_part_is_not_reported_as_done(monkeypatch):
+    """The floor is deliberate. Re-sending a chunk Drive already has is
+    harmless; skipping one it only half-received is a corrupt recording.
+    """
+    stored = 2 * MIN_PART_SIZE_BYTES + 1024  # two whole parts and a fragment
+    monkeypatch.setattr(
+        storage_drive.httpx,
+        "put",
+        lambda *a, **kw: _Resp(308, headers={"Range": f"bytes=0-{stored - 1}"}),
+    )
+
+    parts = storage_drive.list_uploaded_parts("k", "https://session")
+
+    assert [p["part_number"] for p in parts] == [1, 2]
+
+
+def test_a_308_with_no_range_header_means_nothing_stored_yet(monkeypatch):
+    monkeypatch.setattr(storage_drive.httpx, "put", lambda *a, **kw: _Resp(308))
+
+    assert storage_drive.list_uploaded_parts("k", "https://session") == []
+
+
+def test_a_completed_upload_reports_every_part(monkeypatch):
+    """A 200 means the whole file landed — a resuming client is catching up
+    on an upload that already finished, and must skip everything.
+    """
+    monkeypatch.setattr(
+        storage_drive.httpx,
+        "put",
+        lambda *a, **kw: _Resp(200, payload={"size": str(4 * MIN_PART_SIZE_BYTES)}),
+    )
+
+    parts = storage_drive.list_uploaded_parts("k", "https://session")
+
+    assert [p["part_number"] for p in parts] == [1, 2, 3, 4]
+
+
+def test_an_expired_session_reports_no_parts_rather_than_raising(monkeypatch):
+    """A 404 means the session is gone. Nothing survives it, and the honest
+    answer is an empty list so the client starts over — not an exception
+    that would dead-letter the encounter.
+    """
+    monkeypatch.setattr(storage_drive.httpx, "put", lambda *a, **kw: _Resp(404))
+
+    assert storage_drive.list_uploaded_parts("k", "https://session") == []
+
+
+# --- the session URI ------------------------------------------------------
+
+
+def test_opening_a_session_returns_the_location_header(monkeypatch):
+    captured = {}
+
+    def _post(url, **kw):
+        captured.update(url=url, headers=kw.get("headers"), params=kw.get("params"), json=kw.get("json"))
+        return _Resp(200, headers={"Location": "https://upload.example/session-abc"})
+
+    monkeypatch.setattr(storage_drive.httpx, "post", _post)
+
+    session = storage_drive.create_multipart_upload("encounters/e1/audio/x.weba", "audio/webm")
+
+    assert session == "https://upload.example/session-abc"
+    assert captured["params"]["uploadType"] == "resumable"
+    # The folder is applied, or every recording lands in the account root
+    # where no human can find it to delete.
+    assert captured["json"]["parents"] == ["folder123"]
+    # Drive has no folder paths, so the key is flattened into the name —
+    # and must stay greppable by encounter id.
+    assert "encounters__e1__audio" in captured["json"]["name"]
+
+
+def test_a_session_without_a_location_header_is_an_error(monkeypatch):
+    monkeypatch.setattr(storage_drive.httpx, "post", lambda url, **kw: _Resp(200))
+
+    with pytest.raises(DriveError, match="no session URI"):
+        storage_drive.create_multipart_upload("k", "audio/webm")
+
+
+def test_every_part_gets_the_same_uri_and_that_is_correct(monkeypatch):
+    """Drive has one upload target per file; chunks are distinguished by
+    `Content-Range`, not by URL. Returning the same URI is the protocol,
+    not a shortcut.
+    """
+    session = "https://upload.example/session-abc"
+
+    assert storage_drive.presign_part_upload("k", session, 1) == session
+    assert storage_drive.presign_part_upload("k", session, 7) == session
+
+
+# --- what Drive cannot do -------------------------------------------------
+
+
+def test_presigned_playback_raises_rather_than_returning_a_dead_url():
+    """The single most important test here. Returning a URL that 401s in a
+    browser would produce exactly the dead play button decision 0030 exists
+    to prevent — a failure the doctor sees and cannot explain.
+    """
+    with pytest.raises(UnsupportedByBackendError, match="no presigned download URL"):
+        storage_drive.presign_audio_playback("encounters/e1/audio/x.weba")
+
+
+def test_the_part_size_matches_drives_requirement_not_s3s():
+    """256 KiB, not 5 MiB. The client reads this from `POST /upload/init`,
+    so a wrong value here produces chunks Drive rejects.
+    """
+    assert MIN_PART_SIZE_BYTES == 256 * 1024
+    assert MIN_PART_SIZE_BYTES % (256 * 1024) == 0
+
+
+# --- reads ----------------------------------------------------------------
+
+
+def _stub_lookup(monkeypatch, file_id: str | None):
+    def _get(url, **kw):
+        if url.rstrip("/").endswith("/files"):
+            return _Resp(200, payload={"files": [{"id": file_id}] if file_id else []})
+        return _Resp(200, payload={"id": file_id, "size": "1024", "mimeType": "audio/webm"})
+
+    monkeypatch.setattr(storage_drive.httpx, "get", _get)
+
+
+def test_head_object_returns_none_for_a_missing_file(monkeypatch):
+    """Phase 3 verifies audio against storage rather than trusting the
+    database, so `None` must mean "absent" and never "we could not check".
+    """
+    _stub_lookup(monkeypatch, None)
+
+    assert storage_drive.head_object("encounters/e1/audio/gone.weba") is None
+
+
+def test_head_object_reports_size_for_a_present_file(monkeypatch):
+    _stub_lookup(monkeypatch, "file-1")
+
+    result = storage_drive.head_object("encounters/e1/audio/x.weba")
+
+    assert result is not None
+    assert result["ContentLength"] == 1024
+
+
+def test_a_range_request_is_passed_through_for_playback(monkeypatch):
+    """The grounding UI plays one cited passage. Without Range every click
+    would pull the whole consultation through the API.
+    """
+    seen = {}
+
+    def _get(url, **kw):
+        if url.rstrip("/").endswith("/files"):
+            return _Resp(200, payload={"files": [{"id": "file-1"}]})
+        seen.update(kw.get("headers") or {})
+        return _Resp(
+            206,
+            headers={"Content-Range": "bytes 1000-1999/45678"},
+            body=b"x" * 1000,
+        )
+
+    monkeypatch.setattr(storage_drive.httpx, "get", _get)
+
+    body, status, length, total = storage_drive.stream_object_range("k", "bytes=1000-1999")
+
+    assert seen.get("Range") == "bytes=1000-1999"
+    assert status == 206
+    assert length == 1000
+    assert total == 45678  # the browser needs the full size to seek
+
+
+def test_a_malformed_range_header_is_ignored_rather_than_forwarded(monkeypatch):
+    """A client-supplied header goes to a third party, so it is validated
+    rather than proxied blindly.
+    """
+    seen = {}
+
+    def _get(url, **kw):
+        if url.rstrip("/").endswith("/files"):
+            return _Resp(200, payload={"files": [{"id": "file-1"}]})
+        seen.update(kw.get("headers") or {})
+        return _Resp(200, body=b"whole file")
+
+    monkeypatch.setattr(storage_drive.httpx, "get", _get)
+
+    storage_drive.stream_object_range("k", "not-a-range; drop table")
+
+    assert "Range" not in seen
+
+
+# --- deletion -------------------------------------------------------------
+
+
+def test_delete_uses_files_delete_so_the_audio_is_not_merely_trashed(monkeypatch):
+    """`files.delete` bypasses the trash. Trashing would leave a withdrawn
+    patient's recording recoverable for 30 days, making both P0-1 and the
+    retention purge quietly untrue.
+    """
+    called = {}
+
+    def _get(url, **kw):
+        return _Resp(200, payload={"files": [{"id": "file-1"}]})
+
+    def _delete(url, **kw):
+        called["url"] = url
+        return _Resp(204)
+
+    monkeypatch.setattr(storage_drive.httpx, "get", _get)
+    monkeypatch.setattr(storage_drive.httpx, "delete", _delete)
+
+    assert storage_drive.delete_object("encounters/e1/audio/x.weba") is True
+    assert "/files/file-1" in called["url"]
+    assert "trash" not in called["url"]
+
+
+def test_deleting_an_already_absent_file_succeeds(monkeypatch):
+    monkeypatch.setattr(storage_drive.httpx, "get", lambda url, **kw: _Resp(200, payload={"files": []}))
+
+    assert storage_drive.delete_object("gone") is True
+
+
+def test_a_delete_failure_returns_false_rather_than_raising(monkeypatch):
+    """A withdrawal must never fail because storage was briefly
+    unreachable: the consent ledger entry is the legal record and has to
+    persist regardless. Same contract as the S3 backend.
+    """
+    import httpx as real_httpx
+
+    def _boom(*a, **kw):
+        raise real_httpx.ConnectError("network gone")
+
+    monkeypatch.setattr(storage_drive.httpx, "get", _boom)
+
+    assert storage_drive.delete_object("k") is False
+
+
+# --- errors must not carry content ---------------------------------------
+
+
+def test_drive_errors_never_quote_a_response_body(monkeypatch):
+    """`pipeline._mark_stage_failure` writes `str(exc)[:500]` into
+    `Encounter.last_pipeline_error`, an unencrypted column whose safety
+    argument is that it holds vendor errors only. A Drive error body can
+    echo a file name, and file names here carry the encounter id.
+    """
+    secret = "encounters__abc123__audio__recording.weba"
+    monkeypatch.setattr(
+        storage_drive.httpx,
+        "post",
+        lambda url, **kw: _Resp(403, payload={"error": {"message": f"quota exceeded for {secret}"}}),
+    )
+
+    with pytest.raises(DriveError) as exc:
+        storage_drive.create_multipart_upload("k", "audio/webm")
+
+    assert secret not in str(exc.value)
+    assert "403" in str(exc.value)  # still actionable
+
+
+def test_missing_credentials_name_the_variable_not_the_value(monkeypatch):
+    """A misconfigured deploy should say which variable is missing, not fail
+    with an opaque 401 from Google an hour into the pilot.
+    """
+    import importlib
+
+    from app.core.config import get_settings
+
+    # The autouse fixture stubs _access_token; reload to get the real one.
+    real = importlib.reload(storage_drive)
+    real.reset_token_cache()
+    monkeypatch.setattr(get_settings(), "google_drive_client_id", "cid", raising=False)
+    monkeypatch.setattr(get_settings(), "google_drive_client_secret", "secret", raising=False)
+    monkeypatch.setattr(get_settings(), "google_drive_refresh_token", "", raising=False)
+
+    with pytest.raises(real.DriveError, match="GOOGLE_DRIVE_REFRESH_TOKEN"):
+        real._access_token()
+
+
+# --- the dispatcher -------------------------------------------------------
+
+
+def test_the_dispatcher_routes_to_the_configured_backend(monkeypatch):
+    from app.core.config import get_settings
+    from app.services import storage
+
+    monkeypatch.setattr(get_settings(), "storage_backend", "drive", raising=False)
+    assert storage._backend() is storage_drive
+
+    monkeypatch.setattr(get_settings(), "storage_backend", "s3", raising=False)
+    from app.services import storage_s3
+
+    assert storage._backend() is storage_s3

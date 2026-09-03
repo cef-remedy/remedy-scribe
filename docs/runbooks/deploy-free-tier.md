@@ -76,13 +76,36 @@ technical detail.
 
 ---
 
-## 2. Code work needed before anything can deploy
+## 2. Code work — **done**, except what needs real credentials
 
-- [ ] **Write the Google Drive storage adapter.** The whole app talks to
-      storage through **11 functions in one module**
-      (`apps/api/app/services/storage.py`), so this is bounded: a sibling
-      module implementing the same names, selected by a setting. Nothing
-      outside that module changes.
+The Drive adapter is written, tested and merged. `STORAGE_BACKEND=drive`
+selects it; `s3` (the default) is untouched.
+
+### What the deployment checklist actually needs it for
+
+Worth being precise, because most of the checklist does **not** depend on
+storage at all:
+
+| Checklist step | Needs the adapter? |
+|---|---|
+| Netlify build, rewrite, SPA fallback (§3) | **No** |
+| Render deploy, `$PORT`, boot guard (§5) | **No** |
+| Neon connect + migrations (§5) | **No** |
+| Login, worklist, patient search, note review (§6) | **No** |
+| Grounding *highlights* — the transcript half | **No** |
+| **Recording → upload → transcription** | **Yes** |
+| **Audio playback in grounding** | **Yes** |
+| **Retention purge of audio** | **Yes** |
+
+So the engineer can deploy and verify everything through *"log in and open
+a seeded note"* before Drive credentials exist. The core loop is what
+waits.
+
+- [x] **Google Drive storage adapter** — `app/services/storage_drive.py`,
+      selected by `STORAGE_BACKEND`. `storage.py` became a dispatcher and
+      the S3 code moved verbatim to `storage_s3.py`, so no call site
+      changed and the existing tests kept working. 20 tests cover the
+      protocol translation.
 
       | Function | Drive equivalent |
       |---|---|
@@ -98,24 +121,55 @@ technical detail.
       | `presign_audio_playback` | ⚠️ **impossible** — needs a proxy route instead |
       | `ensure_bucket_configured` | create/verify the folder; no lifecycle rules exist |
 
-- [ ] **Add a proxied playback route** to replace `presign_audio_playback`,
-      streaming `files.get?alt=media` through the API and **passing the
-      browser's `Range` header through** (Drive supports Range on download —
-      verified — and the grounding UI needs it to play one passage).
-- [ ] **Chunk uploads in multiples of 256 KB.** Drive requires it; our
-      current planner targets S3's 5 MB part floor.
-- [ ] **Store the OAuth refresh token** for the human account, encrypted.
-- [ ] **Retention will not work the same way.** Drive has no bucket
-      lifecycle rules, so the storage-layer backstop from decision 0033
-      disappears and only the Celery purge remains. Note it; don't pretend.
-- [ ] Confirm empirically that Google's upload host returns CORS headers
-      allowing a cross-origin browser `PUT`. Google does not document this.
-      **One curl proves it. Do this before building the rest.**
+- [x] **Proxied playback route** — `GET /encounters/{id}/audio`, which the
+      `audio-url` endpoint now falls back to automatically when the backend
+      cannot presign. Honours `Range` (so the grounding UI still plays one
+      passage rather than pulling the whole consultation), sets
+      `Cache-Control: no-store` by hand, and runs the *same* audio-state
+      check, so a withdrawn recording is refused with the same words on
+      either backend.
+- [x] **Client chunks to the size the server reports** rather than assuming
+      S3's 5 MiB floor, and now sends `Content-Range` and treats Drive's
+      **`308 Resume Incomplete` as success**. That last one mattered: the
+      client checked `response.ok`, which is false for 308, so *every*
+      multi-part Drive upload would have failed at the first chunk.
+- [x] **`audio_upload_id` widened 128 → 512** (migration `c7e8f9a0b1d2`).
+      Drive stores the whole resumable session URI there, and a truncated
+      one fails at the first chunk with an error naming nothing.
+- [x] **CORS on Google's upload host — verified empirically.** The preflight
+      reflects an arbitrary `Origin`, allows `PUT`, and allows the
+      `content-range` header, so the browser really can upload direct.
+      Google documents none of this, so it was tested rather than assumed:
 
-⚠️ **Do not skip that last box.** If the upload host refuses cross-origin
-PUTs, the browser cannot upload directly and audio must proxy through the
-API in *both* directions — which changes the plan again. It is a 10-minute
-test that de-risks two days of work.
+      ```
+      Access-Control-Allow-Origin: https://example.netlify.app
+      Access-Control-Allow-Methods: DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT
+      Access-Control-Allow-Headers: content-range
+      ```
+
+      ⚠️ Note there is **no `Access-Control-Expose-Headers`**, so JavaScript
+      cannot read the `Range` header off a 308. Resume therefore goes
+      through our own `GET /upload/parts` (server-to-server, no CORS) — as
+      it already did. Don't let anyone "simplify" it to a client-side read.
+
+- [ ] **Store the OAuth refresh token** for the human account. Set
+      `GOOGLE_DRIVE_CLIENT_ID`, `_SECRET`, `_REFRESH_TOKEN`, `_FOLDER_ID`.
+- [ ] ⚠️ **Retention loses a layer, and this cannot be fixed in code.**
+      Drive has no bucket lifecycle rules, so decision 0033's storage-layer
+      backstop is gone and *only* the Celery purge deletes expired audio —
+      which runs only while your always-on machine is on.
+
+### Still unverified, because it needs real credentials
+
+The adapter is tested against a stubbed Drive. These need a real account
+and should be the **first** thing checked after credentials exist:
+
+- [ ] A browser really can PUT a chunk to a live session URI (the CORS
+      preflight says yes; an actual upload proves it).
+- [ ] `Range` really works through the playback proxy end to end — click a
+      note line, hear that passage, not the whole consultation.
+- [ ] A resumed upload after a dropped connection skips the right chunks.
+- [ ] The 15 GB fills as expected, and Gmail is in the same quota.
 
 ---
 
@@ -201,6 +255,22 @@ backend runs elsewhere; you do not need its credentials.
       ⚠️ **Lose this and every note, name and transcript is unrecoverable.**
       There is no reset. Back it up before the first real recording.
 
+### Suggested order, given the adapter is done but unproven
+
+The storage backend gates only the recording loop, so deploy in this order
+and you get a working, checkable app before Drive credentials exist:
+
+1. **Deploy with `STORAGE_BACKEND=s3` left at its default and no S3
+   configured.** Everything except recording works, so §3's Netlify steps,
+   §5's Render deploy and §6's first five checks can all be verified and
+   signed off.
+2. **Add Drive credentials and flip to `STORAGE_BACKEND=drive`.** Then work
+   the "still unverified" list in §2 — a real browser PUT, `Range` through
+   the playback proxy, a resumed upload.
+
+Doing it the other way round means a Drive problem and a Netlify problem
+are indistinguishable on the first deploy.
+
 ### Environment variables for the Render service
 
 The production boot guard **refuses to start** if any of these are wrong, and
@@ -219,10 +289,15 @@ GROQ_API_KEY=…
 NOTE_GENERATOR_PROVIDER=groq
 S3_PROVISION_BUCKET_ON_STARTUP=false
 AUDIO_RETENTION_DAYS=90
-```
 
-Plus whatever the Drive adapter needs (client id, client secret, refresh
-token, folder id).
+# Storage. Leave unset (defaults to "s3") for step 1 above.
+STORAGE_BACKEND=drive
+GOOGLE_DRIVE_CLIENT_ID=…
+GOOGLE_DRIVE_CLIENT_SECRET=…
+GOOGLE_DRIVE_REFRESH_TOKEN=…
+GOOGLE_DRIVE_FOLDER_ID=…        # a folder, not the account root — a human
+                                # will need to find these files one day
+```
 
 ---
 

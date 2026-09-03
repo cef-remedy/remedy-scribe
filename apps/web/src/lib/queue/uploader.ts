@@ -96,7 +96,14 @@ export async function uploadSession(
   onProgress?: (p: UploadProgress) => void,
 ): Promise<{ objectKey: string; bytesUploaded: number }> {
   const { parts: plaintextChunks, mimeType } = await decryptSession(sessionId);
-  const plan = planParts(plaintextChunks.map((b) => b.byteLength));
+  // The server reports the part size its backend requires — S3 wants 5 MiB
+  // parts, Google Drive wants multiples of 256 KiB (decision 0040). Reading
+  // it rather than assuming S3's floor is what lets the backend change
+  // without touching this file.
+  const plan = planParts(
+    plaintextChunks.map((b) => b.byteLength),
+    init.data.min_part_size_bytes || MIN_PART_SIZE_BYTES,
+  );
   const bytesTotal = plaintextChunks.reduce((n, b) => n + b.byteLength, 0);
 
   // --- init (idempotent: returns the existing session on retry) ---
@@ -154,13 +161,33 @@ export async function uploadSession(
     // Deliberately a bare fetch: this must NOT carry our Authorization
     // header or cookies, since S3 rejects requests with an unexpected auth
     // header alongside a presigned signature.
+    // Byte offsets for this part, which a resumable backend needs and S3
+    // ignores. Computed from the plan rather than tracked separately so the
+    // two cannot drift.
+    const partStart = plan.slice(0, index).reduce((sum, p) => sum + p.bytes, 0);
+    const partEnd = partStart + partBytes - 1;
+
     let response: Response;
     try {
-      response = await fetch(presigned.data.url, { method: "PUT", body });
+      response = await fetch(presigned.data.url, {
+        method: "PUT",
+        // `Content-Range` is required by Google Drive's resumable protocol
+        // (every chunk says where it sits in the whole file) and is ignored
+        // by S3, which addresses each part by its own presigned URL. Sending
+        // it unconditionally keeps one code path for both backends.
+        headers: { "Content-Range": `bytes ${partStart}-${partEnd}/${bytesTotal}` },
+        body,
+      });
     } catch {
       throw new OfflineError();
     }
-    if (!response.ok) {
+
+    // 308 "Resume Incomplete" is Drive's *success* for every chunk but the
+    // last: it means "stored, send the next one". `response.ok` is false for
+    // it, so treating ok-ness as success would fail every multi-part upload
+    // on Drive at the first chunk.
+    const accepted = response.ok || response.status === 308;
+    if (!accepted) {
       if (response.status === 403) {
         // Almost always an expired presigned URL. Transient: the next
         // attempt mints a fresh one.

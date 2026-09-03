@@ -58,7 +58,7 @@ def storage_module(minio_config, monkeypatch):
     import boto3
     from botocore.client import Config
 
-    from app.services import storage
+    from app.services import storage, storage_s3
 
     client = boto3.client(
         "s3",
@@ -67,7 +67,7 @@ def storage_module(minio_config, monkeypatch):
         aws_secret_access_key=minio_config["secret_key"],
         config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
     )
-    monkeypatch.setattr(storage, "_client", lambda: client)
+    monkeypatch.setattr(storage_s3, "_client", lambda: client)
 
     bucket = storage.get_settings().s3_bucket
     try:
@@ -152,6 +152,8 @@ def test_abort_multipart_upload_actually_removes_the_upload(db, storage_module):
 
 
 def test_ensure_bucket_configured_is_idempotent_and_sets_lifecycle(db, storage_module):
+    from app.services import storage_s3
+
     # The bucket already exists (storage_module fixture creates it) —
     # this proves ensure_bucket_configured doesn't choke on that, and
     # that a real S3-compatible server accepts the lifecycle rule 1.1
@@ -160,10 +162,15 @@ def test_ensure_bucket_configured_is_idempotent_and_sets_lifecycle(db, storage_m
     storage_module.ensure_bucket_configured()
     storage_module.ensure_bucket_configured()  # idempotent — must not raise the second time
 
-    lifecycle = storage_module._client().get_bucket_lifecycle_configuration(Bucket=storage_module.get_settings().s3_bucket)
+    # Reaching for the boto3 client and settings through `storage_s3`, not
+    # `storage`: the latter is a backend dispatcher now (decision 0040) and
+    # deliberately exposes only the interface, not S3's internals.
+    lifecycle = storage_s3._client().get_bucket_lifecycle_configuration(
+        Bucket=storage_s3.get_settings().s3_bucket
+    )
     rule = next(r for r in lifecycle["Rules"] if r["ID"] == "audio-retention-and-orphan-upload-cleanup")
     assert rule["Status"] == "Enabled"
-    assert rule["Expiration"]["Days"] == storage_module.get_settings().audio_retention_days
+    assert rule["Expiration"]["Days"] == storage_s3.get_settings().audio_retention_days
 
     # NOT asserting AbortIncompleteMultipartUpload round-trips here — this
     # version of MinIO (RELEASE.2022-12-02) accepts it in the PUT without

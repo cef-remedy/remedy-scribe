@@ -57,6 +57,24 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     # Object storage (Phase 1.1: presigned S3 multipart upload)
+    # Which object-storage backend serves audio. "s3" covers MinIO, AWS,
+    # Cloudflare R2 and anything else S3-compatible; "drive" is Google
+    # Drive (decision 0040), which trades presigned playback and the
+    # lifecycle-rule retention backstop for a free tier.
+    storage_backend: Literal["s3", "drive"] = "s3"
+
+    # --- Google Drive (only read when storage_backend == "drive") ---
+    # These belong to a *human* Google account, not a service account:
+    # Google documents that service accounts have no storage quota and
+    # cannot own files, and the Shared Drive that would fix it needs paid
+    # Workspace. So the audio is owned by whoever consented. See 0040.
+    google_drive_client_id: str = ""
+    google_drive_client_secret: str = ""
+    google_drive_refresh_token: str = ""
+    #: The folder audio is written into. Unset means the account root,
+    #: which works but makes a human clean-up much harder.
+    google_drive_folder_id: str = ""
+
     s3_endpoint_url: str = "http://localhost:9000"
     # The region SigV4 signs with. boto3 silently falls back to us-east-1
     # when nothing sets this, which is fine for MinIO (it ignores the

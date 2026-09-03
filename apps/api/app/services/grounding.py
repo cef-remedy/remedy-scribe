@@ -423,9 +423,31 @@ def presign_playback_url(db: Session, encounter: Encounter) -> tuple[str, int]:
       is signed into the URL, so storage returns `no-store` and the bytes
       are not written to the browser's HTTP cache. Nothing about playback
       persists PHI to the laptop's disk.
+
+    ⚠️ **Both of those properties are S3's, not the app's.** On the Google
+    Drive backend (decision 0040) there is no presigned GET and no way to
+    set a response header, so `storage.presign_audio_playback` raises
+    `UnsupportedByBackendError` and the route falls back to streaming the
+    bytes through the API. That is a real loss, not a detail: PHI crosses
+    the application server on the way out, and `no-store` becomes something
+    the route sets by hand rather than something storage guarantees.
     """
     state = _audio_state(db, encounter)
     if state is not AudioState.AVAILABLE:
         raise AudioNotPlayableError(state, _UNPLAYABLE_REASONS[state])
     assert encounter.audio_object_key is not None  # implied by AVAILABLE
     return storage.presign_audio_playback(encounter.audio_object_key)
+
+
+def playable_audio(db: Session, encounter: Encounter, range_header: str | None):
+    """Audio bytes for a backend that cannot presign.
+
+    Runs the *same* `_audio_state` check first, so a withdrawn or expired
+    recording is refused with the same reason on either backend — the
+    degradation ladder is a property of the app, not of the storage vendor.
+    """
+    state = _audio_state(db, encounter)
+    if state is not AudioState.AVAILABLE:
+        raise AudioNotPlayableError(state, _UNPLAYABLE_REASONS[state])
+    assert encounter.audio_object_key is not None  # implied by AVAILABLE
+    return storage.stream_object_range(encounter.audio_object_key, range_header)

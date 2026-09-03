@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, require_role
@@ -10,7 +10,8 @@ from app.models.note import Note
 from app.schemas.encounter import EncounterCreate, EncounterLinkPatient, EncounterOut
 from app.schemas.grounding import AudioPlaybackOut
 from app.services import audit
-from app.services.grounding import AudioNotPlayableError, presign_playback_url
+from app.services.grounding import AudioNotPlayableError, playable_audio, presign_playback_url
+from app.services.storage import UnsupportedByBackendError
 
 router = APIRouter(prefix="/encounters", tags=["encounters"])
 
@@ -360,6 +361,7 @@ def read_encounter(
 @router.get("/{encounter_id}/audio-url", response_model=AudioPlaybackOut)
 def read_audio_playback_url(
     encounter_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     clinician: Clinician = Depends(require_role("doctor")),
 ) -> AudioPlaybackOut:
@@ -384,6 +386,30 @@ def read_audio_playback_url(
 
     try:
         url, expires_in = presign_playback_url(db, encounter)
+    except UnsupportedByBackendError:
+        # The configured backend cannot presign (Google Drive — decision
+        # 0040), so point the client at our own streaming route. The client
+        # treats it like any other URL, so the swap is invisible there;
+        # what changes is that the bytes now cross this server.
+        #
+        # `url_for` rather than a hand-built path: in local development the
+        # client is on :5173 and the API on :8000, so a relative URL would
+        # resolve against the wrong origin. Behind the Netlify rewrite both
+        # are the same origin and this still produces the right thing.
+        audit.record(
+            db,
+            actor_clinician_id=clinician.id,
+            action="encounter.audio.playback_url",
+            entity_type="encounter",
+            entity_id=encounter.id,
+        )
+        return AudioPlaybackOut(
+            url=str(request.url_for("stream_encounter_audio", encounter_id=encounter.id)),
+            # Not a signed URL with a lifetime — it is authenticated by the
+            # caller's own session, so there is nothing to expire. Reported
+            # as 0 rather than a borrowed number that would be a lie.
+            expires_in_seconds=0,
+        )
     except AudioNotPlayableError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
 
@@ -401,6 +427,67 @@ def read_audio_playback_url(
         entity_id=encounter.id,
     )
     return AudioPlaybackOut(url=url, expires_in_seconds=expires_in)
+
+
+
+@router.get("/{encounter_id}/audio", name="stream_encounter_audio")
+def stream_encounter_audio(
+    encounter_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    clinician: Clinician = Depends(require_role("doctor")),
+) -> Response:
+    """Stream audio through the API, for a backend that cannot presign.
+
+    Exists only because Google Drive has no presigned GET (decision 0040).
+    On the S3 path this route is never reached: the client gets a URL that
+    points straight at object storage, and the audio never touches this
+    server — which is the property decision 0013 was written to protect and
+    which this route gives up.
+
+    Three things it still has to get right:
+
+    * **Range requests are honoured**, because the grounding UI plays one
+      cited passage. Without Range, clicking a line would pull the whole
+      consultation every time.
+    * **`Cache-Control: no-store` is set here.** On the S3 path storage
+      guarantees it because it is signed into the URL; here it is this
+      route's job, and forgetting it would leave consultation audio in the
+      browser's HTTP cache.
+    * **The same degradation ladder applies.** `playable_audio` runs the
+      identical `_audio_state` check, so a withdrawn recording is refused
+      with the same reason it would be on S3.
+    """
+    encounter = db.get(Encounter, encounter_id)
+    if encounter is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Encounter not found")
+
+    try:
+        body, code, length, total = playable_audio(db, encounter, request.headers.get("range"))
+    except AudioNotPlayableError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+
+    headers = {
+        "Cache-Control": "no-store",
+        "Content-Disposition": "inline",
+        "Accept-Ranges": "bytes",
+    }
+    if code == 206 and total is not None and length:
+        start = 0
+        if (requested := request.headers.get("range")) and "=" in requested:
+            start = int(requested.split("=", 1)[1].split("-", 1)[0] or 0)
+        headers["Content-Range"] = f"bytes {start}-{start + length - 1}/{total}"
+
+    # Audited as a listen, not a URL mint: on this path the bytes really do
+    # leave through here, so the row is the more truthful of the two.
+    audit.record(
+        db,
+        actor_clinician_id=clinician.id,
+        action="encounter.audio.stream",
+        entity_type="encounter",
+        entity_id=encounter.id,
+    )
+    return Response(content=body, status_code=code, media_type="audio/webm", headers=headers)
 
 
 # Upload confirmation used to live here as `POST /{encounter_id}/confirm-upload`,

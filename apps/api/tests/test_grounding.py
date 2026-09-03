@@ -488,7 +488,7 @@ def test_playback_url_is_signed_with_no_store_and_inline_disposition(db, monkeyp
             captured.update({"op": op, "params": Params, "expires": ExpiresIn})
             return "https://example.invalid/presigned"
 
-    monkeypatch.setattr("app.services.storage._client", lambda: _FakeClient())
+    monkeypatch.setattr("app.services.storage_s3._client", lambda: _FakeClient())
     encounter, _ = _scenario(db)
 
     url, expires_in = presign_playback_url(db, encounter)
