@@ -153,16 +153,17 @@
     padding: .8rem .95rem;
     background: var(--surface);
     border: 1px solid var(--rule);
-    border-left: 3px solid var(--accent);
   }
-  .audiences li:last-child { border-left-color: var(--stage2); }
+  /* The two differ by *who*, and the label already says so — so the colour
+     goes on the label rather than becoming a rail down the card's edge. */
   .audiences b {
     font-family: var(--f-mono);
     font-size: .7rem;
     letter-spacing: .09em;
     text-transform: uppercase;
-    color: var(--ink-3);
+    color: var(--accent);
   }
+  .audiences li:last-child b { color: var(--stage2); }
   .audiences span { font-size: .95rem; color: var(--ink-2); }
 
   /* ── Progress meter ───────────────────────────────────────────── */
@@ -180,11 +181,15 @@
     border: 1px solid var(--rule);
     overflow: hidden;
   }
+  /* Full width, scaled from the left, so the tick animation is a composited
+     transform rather than a per-frame layout of the track. */
   .meter-fill {
     height: 100%;
-    width: 0;
+    width: 100%;
     background: var(--accent);
-    transition: width .25s ease;
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform .25s ease;
   }
   .meter-read {
     font-family: var(--f-mono);
@@ -266,7 +271,6 @@
     overflow-x: auto;
     font-size: .82rem;
     line-height: 1.55;
-    border-left: 3px solid var(--accent);
   }
   pre code {
     background: none;
@@ -334,11 +338,15 @@
     padding: .9rem 1.05rem;
     background: var(--surface);
     border: 1px solid var(--rule);
-    border-left: 3px solid var(--ink-3);
   }
   .note > :first-child { margin-top: 0; }
   .note > :last-child { margin-bottom: 0; }
   .note p { max-width: none; }
+
+  /* The label carries its own short rule — a form-section divider rather than
+     a rail down the side of the card. Matching the checklist artifact, which
+     settled this convention; the whole border takes the semantic colour, so
+     the callout's severity still reads at a glance. */
   .note-label {
     display: block;
     margin-bottom: .35rem;
@@ -346,14 +354,22 @@
     font-size: .7rem;
     letter-spacing: .08em;
     text-transform: uppercase;
+    color: var(--ink-3);
   }
-  .note.warn   { border-left-color: var(--warn);   background: var(--warn-bg); }
-  .note.warn   .note-label { color: var(--warn); }
-  .note.stop   { border-left-color: var(--danger); background: var(--danger-bg); }
-  .note.stop   .note-label { color: var(--danger); }
-  .note.done   { border-left-color: var(--good);   background: var(--good-bg); }
-  .note.done   .note-label { color: var(--good); }
-  .note.plain  .note-label { color: var(--ink-3); }
+  .note-label::before {
+    content: "";
+    display: block;
+    width: 26px;
+    height: 2px;
+    background: currentColor;
+    margin-bottom: .5rem;
+  }
+  .note.warn  { border-color: var(--warn);   background: var(--warn-bg); }
+  .note.warn  .note-label { color: var(--warn); }
+  .note.stop  { border-color: var(--danger); background: var(--danger-bg); }
+  .note.stop  .note-label { color: var(--danger); }
+  .note.done  { border-color: var(--good);   background: var(--good-bg); }
+  .note.done  .note-label { color: var(--good); }
 
   /* ── Task lists ───────────────────────────────────────────────── */
 
@@ -1179,7 +1195,7 @@ export PHI_ENCRYPTION_KEY=&lt;the same key as Render&gt;
     function paint() {
       const done = boxes.filter((b) => b.checked).length;
       read.innerHTML = "<b>" + done + "</b> / " + boxes.length + " done";
-      fill.style.width = boxes.length ? (done / boxes.length) * 100 + "%" : "0";
+      fill.style.transform = "scaleX(" + (boxes.length ? done / boxes.length : 0) + ")";
     }
 
     const saved = load();
