@@ -1,3 +1,4 @@
+<!-- artifact: https://claude.ai/code/artifact/3aefcc42-2b6a-41c6-9bdd-3b689a7f0f5e (docs/runbooks/deploy-free-tier.html) -->
 # Deployment checklist — free tier (Netlify + Google Drive)
 
 **Target:** a working demo, driven with your own voice. Not a patient pilot —
