@@ -221,15 +221,40 @@ line needs editing.**
 
 ## 4. Accounts and secrets
 
+> **Where do these go?** Into a scratch file on your machine for now — they
+> are not needed until §6, and each one is needed in **more than one place**.
+> See "Where each value ends up" at the end of this section. ⚠️ **Do not put
+> them in `apps/api/.env`.** That file is for local development only; Render
+> never reads it, and this repo already had one baked into a Docker image
+> once (Phase 5.1). A `.dockerignore` now blocks that, but the file still has
+> no part in this deployment.
+
 1. [ ] **Neon** (neon.tech → New project) — copy the **pooled** connection
-       string, append `?sslmode=require`.
-       → *You should see* a string starting `postgresql://` containing
-       `-pooler`.
+       string, then edit it twice:
+       - change the scheme `postgresql://` → **`postgresql+psycopg://`**
+       - append **`?sslmode=require`**
+
+       ```
+       # what Neon gives you
+       postgresql://user:pass@ep-xxx-pooler.region.aws.neon.tech/neondb
+
+       # what you store
+       postgresql+psycopg://user:pass@ep-xxx-pooler.region.aws.neon.tech/neondb?sslmode=require
+       ```
+       → ⚠️ **The scheme rewrite is not cosmetic.** SQLAlchemy reads
+       `postgresql://` as "use psycopg2", which is not installed — this app
+       runs psycopg 3. Skip it and the API dies at boot with
+       `ModuleNotFoundError: No module named 'psycopg2'`, which names nothing
+       about Neon or the connection string.
+       → *You should see* `-pooler` in the host. Without it you get the
+       direct endpoint, which has far fewer connections available.
 2. [ ] **Upstash Redis** (upstash.com → Redis → Create database) — copy the
        **`rediss://` TCP** URL.
        → ⚠️ **Not** the REST URL: Celery needs blocking `BRPOP`, which
        Upstash explicitly does not support over REST, and the failure is a
        worker that connects and never receives a job.
+       → *You should see* two `s`es — `rediss://`, not `redis://`. Upstash is
+       TLS-only.
 3. [ ] **Groq API key** (console.groq.com → API Keys).
 4. [ ] **Generate the PHI encryption key.**
        ```bash
@@ -242,6 +267,26 @@ line needs editing.**
        ```bash
        python -c "import secrets; print(secrets.token_urlsafe(48))"
        ```
+
+### Where each value ends up
+
+Nothing from §4 is typed once. The worker runs on a different machine from
+the API and gets its configuration from its own shell, so most values are
+needed in two or three places — and `PHI_ENCRYPTION_KEY` **must be
+byte-identical** in both, or the API writes notes the worker cannot read.
+
+| Value | Render env (§6.2) | Your machine (§6.3–6.4) | Worker machine (§6.5) |
+|---|:---:|:---:|:---:|
+| `DATABASE_URL` (Neon) | ✅ | ✅ migrations + seed | ✅ |
+| `REDIS_URL` (Upstash) | ✅ | — | ✅ |
+| `GROQ_API_KEY` | ✅ | — | ✅ |
+| `PHI_ENCRYPTION_KEY` | ✅ | — | ✅ **same value** |
+| `JWT_SECRET` | ✅ | — | — |
+| Drive variables (§5) | ✅ | — | ✅ |
+
+⚠️ **`apps/api/.env` is not on this list and never will be.** It is the
+local-development file. Render reads its own environment-variable settings,
+and the worker reads whatever you `export` in its shell.
 
 ### Deploy in two stages, and not the other way round
 

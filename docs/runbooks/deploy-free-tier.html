@@ -763,12 +763,33 @@
   <section>
     <div class="sec-head"><span class="sec-num">4</span><h2>Accounts and secrets</h2></div>
 
+    <div class="note warn">
+      <span class="note-label">Where do these go?</span>
+      <p>
+        Into a scratch file on your machine for now — nothing here is needed until
+        §6, and each value is needed in <strong>more than one place</strong>. The
+        table at the end of this section says where each one ends up.
+      </p>
+      <p>
+        ⚠️ <strong>Not into <code>apps/api/.env</code>.</strong> That file is for
+        local development. Render never reads it, and this repo already had one
+        baked into a Docker image once — a <code>.dockerignore</code> blocks that
+        now, but the file still has no part in this deployment.
+      </p>
+    </div>
+
     <ol class="steps">
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
         <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Create the Neon project</p>
         <span class="where">neon.tech → New project</span>
-        <p>Copy the <strong>pooled</strong> connection string and append <code>?sslmode=require</code>.</p>
-        <p class="expect"><b>You should see</b> a string starting <code>postgresql://</code> and containing <code>-pooler</code>.</p>
+        <p>Copy the <strong>pooled</strong> connection string, then edit it twice — change the scheme to <code>postgresql+psycopg://</code> and append <code>?sslmode=require</code>.</p>
+<pre><code># what Neon gives you
+postgresql://user:pass@ep-xxx-pooler.region.aws.neon.tech/neondb
+
+# what you store
+postgresql+psycopg://user:pass@ep-xxx-pooler.region.aws.neon.tech/neondb?sslmode=require</code></pre>
+        <p class="expect bad"><b>The scheme rewrite is not cosmetic</b> SQLAlchemy reads <code>postgresql://</code> as "use psycopg2", which is not installed — this app runs psycopg 3. Skip it and the API dies at boot with <code>ModuleNotFoundError: No module named 'psycopg2'</code>, which names nothing about Neon or the connection string.</p>
+        <p class="expect"><b>You should see</b> <code>-pooler</code> in the host. Without it you have the direct endpoint, which has far fewer connections available.</p>
       </div></label></li>
 
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
@@ -776,6 +797,7 @@
         <span class="where">upstash.com → Redis → Create database</span>
         <p>Copy the <strong><code>rediss://</code> TCP</strong> URL.</p>
         <p class="expect bad"><b>Not this</b> the REST URL. Celery needs blocking <code>BRPOP</code>, which Upstash explicitly does not support over REST — and the failure is a worker that connects and never receives a job.</p>
+        <p class="expect"><b>You should see</b> two s'es — <code>rediss://</code>, not <code>redis://</code>. Upstash is TLS-only.</p>
       </div></label></li>
 
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
@@ -795,6 +817,39 @@
         <p>Different from the PHI key. This one can be rotated freely — it only logs people out.</p>
       </div></label></li>
     </ol>
+
+    <h3>Where each value ends up</h3>
+
+    <p>
+      Nothing from this section is typed once. The worker runs on a different
+      machine from the API and takes its configuration from its own shell, so most
+      values are needed in two or three places.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Value</th><th>Render env (§6.2)</th><th>Your machine (§6.3–6.4)</th><th>Worker machine (§6.5)</th></tr></thead>
+        <tbody>
+          <tr><td><code>DATABASE_URL</code> (Neon)</td><td>yes</td><td>yes — migrations + seed</td><td>yes</td></tr>
+          <tr><td><code>REDIS_URL</code> (Upstash)</td><td>yes</td><td class="no">—</td><td>yes</td></tr>
+          <tr><td><code>GROQ_API_KEY</code></td><td>yes</td><td class="no">—</td><td>yes</td></tr>
+          <tr><td><code>PHI_ENCRYPTION_KEY</code></td><td>yes</td><td class="no">—</td><td><strong>yes — the same value</strong></td></tr>
+          <tr><td><code>JWT_SECRET</code></td><td>yes</td><td class="no">—</td><td class="no">—</td></tr>
+          <tr><td>Drive variables (§5)</td><td>yes</td><td class="no">—</td><td>yes</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note stop">
+      <span class="note-label">The one that must match exactly</span>
+      <p>
+        <code>PHI_ENCRYPTION_KEY</code> has to be <strong>byte-identical</strong> on
+        Render and on the worker machine. They are different processes reading the
+        same encrypted columns: if they differ, the API writes notes the worker
+        cannot read, and the failure surfaces as decryption errors deep in the
+        pipeline rather than as anything mentioning keys.
+      </p>
+    </div>
 
     <h3>Deploy in two stages, and not the other way round</h3>
 
