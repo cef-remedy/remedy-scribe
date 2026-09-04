@@ -5,9 +5,9 @@
 
 <style>
   /* Same palette as "Deploying Remedy Scribe" and "Running Remedy Scribe" —
-     these are one document family, lifted from apps/web/src/styles.css so the
-     runbooks read like the app they deploy. One role token is new: --stage2,
-     which marks the steps that wait for Google credentials. */
+     one document family, lifted from apps/web/src/styles.css so the runbooks
+     read like the app they deploy. One role token is new: --stage2, marking
+     the steps that wait on Google credentials. */
   :root {
     --bg:          #f5f7f3;
     --surface:     #ffffff;
@@ -29,7 +29,6 @@
     --stage2-bg:   #e4e6f6;
     --code-bg:     #10201c;
     --code-ink:    #d8e6e0;
-    --shadow:      0 1px 2px rgba(22,32,29,.06), 0 8px 24px -16px rgba(22,32,29,.18);
 
     --f-display: "Newsreader", Georgia, "Times New Roman", serif;
     --f-body:    "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
@@ -59,7 +58,6 @@
       --stage2-bg:   #1e2140;
       --code-bg:     #0a1210;
       --code-ink:    #cddedd;
-      --shadow:      0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.6);
     }
   }
   :root[data-theme="dark"] {
@@ -83,7 +81,6 @@
     --stage2-bg:   #1e2140;
     --code-bg:     #0a1210;
     --code-ink:    #cddedd;
-    --shadow:      0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.6);
   }
 
   * { box-sizing: border-box; }
@@ -94,15 +91,11 @@
     color: var(--ink);
     font-family: var(--f-body);
     font-size: 16px;
-    line-height: 1.62;
+    line-height: 1.6;
     -webkit-font-smoothing: antialiased;
   }
 
-  main {
-    max-width: 61rem;
-    margin: 0 auto;
-    padding: 2.5rem 1.5rem 6rem;
-  }
+  main { max-width: 62rem; margin: 0 auto; padding: 2.5rem 1.5rem 6rem; }
 
   /* ── Masthead ─────────────────────────────────────────────────── */
 
@@ -130,14 +123,8 @@
     letter-spacing: -.015em;
     text-wrap: balance;
   }
-  .standfirst {
-    margin: 0;
-    max-width: var(--measure);
-    font-size: 1.08rem;
-    color: var(--ink-2);
-  }
+  .standfirst { margin: 0; max-width: var(--measure); font-size: 1.08rem; color: var(--ink-2); }
 
-  /* Who does what — the one fact that shapes the whole document. */
   .audiences {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
@@ -154,8 +141,6 @@
     background: var(--surface);
     border: 1px solid var(--rule);
   }
-  /* The two differ by *who*, and the label already says so — so the colour
-     goes on the label rather than becoming a rail down the card's edge. */
   .audiences b {
     font-family: var(--f-mono);
     font-size: .7rem;
@@ -168,12 +153,7 @@
 
   /* ── Progress meter ───────────────────────────────────────────── */
 
-  .meter {
-    display: flex;
-    align-items: center;
-    gap: .85rem;
-    margin-top: 1.75rem;
-  }
+  .meter { display: flex; align-items: center; gap: .85rem; margin-top: 1.75rem; }
   .meter-track {
     flex: 1;
     height: 5px;
@@ -181,8 +161,6 @@
     border: 1px solid var(--rule);
     overflow: hidden;
   }
-  /* Full width, scaled from the left, so the tick animation is a composited
-     transform rather than a per-frame layout of the track. */
   .meter-fill {
     height: 100%;
     width: 100%;
@@ -210,13 +188,12 @@
     padding: .3rem .6rem;
     cursor: pointer;
   }
-  .meter-reset:hover { color: var(--ink); border-color: var(--rule-strong, var(--ink-3)); }
+  .meter-reset:hover { color: var(--ink); }
   .meter-reset:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   /* ── Sections ─────────────────────────────────────────────────── */
 
   section { margin-top: 3.25rem; }
-
   .sec-head {
     display: flex;
     align-items: baseline;
@@ -243,7 +220,7 @@
     text-wrap: balance;
   }
   h3 {
-    margin: 2rem 0 .5rem;
+    margin: 2.25rem 0 .5rem;
     font-family: var(--f-body);
     font-weight: 600;
     font-size: 1.02rem;
@@ -251,7 +228,6 @@
   }
   p { margin: .85rem 0; max-width: var(--measure); }
   .lede { color: var(--ink-2); }
-
   a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
 
   code {
@@ -264,22 +240,15 @@
     word-break: break-word;
   }
   pre {
-    margin: .9rem 0;
-    padding: .9rem 1rem;
+    margin: .8rem 0;
+    padding: .85rem 1rem;
     background: var(--code-bg);
     color: var(--code-ink);
     overflow-x: auto;
-    font-size: .82rem;
+    font-size: .8rem;
     line-height: 1.55;
   }
-  pre code {
-    background: none;
-    border: none;
-    padding: 0;
-    color: inherit;
-    font-size: inherit;
-    word-break: normal;
-  }
+  pre code { background: none; border: none; padding: 0; color: inherit; font-size: inherit; word-break: normal; }
 
   blockquote {
     margin: 1rem 0;
@@ -304,18 +273,8 @@
   /* ── Tables ───────────────────────────────────────────────────── */
 
   .table-wrap { overflow-x: auto; margin: 1.1rem 0; }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: .9rem;
-    background: var(--surface);
-  }
-  th, td {
-    text-align: left;
-    padding: .55rem .7rem;
-    border-bottom: 1px solid var(--rule-soft);
-    vertical-align: top;
-  }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; background: var(--surface); }
+  th, td { text-align: left; padding: .55rem .7rem; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
   thead th {
     font-family: var(--f-mono);
     font-size: .7rem;
@@ -342,11 +301,8 @@
   .note > :first-child { margin-top: 0; }
   .note > :last-child { margin-bottom: 0; }
   .note p { max-width: none; }
-
   /* The label carries its own short rule — a form-section divider rather than
-     a rail down the side of the card. Matching the checklist artifact, which
-     settled this convention; the whole border takes the semantic colour, so
-     the callout's severity still reads at a glance. */
+     a rail down the side of the card. Matching the checklist artifact. */
   .note-label {
     display: block;
     margin-bottom: .35rem;
@@ -364,25 +320,38 @@
     background: currentColor;
     margin-bottom: .5rem;
   }
-  .note.warn  { border-color: var(--warn);   background: var(--warn-bg); }
-  .note.warn  .note-label { color: var(--warn); }
-  .note.stop  { border-color: var(--danger); background: var(--danger-bg); }
-  .note.stop  .note-label { color: var(--danger); }
-  .note.done  { border-color: var(--good);   background: var(--good-bg); }
-  .note.done  .note-label { color: var(--good); }
+  .note.warn { border-color: var(--warn);   background: var(--warn-bg); }
+  .note.warn .note-label { color: var(--warn); }
+  .note.stop { border-color: var(--danger); background: var(--danger-bg); }
+  .note.stop .note-label { color: var(--danger); }
+  .note.done { border-color: var(--good);   background: var(--good-bg); }
+  .note.done .note-label { color: var(--good); }
 
-  /* ── Task lists ───────────────────────────────────────────────── */
+  /* ── Steps: the spine of the document ─────────────────────────── */
 
-  ul.tasks { list-style: none; margin: 1rem 0; padding: 0; display: flex; flex-direction: column; gap: .55rem; }
-  ul.tasks > li { display: block; }
+  .steps {
+    counter-reset: step;
+    list-style: none;
+    margin: 1.25rem 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .steps > li {
+    counter-increment: step;
+    border-top: 1px solid var(--rule-soft);
+    padding: 1rem 0;
+  }
+  .steps > li:first-child { border-top: 1px solid var(--rule); }
+  .steps > li:last-child { border-bottom: 1px solid var(--rule); }
 
-  .task { display: flex; gap: .65rem; align-items: flex-start; cursor: pointer; }
+  .task { display: grid; grid-template-columns: auto auto 1fr; gap: .7rem; align-items: start; cursor: pointer; }
   .task input { position: absolute; opacity: 0; width: 0; height: 0; }
   .box {
-    flex: none;
     width: 1.05rem;
     height: 1.05rem;
-    margin-top: .28rem;
+    margin-top: .2rem;
     border: 1.5px solid var(--ink-3);
     background: var(--surface);
     display: grid;
@@ -392,18 +361,64 @@
   .box svg path { fill: none; stroke: var(--surface); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .task input:checked ~ .box { background: var(--accent); border-color: var(--accent); }
   .task input:checked ~ .box svg { opacity: 1; }
-  .task input:checked ~ .task-text { color: var(--ink-3); }
   .task input:focus-visible ~ .box { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .task-text { font-size: .95rem; }
-  .task-text > :first-child { margin-top: 0; }
-  .task-text > :last-child { margin-bottom: 0; }
 
-  /* Pre-ticked, non-interactive: work that is already merged. */
-  li.shipped .box { background: var(--good); border-color: var(--good); }
-  li.shipped .box svg { opacity: 1; }
-  li.shipped .task-text { color: var(--ink-2); }
+  /* The step number, generated so renumbering is never a manual edit. */
+  .steps .task::after {
+    content: counter(step);
+    grid-column: 2;
+    grid-row: 1;
+    font-family: var(--f-mono);
+    font-size: .8rem;
+    font-weight: 500;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    min-width: 1.4rem;
+    padding-top: .1rem;
+  }
+  .step-body { grid-column: 3; min-width: 0; }
+  .step-body > :first-child { margin-top: 0; }
+  .step-body > :last-child { margin-bottom: 0; }
+  .step-body p { max-width: var(--measure); font-size: .95rem; }
+  .task input:checked ~ .step-body .step-title { color: var(--ink-3); }
 
-  /* ── Stage + owner chips: both encode a real routing decision ─── */
+  .step-title { font-weight: 600; margin: 0 0 .3rem; }
+  .where {
+    display: block;
+    font-family: var(--f-mono);
+    font-size: .7rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: .3rem;
+  }
+  /* "You should see" — the line that turns a step into something checkable
+     rather than something merely done. */
+  .expect {
+    margin: .55rem 0 0;
+    padding: .45rem .7rem;
+    background: var(--surface-2);
+    border: 1px solid var(--rule-soft);
+    font-size: .88rem;
+  }
+  .expect b {
+    font-family: var(--f-mono);
+    font-size: .68rem;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--good);
+    margin-right: .4rem;
+  }
+  .expect.bad b { color: var(--danger); }
+
+  /* Merged work: pre-ticked, not a task. */
+  .shipped { display: grid; grid-template-columns: auto 1fr; gap: .7rem; align-items: start; }
+  .shipped .box { background: var(--good); border-color: var(--good); }
+  .shipped .box svg { opacity: 1; }
+  .shipped .step-body { grid-column: 2; color: var(--ink-2); }
+  .done-list { list-style: none; margin: 1.1rem 0; padding: 0; display: flex; flex-direction: column; gap: .75rem; }
+
+  /* ── Chips ────────────────────────────────────────────────────── */
 
   .chip {
     display: inline-block;
@@ -416,6 +431,7 @@
     border: 1px solid currentColor;
     vertical-align: .08em;
     white-space: nowrap;
+    margin-right: .3rem;
   }
   .chip.s1 { color: var(--accent); }
   .chip.s2 { color: var(--stage2); }
@@ -434,39 +450,18 @@
   }
   .stage-key div { display: flex; gap: .5rem; align-items: baseline; }
 
-  /* ── The hand-over slab: the one place emphasis is spent ─────── */
+  /* ── The hand-over slab ───────────────────────────────────────── */
 
-  .handover {
-    margin-top: 3.25rem;
-    border: 2px solid var(--stage2);
-    background: var(--surface);
-  }
-  .handover-head {
-    padding: 1.1rem 1.4rem;
-    background: var(--stage2-bg);
-    border-bottom: 1px solid var(--stage2);
-  }
+  .handover { margin-top: 3.25rem; border: 2px solid var(--stage2); background: var(--surface); }
+  .handover-head { padding: 1.1rem 1.4rem; background: var(--stage2-bg); border-bottom: 1px solid var(--stage2); }
   .handover-head p { margin: .4rem 0 0; max-width: var(--measure); color: var(--ink-2); font-size: .95rem; }
   .handover-head h2 { font-size: 1.5rem; }
   .handover-body { padding: .4rem 1.4rem 1.4rem; }
-  .handover-body .sec-head { border-bottom-color: var(--rule-soft); }
 
   /* ── Closing ──────────────────────────────────────────────────── */
 
-  .cannot {
-    display: flex;
-    flex-direction: column;
-    gap: .1rem;
-    margin: 1.2rem 0 0;
-    padding: 0;
-    list-style: none;
-  }
-  .cannot li {
-    padding: .75rem 0;
-    border-top: 1px solid var(--rule-soft);
-    font-size: .95rem;
-    max-width: var(--measure);
-  }
+  .cannot { display: flex; flex-direction: column; gap: 0; margin: 1.2rem 0 0; padding: 0; list-style: none; }
+  .cannot li { padding: .75rem 0; border-top: 1px solid var(--rule-soft); font-size: .95rem; max-width: var(--measure); }
   .cannot li:first-child { border-top: 1px solid var(--rule); }
   .cannot b { color: var(--ink); }
 
@@ -479,9 +474,7 @@
     max-width: var(--measure);
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    * { transition: none !important; animation: none !important; }
-  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
 <main>
@@ -491,19 +484,13 @@
     <h1>Free-Tier Deploy Runbook</h1>
     <p class="standfirst">
       Netlify, Render, Neon, Upstash and Google Drive — a working demo you drive
-      with <em>your own voice</em>, on services that cost nothing recurring. Not a
-      patient pilot, and §7 is explicit about why that is not negotiable by
-      configuration.
+      with <em>your own voice</em>, on services that cost nothing recurring. Every
+      part is a numbered step with something you can check afterwards. Not a
+      patient pilot; §8 says why, and it is not negotiable by configuration.
     </p>
     <ul class="audiences">
-      <li>
-        <b>You</b>
-        <span>Own the checklist. Accounts, Render, Neon, migrations, the worker.</span>
-      </li>
-      <li>
-        <b>The engineer with the Netlify account</b>
-        <span>Needs Part 3 only, and nothing else. It is written to be handed over whole.</span>
-      </li>
+      <li><b>You</b><span>Own the checklist: accounts, Drive, Render, Neon, migrations, the worker.</span></li>
+      <li><b>The engineer with the Netlify account</b><span>Needs Part 3 only. It is written to be handed over whole.</span></li>
     </ul>
     <div class="meter">
       <div class="meter-track"><div class="meter-fill" id="fill"></div></div>
@@ -519,12 +506,11 @@
 
   <!-- ══ 0 ══ -->
   <section>
-    <div class="sec-head"><span class="sec-num">0</span><h2>One blocker that config cannot solve</h2></div>
+    <div class="sec-head"><span class="sec-num">0</span><h2>Decide the Drive setup before anything else</h2></div>
 
     <p class="lede">
-      Google Drive was chosen for storage. Most of it works. <strong>One part does
-      not, and it is Google's documented product behaviour</strong>, not a limit
-      anyone can raise.
+      One decision shapes §5 and cannot be fixed later by configuration: <strong>who
+      owns the recordings</strong>. Google's own words:
     </p>
 
     <blockquote>
@@ -534,129 +520,52 @@
       <cite>Google Drive API docs</cite>
     </blockquote>
 
-    <p>And the escape hatch that would normally fix it is paid:</p>
-
-    <blockquote>
-      Personal Google Accounts (@gmail.com) cannot create shared drives.
-      <cite>Same source</cite>
-    </blockquote>
+    <p>So there are two workable setups, and they are not equally good.</p>
 
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Path</th><th>Personal account</th><th>Workspace with Shared Drives</th></tr></thead>
+        <thead><tr><th></th><th>A · Service account + Shared Drive</th><th>B · A person's OAuth grant</th></tr></thead>
         <tbody>
-          <tr><td>Service account + its own quota</td><td class="yes">No</td><td class="yes">No — same limitation</td></tr>
-          <tr><td>Service account + Shared Drive</td><td class="yes">No</td><td>Yes, but needs an auth path this adapter does not have yet</td></tr>
-          <tr><td><strong>OAuth as a human, into a Shared Drive</strong></td><td class="yes">No</td><td class="no"><strong>Yes — the recommended setup</strong></td></tr>
-          <tr><td>OAuth as a human, into My Drive</td><td class="no">Yes</td><td>works, but don't — the option with all the problems</td></tr>
+          <tr><td>Needs</td><td>Workspace with Shared Drives</td><td>any Google account</td></tr>
+          <tr><td>Who owns the recordings</td><td><strong>the organisation</strong></td><td>a named employee (unless they upload into a shared drive)</td></tr>
+          <tr><td>If that person leaves</td><td class="no">nothing happens</td><td class="yes">audio leaves with them</td></tr>
+          <tr><td>Storage pool</td><td>org pooled quota (2 TB+ on Business Standard)</td><td>their personal 15 GB, <strong>shared with Gmail</strong></td></tr>
+          <tr><td>Can it break by itself?</td><td class="no">no human can revoke it</td><td class="yes">they can revoke the grant</td></tr>
+          <tr><td>Setup effort</td><td>~10 min, §5A</td><td>~10 min, §5B</td></tr>
         </tbody>
       </table>
     </div>
-
-    <h3>If the company Workspace has Shared Drives, use one</h3>
 
     <div class="note done">
-      <span class="note-label">The plan question is already settled</span>
+      <span class="note-label">How to tell which you have, in five seconds</span>
       <p>
-        A Drive page showing a <strong>"Create a shared drive"</strong> button
-        settles it: Shared Drives need <strong>Business Standard or above</strong>,
-        and Business Starter does not have them. If the button is there, the plan is
-        eligible.
-      </p>
-    </div>
-
-    <p>
-      This removes most of the ownership problem, and it needs <strong>no code
-      change — only a different folder id</strong>. Files in a Shared Drive are owned
-      by the <em>shared drive itself</em> rather than by whoever uploaded them, and
-      they consume the organisation's <strong>pooled</strong> storage instead of one
-      person's 15&nbsp;GB.
-    </p>
-
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th></th><th>My Drive</th><th>Shared Drive</th></tr></thead>
-        <tbody>
-          <tr><td>Who owns the recordings</td><td>a named employee</td><td><strong>the organisation</strong></td></tr>
-          <tr><td>If that person leaves</td><td class="yes">audio leaves with them</td><td class="no">audio stays</td></tr>
-          <tr><td>Storage pool</td><td>their personal 15 GB, shared with Gmail</td><td>the org's pooled quota (2 TB+ on Business Standard)</td></tr>
-          <tr><td>Filling it up</td><td class="yes">also stops their email arriving</td><td>an org-level capacity question</td></tr>
-          <tr><td>Admin visibility and recovery</td><td class="yes">none — it is a personal account</td><td>Workspace admin controls and audit</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <p>
-      Point <code>GOOGLE_DRIVE_FOLDER_ID</code> at a folder <strong>inside the shared
-      drive</strong> and that is the whole change.
-    </p>
-
-    <div class="note warn">
-      <span class="note-label">What a Shared Drive does not fix</span>
-      <p>
-        The refresh token still belongs to a human, so that person can still revoke
-        access and break uploads — but that is now an <em>availability</em> problem
-        rather than a data-ownership one. Removing the human entirely means a
-        <strong>service account added as a member of the shared drive</strong>, which
-        is genuinely supported here and is the right end state — but the adapter
-        authenticates with a refresh token only, so that is a <strong>code change,
-        not a config change</strong>. It is not built. Ask for it before Stage 2 if
-        you want it.
+        Open Drive and look at the left sidebar. <strong>If "Shared drives" is
+        there</strong> — with a "Create a shared drive" button — the account is on
+        Business Standard or above, and <strong>Setup A is available. Use it.</strong>
+        Business Starter has no Shared drives at all, so its absence means Setup B.
       </p>
     </div>
 
     <div class="note stop">
-      <span class="note-label">Unchanged at every tier, Workspace included</span>
+      <span class="note-label">Unchanged by either setup, and by every paid tier</span>
       <p>
-        Drive still has <strong>no presigned GET</strong>, so playback stays proxied
-        through the API; and <strong>no lifecycle rules</strong>, so retention keeps
-        only the Celery purge. These are Drive limitations, not free-tier
-        limitations, and no plan removes them.
+        Drive has <strong>no presigned GET</strong>, so audio playback is proxied
+        through the API rather than served straight from storage — PHI bytes cross
+        the application server on the way out. And Drive has <strong>no lifecycle
+        rules</strong>, so expired audio is deleted only by the Celery purge, which
+        runs only while your always-on machine is on. Neither is a free-tier
+        limitation and no plan removes them.
       </p>
     </div>
 
-    <h3>If it turns out to be a personal account after all</h3>
-
-    <div class="note stop">
-      <span class="note-label">Governance, not a technical detail</span>
+    <div class="note">
+      <span class="note-label">Worth raising once, then dropping</span>
       <p>
-        Then OAuth-as-a-human into My Drive is the only path, and the recordings live
-        in one employee's Google account. If they leave, hit their quota, or revoke
-        access, <strong>the audio goes with them</strong> — and Gmail shares the same
-        15&nbsp;GB, so filling Drive with audio also stops that person receiving
-        email. State this to your supervisor rather than absorbing it.
-      </p>
-    </div>
-
-    <h3>Two further Drive limits worth knowing before the engineer starts</h3>
-
-    <ul class="tasks">
-      <li><span class="task-text">
-        <strong>Uploads stay direct-to-storage.</strong> Drive's resumable session
-        URI can be <code>PUT</code> to by a browser with no credentials, so the API
-        still never sees audio bytes on the way <em>in</em>.
-        ⚠️ But that URI lives <strong>one week with no configurable expiry</strong>,
-        where our S3 presigned <code>PUT</code>s live minutes. It is a much
-        longer-lived credential.
-      </span></li>
-      <li><span class="task-text">
-        <strong>Downloads cannot stay direct.</strong> Drive has <strong>no
-        presigned GET</strong> — the only options are an OAuth-authenticated API
-        call, or sharing the file with "anyone with the link", which for PHI is
-        unacceptable. So playback is <strong>proxied through the API</strong>, and
-        <code>Cache-Control: no-store</code> becomes something a route sets by hand
-        rather than something storage guarantees.
-      </span></li>
-    </ul>
-
-    <div class="note plain">
-      <span class="note-label">If the engineer will reconsider once</span>
-      <p>
-        <strong>Cloudflare R2 is S3-compatible</strong>, so it is four environment
-        variables and <em>zero</em> code: 10&nbsp;GB free with free egress, uploads
-        <em>and</em> downloads stay direct, and <code>no-store</code> survives. Drive
-        was ~2 days of adapter work plus the ownership problem above. Same $0. Raise
-        it once — and if the answer is still Drive, this runbook works.
+        <strong>Cloudflare R2 is S3-compatible</strong>: four environment variables,
+        <em>zero</em> code, 10 GB free with free egress, uploads <em>and</em>
+        downloads stay direct, and <code>Cache-Control: no-store</code> survives.
+        Drive cost about two days of adapter work. Same $0. If the answer is still
+        Drive, this runbook works.
       </p>
     </div>
   </section>
@@ -668,12 +577,12 @@
       <table>
         <thead><tr><th>Piece</th><th>Service</th><th>Free tier</th><th>Notes</th></tr></thead>
         <tbody>
-          <tr><td>Frontend</td><td><strong>Netlify</strong></td><td class="num">300 credits/mo (~15 GB)</td><td>Engineer's account. Part&nbsp;3.</td></tr>
+          <tr><td>Frontend</td><td><strong>Netlify</strong></td><td class="num">300 credits/mo (~15 GB)</td><td>Engineer's account. Part 3.</td></tr>
           <tr><td>API</td><td><strong>Render</strong> web service</td><td class="num">750 instance-hrs/mo · 0.1 CPU / 512 MB</td><td>Sleeps after 15 min idle</td></tr>
-          <tr><td>Worker + Beat</td><td><strong>your own always-on machine</strong></td><td class="num">free</td><td>No free host exists. See §5.</td></tr>
-          <tr><td>Postgres</td><td><strong>Neon</strong></td><td class="num">512 MB, scale-to-zero</td><td>Demo-scale only — see §7</td></tr>
+          <tr><td>Worker + Beat</td><td><strong>your own always-on machine</strong></td><td class="num">free</td><td>No free host exists. §6.</td></tr>
+          <tr><td>Postgres</td><td><strong>Neon</strong></td><td class="num">512 MB, scale-to-zero</td><td>Demo-scale only — §8</td></tr>
           <tr><td>Redis</td><td><strong>Upstash</strong></td><td class="num">500 K commands/mo</td><td>⚠️ Must raise the poll timeout</td></tr>
-          <tr><td>Audio</td><td><strong>Google Drive</strong></td><td class="num">15 GB, shared with Gmail</td><td>Needs the adapter in §2</td></tr>
+          <tr><td>Audio</td><td><strong>Google Drive</strong></td><td class="num">org pooled, or 15 GB personal</td><td>§0 and §5</td></tr>
           <tr><td>ASR + notes</td><td><strong>Groq</strong></td><td class="num">free tier</td><td>Cannot carry a full consult</td></tr>
         </tbody>
       </table>
@@ -682,32 +591,32 @@
 
   <!-- ══ 2 ══ -->
   <section>
-    <div class="sec-head"><span class="sec-num">2</span><h2>Code work — done, except what needs real credentials</h2></div>
+    <div class="sec-head"><span class="sec-num">2</span><h2>Code status — done, except what needs real credentials</h2></div>
 
     <div class="note done">
       <span class="note-label">Merged</span>
       <p>
-        The Drive adapter is written, tested and merged. <code>STORAGE_BACKEND=drive</code>
-        selects it; <code>s3</code> — still the default — is untouched.
+        Nothing in this runbook is waiting on code. <code>STORAGE_BACKEND=drive</code>
+        selects the Drive backend; <code>s3</code> — still the default — is untouched,
+        so Stage 1 runs on an unconfigured default and works.
       </p>
     </div>
 
-    <h3>What the deployment actually needs it for</h3>
+    <h3>Which steps actually need Drive</h3>
 
     <p>
-      Worth being precise, because most of this runbook does <strong>not</strong>
-      depend on storage at all. Deploy in the order this table implies and you get
-      a working, checkable app before any Google credential exists.
+      Most of this runbook does not touch storage. Do Stage 1 first and you get a
+      working, checkable app before any Google credential exists.
     </p>
 
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Step</th><th>Needs the adapter?</th></tr></thead>
+        <thead><tr><th>Step</th><th>Needs Drive?</th></tr></thead>
         <tbody>
           <tr><td>Netlify build, rewrite, SPA fallback (§3)</td><td class="no">No</td></tr>
-          <tr><td>Render deploy, <code>$PORT</code>, boot guard (§5)</td><td class="no">No</td></tr>
-          <tr><td>Neon connect + migrations (§5)</td><td class="no">No</td></tr>
-          <tr><td>Login, worklist, patient search, note review (§6)</td><td class="no">No</td></tr>
+          <tr><td>Accounts, Neon, Upstash, Groq (§4)</td><td class="no">No</td></tr>
+          <tr><td>Render deploy, migrations, seed, worker (§6)</td><td class="no">No</td></tr>
+          <tr><td>Login, worklist, patient search, note review (§7)</td><td class="no">No</td></tr>
           <tr><td>Grounding <em>highlights</em> — the transcript half</td><td class="no">No</td></tr>
           <tr><td><strong>Recording → upload → transcription</strong></td><td class="yes">Yes</td></tr>
           <tr><td><strong>Audio playback in grounding</strong></td><td class="yes">Yes</td></tr>
@@ -718,129 +627,53 @@
 
     <h3>What shipped</h3>
 
-    <ul class="tasks">
-      <li class="shipped"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <strong>Google Drive storage adapter</strong> — <code>app/services/storage_drive.py</code>,
-        selected by <code>STORAGE_BACKEND</code>. <code>storage.py</code> became a
-        dispatcher and the S3 code moved verbatim to <code>storage_s3.py</code>, so
-        no call site changed and the existing tests kept working. 20 tests cover the
-        protocol translation.
-      </span></li>
-      <li class="shipped"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <strong>Proxied playback route</strong> — <code>GET /encounters/{id}/audio</code>,
-        which the audio-url endpoint now falls back to automatically when the backend
-        cannot presign. Honours <code>Range</code> (so the grounding UI still plays
-        one passage rather than pulling a whole consultation through a 0.1-CPU
-        instance), sets <code>Cache-Control: no-store</code> by hand, and runs the
-        <em>same</em> audio-state check — so a withdrawn recording is refused with
-        the same words on either backend.
-      </span></li>
-      <li class="shipped"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <strong>Client chunks to the size the server reports</strong> rather than
-        assuming S3's 5 MiB floor, sends <code>Content-Range</code>, and treats
-        Drive's <strong><code>308 Resume Incomplete</code> as success</strong>. That
-        last one mattered: the client checked <code>response.ok</code>, which is
-        false for 308, so <em>every</em> multi-part Drive upload would have failed at
-        the first chunk.
-      </span></li>
-      <li class="shipped"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <strong><code>audio_upload_id</code> widened 128 → 512</strong> (migration
-        <code>c7e8f9a0b1d2</code>). Drive stores the whole resumable session URI
-        there, and a truncated one fails at the first chunk with an error naming
-        nothing.
-      </span></li>
-    </ul>
-
-    <h3>The protocol translation</h3>
-
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Function</th><th>Drive equivalent</th></tr></thead>
-        <tbody>
-          <tr><td><code>build_audio_object_key</code></td><td>a filename + parent folder id</td></tr>
-          <tr><td><code>create_multipart_upload</code></td><td><code>POST uploadType=resumable</code> → session URI</td></tr>
-          <tr><td><code>presign_part_upload</code></td><td>return the session URI (browser PUTs with <code>Content-Range</code>)</td></tr>
-          <tr><td><code>list_uploaded_parts</code></td><td>empty <code>PUT</code> with <code>Content-Range: */size</code> → <code>308</code> + <code>Range</code></td></tr>
-          <tr><td><code>complete_multipart_upload</code></td><td>the final chunk completes it; verify with <code>files.get</code></td></tr>
-          <tr><td><code>abort_multipart_upload</code></td><td><code>DELETE</code> the session URI</td></tr>
-          <tr><td><code>head_object</code></td><td><code>files.get?fields=id,size</code></td></tr>
-          <tr><td><code>download_object</code></td><td><code>files.get?alt=media</code> (server-side, for ASR)</td></tr>
-          <tr><td><code>delete_object</code></td><td><code>files.delete</code> — not trash, which would leave a withdrawn patient's recording recoverable for 30 days</td></tr>
-          <tr><td><code>presign_audio_playback</code></td><td class="yes">impossible — raises, and the proxy route above takes over</td></tr>
-          <tr><td><code>ensure_bucket_configured</code></td><td>create/verify the folder; no lifecycle rules exist</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <h3>CORS on Google's upload host — verified empirically</h3>
-
-    <p>
-      The preflight reflects an arbitrary <code>Origin</code>, allows <code>PUT</code>,
-      and allows the <code>content-range</code> header, so the browser really can
-      upload direct. <strong>Google documents none of this</strong>, so it was tested
-      before any code was written rather than assumed:
-    </p>
-
-<pre><code>Access-Control-Allow-Origin:  https://example.netlify.app
-Access-Control-Allow-Methods: DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT
-Access-Control-Allow-Headers: content-range</code></pre>
-
-    <div class="note warn">
-      <span class="note-label">Don't let anyone "simplify" this</span>
-      <p>
-        Note what is <em>absent</em>: no <code>Access-Control-Expose-Headers</code>,
-        so JavaScript cannot read the <code>Range</code> header off a 308. Resume
-        therefore flows through our own <code>GET /upload/parts</code> —
-        server-to-server, no CORS — exactly as it already did on S3. A client-side
-        read silently returns nothing.
-      </p>
-    </div>
-
-    <h3>Still open</h3>
-
-    <ul class="tasks">
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s2">Stage 2</span>
-        <strong>Store the OAuth refresh token</strong> for the human account, then set
-        <code>GOOGLE_DRIVE_CLIENT_ID</code>, <code>_SECRET</code>,
-        <code>_REFRESH_TOKEN</code> and <code>_FOLDER_ID</code>.
-      </span></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s2">Stage 2</span>
-        ⚠️ <strong>Accept that retention loses a layer, because it cannot be fixed in
-        code.</strong> Drive has no bucket lifecycle rules, so the storage-layer
-        backstop is gone and <em>only</em> the Celery purge deletes expired audio —
-        which runs only while your always-on machine is on.
-      </span></label></li>
+    <ul class="done-list">
+      <li class="shipped">
+        <span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span>
+        <div class="step-body"><p><strong>Drive storage adapter</strong> behind a dispatcher — <code>storage_drive.py</code>, selected by <code>STORAGE_BACKEND</code>, with the S3 code moved verbatim to <code>storage_s3.py</code>. No call site changed.</p></div>
+      </li>
+      <li class="shipped">
+        <span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span>
+        <div class="step-body"><p><strong>Both auth grants</strong> — a service account (JWT bearer, preferred when set) and a human refresh token. Setup A and Setup B are a configuration choice, not a code change.</p></div>
+      </li>
+      <li class="shipped">
+        <span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span>
+        <div class="step-body"><p><strong>Proxied playback</strong> — <code>GET /encounters/{id}/audio</code>, used automatically when the backend cannot presign. Honours <code>Range</code>, sets <code>Cache-Control: no-store</code>, and runs the same audio-state check, so a withdrawn recording is refused identically on either backend.</p></div>
+      </li>
+      <li class="shipped">
+        <span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span>
+        <div class="step-body"><p><strong>Shared-drive visibility</strong> — every Drive call opts in, including the file lookup that needs <em>two</em> flags. Without them Drive answers <code>200</code> with an empty list, so a shared drive reads as empty: playback would report every recording missing, and a consent withdrawal would report success having deleted nothing.</p></div>
+      </li>
+      <li class="shipped">
+        <span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span>
+        <div class="step-body"><p><strong>Client sends <code>Content-Range</code> and accepts <code>308</code></strong>, chunking to the size the server reports rather than assuming S3's 5 MiB floor. <code>308 Resume Incomplete</code> is not <code>response.ok</code>, so without this every multi-part Drive upload failed at the first chunk.</p></div>
+      </li>
     </ul>
 
     <h3>Unverified, because it needs real credentials</h3>
 
-    <p>
-      The adapter is tested against a stubbed Drive. These need a real account, and
-      are the <strong>first</strong> things to check once credentials exist.
-    </p>
+    <p>The adapter is tested against a stubbed Drive. Check these first once §5 is done.</p>
 
-    <ul class="tasks">
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s2">Stage 2</span>
-        A browser really can <code>PUT</code> a chunk to a live session URI. The CORS
-        preflight says yes; an actual upload proves it.
-      </span></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s2">Stage 2</span>
-        <code>Range</code> really works through the playback proxy end to end — click
-        a note line, hear <em>that passage</em>, not the whole consultation.
-      </span></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s2">Stage 2</span>
-        A resumed upload after a dropped connection skips the right chunks.
-      </span></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s2">Stage 2</span>
-        The 15 GB fills as expected, and Gmail is in the same quota.
-      </span></label></li>
-    </ul>
+    <ol class="steps">
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s2">Stage 2</span>A browser really can PUT to a live session URI</p>
+        <p>The CORS preflight says yes; an actual upload proves it.</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s2">Stage 2</span><code>Range</code> works end to end through the playback proxy</p>
+        <p>Click a note line and hear <em>that passage</em>, not the whole consultation.</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s2">Stage 2</span>A resumed upload skips the right chunks</p>
+        <p>Kill the network mid-upload, restore it, confirm the recording completes intact.</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s2">Stage 2</span>Deletion really deletes</p>
+        <p>Withdraw consent on a test encounter, then look in Drive. The file must be
+        gone — <strong>not in Trash</strong>. This is the one that silently fails if
+        the service account has the wrong shared-drive role.</p>
+      </div></label></li>
+    </ol>
   </section>
 
   <!-- ══ 3 — the hand-over ══ -->
@@ -851,7 +684,7 @@ Access-Control-Allow-Headers: content-range</code></pre>
       </div>
       <p>
         Hand this part over whole. You are deploying <strong>only the frontend</strong>:
-        a static Vite/React bundle. The backend runs elsewhere, and you do not need
+        a static Vite/React bundle. The backend runs elsewhere and you need none of
         its credentials.
       </p>
     </div>
@@ -860,85 +693,69 @@ Access-Control-Allow-Headers: content-range</code></pre>
       <div class="note done">
         <span class="note-label">Already in the repo</span>
         <p>
-          <code>apps/web/netlify.toml</code> carries the base directory, build
-          command, publish directory, Node version, the environment variable, both
-          rewrites in the order that matters, and the headers.
-          <strong>Exactly one line needs editing.</strong>
+          <code>apps/web/netlify.toml</code> carries the base directory, build command,
+          publish directory, Node version, the environment variable, both rewrites in
+          the order that matters, and the headers. <strong>One line needs
+          editing.</strong>
         </p>
       </div>
 
-      <ul class="tasks">
-        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-          <span class="chip eng">Engineer</span>
-          <strong>Edit that one line.</strong> In <code>apps/web/netlify.toml</code>,
-          replace <code>REPLACE-ME</code> with your Render hostname.
+      <ol class="steps">
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+          <p class="step-title"><span class="chip eng">Engineer</span>Get the Render hostname from whoever owns the backend</p>
+          <p>It looks like <code>remedy-api.onrender.com</code>. You cannot finish step 2 without it, and nothing else in this part depends on it.</p>
+        </div></label></li>
+
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+          <p class="step-title"><span class="chip eng">Engineer</span>Edit one line in <code>apps/web/netlify.toml</code></p>
+          <span class="where">In the repo</span>
+          <p>Replace <code>REPLACE-ME</code> with that hostname.</p>
 <pre><code>[[redirects]]
   from   = "/api/*"
   to     = "https://&lt;render-service&gt;.onrender.com/api/:splat"
   status = 200          # 200, not 301 — a rewrite, not a redirect
   force  = true</code></pre>
-          A <code>200</code> rewrite keeps the URL in the address bar and fetches
-          behind the scenes, so the API is <strong>same-origin</strong>. That is
-          deliberate: no CORS, and the session cookie keeps
-          <code>SameSite=lax</code> instead of being weakened to <code>None</code>.
-        </span></label></li>
+          <p>A <code>200</code> rewrite keeps the URL in the address bar and fetches behind the scenes, so the API is <strong>same-origin</strong>: no CORS, and the session cookie keeps <code>SameSite=lax</code> instead of being weakened to <code>None</code>.</p>
+        </div></label></li>
 
-        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-          <span class="chip eng">Engineer</span>
-          <strong>Point Netlify at it.</strong> Set <strong>Base directory</strong> to
-          <code>apps/web</code> and Netlify reads the file. Confirm the build log
-          shows <code>npm run build</code> and a publish directory of
-          <code>apps/web/dist</code>.
-        </span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+          <p class="step-title"><span class="chip eng">Engineer</span>Create the Netlify site from the repo</p>
+          <span class="where">Netlify → Add new site → Import an existing project</span>
+          <p>Set <strong>Base directory</strong> to <code>apps/web</code>. Everything else comes from the file.</p>
+          <p class="expect"><b>You should see</b> a build log running <code>npm run build</code>, publishing <code>apps/web/dist</code>, on Node 20.</p>
+        </div></label></li>
 
-        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-          <span class="chip eng">Engineer</span>
-          ⚠️ <strong>Do not set <code>VITE_API_BASE_URL</code> in the Netlify UI.</strong>
-          The file already sets it to <code>/</code>, and a UI value
-          <strong>overrides</strong> the file. Pointing it at the Render hostname is
-          the tempting mistake and the wrong one: it makes the API cross-site, which
-          forces <code>SameSite=None</code> on the refresh cookie and puts CORS back
-          on the critical path. Vite also inlines it at <strong>build</strong> time,
-          so changing it later needs a <strong>rebuild</strong>, not a redeploy.
-        </span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+          <p class="step-title"><span class="chip eng">Engineer</span>Do <em>not</em> add <code>VITE_API_BASE_URL</code> in the Netlify UI</p>
+          <span class="where">Site configuration → Environment variables</span>
+          <p>The file already sets it to <code>/</code>, and a UI value <strong>overrides the file</strong>. Pointing it at the Render hostname is the tempting mistake and the wrong one: it makes the API cross-site, forcing <code>SameSite=None</code> on the refresh cookie and putting CORS back on the critical path. Vite inlines it at <strong>build</strong> time, so a change needs a <strong>rebuild</strong>, not a redeploy.</p>
+          <p class="expect"><b>You should see</b> no <code>VITE_</code> variables listed at all.</p>
+        </div></label></li>
 
-        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-          <span class="chip eng">Engineer</span>
-          ⚠️ <strong>Set up an uptime pinger, and treat it as required rather than
-          optional.</strong> Netlify's proxy times out after <strong>26
-          seconds</strong>; a spun-down Render free service takes about
-          <strong>60 seconds</strong> to wake. So the first request after 15 quiet
-          minutes <em>fails</em> rather than being slow. Point any free pinger
-          (UptimeRobot, cron-job.org) at
-          <code>https://&lt;render-service&gt;.onrender.com/health</code> every
-          <strong>10 minutes</strong>. A 31-day month awake is 744 hours against
-          Render's 750 — it fits, but only for <strong>one</strong> free web service,
-          so don't add a second.
-        </span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+          <p class="step-title"><span class="chip eng">Engineer</span>Set up an uptime pinger — required, not optional</p>
+          <span class="where">UptimeRobot, cron-job.org, anything free</span>
+          <p>Ping <code>https://&lt;render-service&gt;.onrender.com/health</code> every <strong>10 minutes</strong>. Netlify's proxy times out at <strong>26 seconds</strong> and a spun-down Render service takes about <strong>60</strong> to wake, so the first request after 15 quiet minutes <em>fails</em> rather than being slow.</p>
+          <p class="expect"><b>Note</b> a 31-day month awake is 744 hours against Render's 750. It fits, but only for <strong>one</strong> free web service — don't add a second.</p>
+        </div></label></li>
 
-        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-          <span class="chip eng">Engineer</span>
-          <strong>Note the deploy is public.</strong> The app requires login, but the
-          bundle is world-readable. Add Netlify password protection or keep the URL
-          unadvertised.
-        </span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+          <p class="step-title"><span class="chip eng">Engineer</span>Restrict who can reach the site</p>
+          <p>The app requires login, but the bundle is world-readable. Add Netlify password protection, or keep the URL unadvertised.</p>
+        </div></label></li>
 
-        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-          <span class="chip eng">Engineer</span>
-          <strong>Confirm the SPA fallback works</strong> — a hard refresh on a deep
-          link like <code>/notes/&lt;id&gt;</code> must serve <code>index.html</code>
-          rather than 404. The rule is already in the file, <em>after</em> the
-          <code>/api/*</code> one, because first match wins.
-        </span></label></li>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+          <p class="step-title"><span class="chip eng">Engineer</span>Check a deep link survives a hard refresh</p>
+          <p>Open <code>https://&lt;site&gt;/notes/anything</code> and reload.</p>
+          <p class="expect"><b>You should see</b> the app, not a 404. The SPA fallback is already in the file, <em>after</em> the <code>/api/*</code> rule — first match wins, so order matters.</p>
+        </div></label></li>
 
-        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-          <span class="chip eng">Engineer</span>
-          <strong>Send back two things:</strong> the Netlify site URL (needed for the
-          backend's CORS list even with the proxy), and confirmation that
-          <code>https://&lt;site&gt;/api/v1/../health</code> returns
-          <code>{"status":"ok"}</code> <em>through the rewrite</em>.
-        </span></label></li>
-      </ul>
+        <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+          <p class="step-title"><span class="chip eng">Engineer</span>Send two things back</p>
+          <p>The <strong>Netlify site URL</strong> (needed for the backend's CORS list even with the proxy), and confirmation that <code>https://&lt;site&gt;/api/v1/../health</code> answers <em>through the rewrite</em>.</p>
+          <p class="expect"><b>You should see</b> <code>{"status":"ok"}</code>.</p>
+        </div></label></li>
+      </ol>
     </div>
   </div>
 
@@ -946,75 +763,47 @@ Access-Control-Allow-Headers: content-range</code></pre>
   <section>
     <div class="sec-head"><span class="sec-num">4</span><h2>Accounts and secrets</h2></div>
 
-    <ul class="tasks">
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s1">Stage 1</span> <span class="chip you">You</span>
-        <strong>Neon</strong> — create a project, copy the <em>pooled</em> connection
-        string, append <code>?sslmode=require</code>.
-      </span></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s1">Stage 1</span> <span class="chip you">You</span>
-        <strong>Upstash Redis</strong> — create a database, copy the
-        <strong><code>rediss://</code> TCP</strong> URL. ⚠️ <strong>Not</strong> the
-        REST URL: Celery needs blocking <code>BRPOP</code>, which Upstash explicitly
-        does not support over REST.
-      </span></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s1">Stage 1</span> <span class="chip you">You</span>
-        <strong>Groq</strong> — API key.
-      </span></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s2">Stage 2</span> <span class="chip you">You</span>
-        <strong>Google Cloud project</strong> — enable the Drive API, create an
-        <strong>OAuth client (Web application)</strong>, and complete the consent flow
-        <strong>once</strong> as the human whose Drive will hold the audio. Store the
-        refresh token.
-      </span></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s2">Stage 2</span> <span class="chip you">You</span>
-        <strong>If the company Workspace has Shared Drives (§0), create one</strong>
-        and a folder inside it for the audio, then use <em>that folder's</em> id as
-        <code>GOOGLE_DRIVE_FOLDER_ID</code>. ⚠️ The human doing the OAuth consent must
-        be a <strong>member</strong> of that shared drive with at least Contributor
-        access, or uploads 404 with nothing useful in the message.
-      </span></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s1">Stage 1</span> <span class="chip you">You</span>
-        <strong>Generate a fresh PHI key</strong> and keep it somewhere it cannot be
-        casually deleted.
-<pre><code>python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"</code></pre>
-      </span></label></li>
-    </ul>
+    <ol class="steps">
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Create the Neon project</p>
+        <span class="where">neon.tech → New project</span>
+        <p>Copy the <strong>pooled</strong> connection string and append <code>?sslmode=require</code>.</p>
+        <p class="expect"><b>You should see</b> a string starting <code>postgresql://</code> and containing <code>-pooler</code>.</p>
+      </div></label></li>
 
-    <div class="note stop">
-      <span class="note-label">There is no reset</span>
-      <p>
-        <strong>Lose the PHI key and every note, name and transcript is
-        unrecoverable.</strong> Back it up before the first real recording.
-      </p>
-    </div>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Create the Upstash Redis database</p>
+        <span class="where">upstash.com → Redis → Create database</span>
+        <p>Copy the <strong><code>rediss://</code> TCP</strong> URL.</p>
+        <p class="expect bad"><b>Not this</b> the REST URL. Celery needs blocking <code>BRPOP</code>, which Upstash explicitly does not support over REST — and the failure is a worker that connects and never receives a job.</p>
+      </div></label></li>
+
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Get a Groq API key</p>
+        <span class="where">console.groq.com → API Keys</span>
+      </div></label></li>
+
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Generate the PHI encryption key</p>
+<pre><code>python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"</code></pre>
+        <p class="expect bad"><b>Back this up first</b> Lose it and every note, name and transcript is unrecoverable. There is no reset, and no support path.</p>
+      </div></label></li>
+
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Generate a JWT secret</p>
+<pre><code>python -c "import secrets; print(secrets.token_urlsafe(48))"</code></pre>
+        <p>Different from the PHI key. This one can be rotated freely — it only logs people out.</p>
+      </div></label></li>
+    </ol>
 
     <h3>Deploy in two stages, and not the other way round</h3>
 
-    <p>
-      The storage backend gates only the recording loop, so this order gives you a
-      working, checkable app before Drive credentials exist.
-    </p>
-
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Stage</th><th>Do</th><th>You can then verify</th></tr></thead>
+        <thead><tr><th>Stage</th><th>Do</th><th>Then verify</th></tr></thead>
         <tbody>
-          <tr>
-            <td><span class="chip s1">Stage 1</span></td>
-            <td>Deploy with <code>STORAGE_BACKEND</code> left unset (defaults to <code>s3</code>) and no S3 configured.</td>
-            <td>All of §3, all of §5, and §6's first six checks.</td>
-          </tr>
-          <tr>
-            <td><span class="chip s2">Stage 2</span></td>
-            <td>Add Drive credentials, flip to <code>STORAGE_BACKEND=drive</code>.</td>
-            <td>The recording loop, and §2's unverified list.</td>
-          </tr>
+          <tr><td><span class="chip s1">Stage 1</span></td><td>Deploy with <code>STORAGE_BACKEND</code> unset (defaults to <code>s3</code>) and no S3 configured.</td><td>All of §3, all of §6, and §7's first six checks.</td></tr>
+          <tr><td><span class="chip s2">Stage 2</span></td><td>Do §5, then set <code>STORAGE_BACKEND=drive</code> and redeploy.</td><td>The recording loop, and §2's unverified list.</td></tr>
         </tbody>
       </table>
     </div>
@@ -1024,23 +813,157 @@ Access-Control-Allow-Headers: content-range</code></pre>
       <p>
         Doing both at once makes a Drive problem and a Netlify problem
         indistinguishable on the first deploy — they produce similarly vague
-        symptoms, and you would be debugging two unknowns against each other.
+        symptoms, and you end up debugging two unknowns against each other.
+      </p>
+    </div>
+  </section>
+
+  <!-- ══ 5 ══ -->
+  <section>
+    <div class="sec-head"><span class="sec-num">5</span><h2>Google Drive — pick Setup A or Setup B</h2></div>
+    <p class="lede">
+      From §0: <strong>A</strong> if the account has Shared drives, <strong>B</strong>
+      otherwise. Do one, not both.
+    </p>
+
+    <h3>Setup A · Service account + Shared Drive <span class="chip s2">Stage 2</span></h3>
+
+    <p>
+      Roughly ten minutes, and it takes every human out of the loop: nobody owns the
+      recordings personally, and nobody can revoke the grant.
+    </p>
+
+    <ol class="steps">
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Create or pick a Google Cloud project</p>
+        <span class="where">console.cloud.google.com → project picker → New Project</span>
+        <p>Name it something a stranger would recognise a year from now, e.g. <code>remedy-scribe</code>.</p>
+      </div></label></li>
+
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Enable the Google Drive API</p>
+        <span class="where">APIs &amp; Services → Library → search "Google Drive API" → Enable</span>
+        <p class="expect"><b>You should see</b> the Drive API listed under "Enabled APIs &amp; services".</p>
+      </div></label></li>
+
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Create the service account</p>
+        <span class="where">IAM &amp; Admin → Service Accounts → Create service account</span>
+        <p>Name it <code>remedy-scribe-storage</code>. <strong>Skip the "Grant this service account access to project" step entirely</strong> — it needs no IAM role. Its access to Drive comes from shared-drive membership in step 6, not from IAM, and adding project roles here grants nothing useful while widening the blast radius if the key leaks.</p>
+        <p class="expect"><b>You should see</b> an address like <code>remedy-scribe-storage@remedy-scribe.iam.gserviceaccount.com</code>. Copy it — step 6 needs it.</p>
+      </div></label></li>
+
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Create a JSON key for it</p>
+        <span class="where">The service account → Keys → Add key → Create new key → JSON</span>
+        <p>A <code>.json</code> file downloads. <strong>This is a private key and Google keeps no copy</strong> — treat it exactly like the PHI key.</p>
+        <p class="expect"><b>You should see</b> a file containing <code>"client_email"</code> and <code>"private_key"</code>.</p>
+      </div></label></li>
+
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Create the Shared Drive</p>
+        <span class="where">Drive → Shared drives → Create a shared drive</span>
+        <p>Name it e.g. <code>Remedy Scribe</code>. This is the thing that will <em>own</em> the recordings.</p>
+      </div></label></li>
+
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Add the service account as a member — as <strong>Content manager</strong></p>
+        <span class="where">The shared drive → Manage members → paste the address from step 3</span>
+        <p>
+          ⚠️ <strong>The role matters and the wrong one fails silently in the worst
+          direction.</strong> A <em>Contributor</em> can upload but cannot delete, so
+          recording would work perfectly while consent withdrawal and the retention
+          purge quietly failed to remove anything. Content manager can delete. If a
+          deletion still returns 403, raise it to <em>Manager</em>.
+        </p>
+        <p class="expect"><b>You should see</b> the service account listed as a member. It never signs in and never appears "active" — that is normal.</p>
+      </div></label></li>
+
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Make a folder inside the shared drive and copy its id</p>
+        <p>Create e.g. <code>audio</code>, open it, and take the id from the URL:</p>
+<pre><code>https://drive.google.com/drive/folders/1AbC...XyZ
+                                        ^^^^^^^^^^ this part</code></pre>
+        <p class="expect bad"><b>Not the drive root</b> Use a folder <em>inside</em> the shared drive. A service account has no "My Drive" of its own, so an unset folder id has nowhere to write.</p>
+      </div></label></li>
+
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Set two environment variables on Render</p>
+<pre><code>GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON=&lt;the entire contents of the .json file&gt;
+GOOGLE_DRIVE_FOLDER_ID=1AbC...XyZ
+STORAGE_BACKEND=drive</code></pre>
+        <p>Paste the JSON whole, newlines and all — Render accepts multi-line values, and keeping it as issued means nobody has to pick fields out of it by hand. Leave the three <code>GOOGLE_DRIVE_CLIENT_*</code> / <code>_REFRESH_TOKEN</code> variables unset; if both are present the service account wins, but there is no reason to keep a human's grant lying around.</p>
+      </div></label></li>
+
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Delete the downloaded <code>.json</code> from your laptop</p>
+        <p>Once Render has it, the copy in Downloads is only a way to lose it. If you need it again, make a new key and delete the old one.</p>
+      </div></label></li>
+    </ol>
+
+    <h3>Setup B · A person's OAuth grant <span class="chip s2">Stage 2</span></h3>
+
+    <div class="note stop">
+      <span class="note-label">Governance, not a technical detail</span>
+      <p>
+        The recordings will live in one employee's Google account and be
+        <strong>owned by them</strong>. If they leave, hit their quota, or revoke
+        access, the audio goes with them — and Gmail shares the same 15 GB, so
+        filling Drive with audio also stops that person receiving email. State this
+        to your supervisor rather than absorbing it.
       </p>
     </div>
 
-    <h3>Environment variables for the Render service</h3>
+    <ol class="steps">
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Create a Cloud project and enable the Drive API</p>
+        <span class="where">console.cloud.google.com</span>
+        <p>Same as Setup A steps 1–2.</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Create an OAuth client</p>
+        <span class="where">APIs &amp; Services → Credentials → Create credentials → OAuth client ID → Web application</span>
+        <p>Note the client id and client secret.</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Complete the consent flow once, as the person whose Drive holds the audio</p>
+        <p>Request the scope <code>https://www.googleapis.com/auth/drive</code> and keep the <strong>refresh token</strong>.</p>
+        <p class="expect bad"><b>No helper script exists for this yet</b> It is the one step in this runbook without one. Ask if you want it built.</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Create a folder and copy its id</p>
+        <p>If the account <em>does</em> have shared drives, put the folder in one anyway — the files are then owned by the organisation even though a person authorised the app. It costs nothing and removes the worst of the problem above.</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Set four environment variables on Render</p>
+<pre><code>GOOGLE_DRIVE_CLIENT_ID=…
+GOOGLE_DRIVE_CLIENT_SECRET=…
+GOOGLE_DRIVE_REFRESH_TOKEN=…
+GOOGLE_DRIVE_FOLDER_ID=…
+STORAGE_BACKEND=drive</code></pre>
+      </div></label></li>
+    </ol>
+  </section>
 
-    <p>
-      The production boot guard <strong>refuses to start</strong> if any of these are
-      wrong, and prints every problem at once. A refused boot is the guard working.
-    </p>
+  <!-- ══ 6 ══ -->
+  <section>
+    <div class="sec-head"><span class="sec-num">6</span><h2>Deploy</h2></div>
 
+    <ol class="steps">
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Create the Render web service</p>
+        <span class="where">render.com → New → Web Service → from <code>apps/api/Dockerfile</code></span>
+        <p>The image honours <code>$PORT</code>, so no start-command override is needed.</p>
+      </div></label></li>
+
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Set the environment variables</p>
 <pre><code>ENVIRONMENT=production
 DATABASE_URL=postgresql+psycopg://…neon…?sslmode=require
 REDIS_URL=rediss://…upstash…:6379
-PHI_ENCRYPTION_KEY=&lt;the key you just generated — NOT the one in .env.example&gt;
-JWT_SECRET=&lt;fresh random, 32+ bytes&gt;
-REFRESH_COOKIE_SECURE=true            # guard refuses false in production
+PHI_ENCRYPTION_KEY=&lt;from §4 step 4 — NOT the one in .env.example&gt;
+JWT_SECRET=&lt;from §4 step 5&gt;
+REFRESH_COOKIE_SECURE=true            # the guard refuses false in production
 REFRESH_COOKIE_SAMESITE=lax           # 'lax' works *because* of the Netlify rewrite
 CORS_ALLOW_ORIGINS=https://&lt;site&gt;.netlify.app   # no localhost — the guard refuses it
 GROQ_API_KEY=…
@@ -1048,194 +971,127 @@ NOTE_GENERATOR_PROVIDER=groq
 S3_PROVISION_BUCKET_ON_STARTUP=false
 AUDIO_RETENTION_DAYS=90
 
-# Storage. Leave unset (defaults to "s3") for Stage 1.
-STORAGE_BACKEND=drive
-GOOGLE_DRIVE_CLIENT_ID=…
-GOOGLE_DRIVE_CLIENT_SECRET=…
-GOOGLE_DRIVE_REFRESH_TOKEN=…
-GOOGLE_DRIVE_FOLDER_ID=…        # a folder, not the account root — a human
-                                # will need to find these files one day</code></pre>
-  </section>
+# Stage 2 only — leave all of these unset for Stage 1.
+# STORAGE_BACKEND=drive
+# …plus whichever set §5 told you to use</code></pre>
+        <p class="expect"><b>If it refuses to boot</b> that is the guard working. It prints <em>every</em> problem at once rather than one per restart.</p>
+      </div></label></li>
 
-  <!-- ══ 5 ══ -->
-  <section>
-    <div class="sec-head"><span class="sec-num">5</span><h2>Deploy</h2></div>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Run the migrations yourself — never on boot</p>
+        <span class="where">Your machine, pointed at Neon</span>
+<pre><code>cd apps/api
+DATABASE_URL=&lt;neon-url&gt; .venv/Scripts/python -m alembic upgrade head</code></pre>
+        <p>Deliberate: three processes share this image, and migrating on boot means three of them racing for the same lock.</p>
+        <p class="expect"><b>You should see</b> Alembic running each revision, ending at <code>head</code>.</p>
+      </div></label></li>
 
-    <ul class="tasks">
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s1">Stage 1</span> <span class="chip you">You</span>
-        <strong>Render web service</strong>, from <code>apps/api/Dockerfile</code>.
-        The image honours <code>$PORT</code>, so no start-command override is needed.
-      </span></label></li>
-
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s1">Stage 1</span> <span class="chip you">You</span>
-        <strong>Run migrations as an explicit step — never on boot.</strong> From your
-        machine, pointed at the Neon URL:
-<pre><code>cd apps/api &amp;&amp; DATABASE_URL=&lt;neon-url&gt; .venv/Scripts/python -m alembic upgrade head</code></pre>
-        Deliberate: three processes share this image, and a migration on boot means
-        three racing for the same lock.
-      </span></label></li>
-
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s1">Stage 1</span> <span class="chip you">You</span>
-        <strong>Seed a demo account</strong> so someone can log in. It prints working
-        credentials, including a live TOTP code.
-<pre><code>REMEDY_ALLOW_SYNTHETIC_SEED=1 DATABASE_URL=&lt;neon-url&gt; \
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Seed a demo account</p>
+<pre><code>REMEDY_ALLOW_SYNTHETIC_SEED=1 ENVIRONMENT=staging DATABASE_URL=&lt;neon-url&gt; \
   .venv/Scripts/python scripts/seed_staging.py --yes</code></pre>
-        ⚠️ <code>ENVIRONMENT</code> must <strong>not</strong> be
-        <code>production</code> for this — the seed refuses to run against anything
-        that looks real. Run it with <code>ENVIRONMENT=staging</code>, <em>then</em>
-        set the Render service to <code>production</code>.
-      </span></label></li>
+        <p>⚠️ <code>ENVIRONMENT</code> must <strong>not</strong> be <code>production</code> here — the seed refuses to run against anything that looks real. Set Render to <code>production</code> <em>after</em> this.</p>
+        <p class="expect"><b>You should see</b> working credentials printed, including a live TOTP code.</p>
+      </div></label></li>
 
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s1">Stage 1</span> <span class="chip you">You</span>
-        <strong>Start the worker and beat on an always-on machine you control</strong>
-        — a clinic PC, a spare laptop, anything that stays on. There is no free hosted
-        option: Render's background workers and cron jobs are paid-only, Railway's free
-        credit is consumed in hours, and Fly retired its free tier. The worker needs
-        <strong>no inbound network</strong>, only outbound access to Neon, Upstash,
-        Drive and Groq.
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Start the Celery worker on an always-on machine</p>
+        <span class="where">A clinic PC, a spare laptop — anything that stays on</span>
+        <p>There is no free hosted option: Render's background workers and cron jobs are paid-only, Railway's free credit is consumed in hours, and Fly retired its free tier. The worker needs <strong>no inbound network</strong>, only outbound access to Neon, Upstash, Drive and Groq.</p>
 <pre><code>cd apps/api
 export DATABASE_URL=&lt;neon-url&gt; REDIS_URL=&lt;upstash-url&gt; GROQ_API_KEY=…
 export PHI_ENCRYPTION_KEY=&lt;the same key as Render&gt;
 
-# one terminal — the worker
 .venv/Scripts/python -m celery -A app.tasks.celery_app worker \
-  --loglevel=info --pool=solo
+  --loglevel=info --pool=solo \
+  --broker-transport-options '{"socket_timeout": 60, "brpop_timeout": 30}'</code></pre>
+        <p>⚠️ <strong>That <code>brpop_timeout</code> is not optional.</strong> Celery's default ~1-second blocking read produces about <strong>2,592,000 commands a month against Upstash's 500,000 — 5× over, with the worker completely idle.</strong> At 30 seconds it is about 86,000.</p>
+      </div></label></li>
 
-# another — beat. EXACTLY ONE of these, ever.
-.venv/Scripts/python -m celery -A app.tasks.celery_app beat --loglevel=info</code></pre>
-      </span></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Start Beat — exactly one, ever</p>
+<pre><code>.venv/Scripts/python -m celery -A app.tasks.celery_app beat --loglevel=info</code></pre>
+        <p class="expect bad"><b>Never two</b> Two Beat processes double-fire the retention purge, and <strong>that purge deletes patient data</strong>. Before restarting it, confirm the old one is actually dead.</p>
+      </div></label></li>
 
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s1">Stage 1</span> <span class="chip you">You</span>
-        ⚠️ <strong>Raise the Redis poll timeout, or Upstash's free tier dies in
-        days.</strong> Celery's default ~1-second blocking read produces about
-        <strong>2,592,000 commands a month against a 500,000 budget — 5× over, with
-        the worker completely idle.</strong> At a 30-second timeout it is about
-        86,000.
-<pre><code>--broker-transport-options '{"socket_timeout": 60, "brpop_timeout": 30}'</code></pre>
-        Check Upstash's dashboard an hour later: the command count should be growing
-        slowly, not by thousands.
-      </span></label></li>
-    </ul>
-
-    <div class="note stop">
-      <span class="note-label">Exactly one beat process, ever</span>
-      <p>
-        Two double-fire the retention purge, and <strong>that purge deletes patient
-        data</strong>. If you restart it, confirm the old one is dead first.
-      </p>
-    </div>
-  </section>
-
-  <!-- ══ 6 ══ -->
-  <section>
-    <div class="sec-head"><span class="sec-num">6</span><h2>Verify, in this order</h2></div>
-
-    <ul class="tasks">
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s1">Stage 1</span>
-        <code>https://&lt;render&gt;.onrender.com/health</code> →
-        <code>{"status":"ok"}</code>
-      </span></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s1">Stage 1</span>
-        <code>/ready</code> → <code>{"status":"ready"}</code> with both
-        <code>database</code> and <code>redis</code> <code>ok</code>. A 503 here
-        <em>names</em> which dependency is down.
-      </span></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s1">Stage 1</span>
-        <code>https://&lt;site&gt;.netlify.app/api/v1/../health</code> → the same,
-        <strong>through the rewrite</strong>. If this times out, the pinger isn't
-        working.
-      </span></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s1">Stage 1</span>
-        Log in on the Netlify URL with the seeded credentials.
-      </span></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s1">Stage 1</span>
-        <strong>Reload the page after logging in.</strong> Thrown back to the login
-        screen means the session cookie is not surviving — the rewrite isn't in front
-        of <code>/api/*</code>, or <code>VITE_API_BASE_URL</code> was overridden in
-        the Netlify UI and is not <code>/</code>.
-      </span></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s1">Stage 1</span>
-        Open a seeded note, click a line, confirm a transcript passage appears.
-      </span></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s2">Stage 2</span>
-        Record 20 seconds and watch the worker log:
-        <code>transcribe_encounter</code> → <code>generate_note</code>.
-      </span></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
-        <span class="chip s1">Stage 1</span>
-        Check the Upstash command counter an hour later (§5).
-      </span></label></li>
-    </ul>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Check the Upstash counter an hour later</p>
+        <span class="where">Upstash dashboard → your database → usage</span>
+        <p class="expect"><b>You should see</b> the command count growing slowly — dozens, not thousands. Thousands means step 5's transport options did not take.</p>
+      </div></label></li>
+    </ol>
   </section>
 
   <!-- ══ 7 ══ -->
   <section>
-    <div class="sec-head"><span class="sec-num">7</span><h2>What this deployment cannot do</h2></div>
+    <div class="sec-head"><span class="sec-num">7</span><h2>Verify, in this order</h2></div>
+    <p class="lede">Each one isolates a different failure. Going in order means the first thing that breaks tells you where the problem is.</p>
 
+    <ol class="steps">
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s1">Stage 1</span>The API is alive</p>
+        <p><code>https://&lt;render&gt;.onrender.com/health</code></p>
+        <p class="expect"><b>You should see</b> <code>{"status":"ok"}</code></p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s1">Stage 1</span>Its dependencies are reachable</p>
+        <p><code>https://&lt;render&gt;.onrender.com/ready</code></p>
+        <p class="expect"><b>You should see</b> <code>{"status":"ready"}</code> with both <code>database</code> and <code>redis</code> <code>ok</code>. A 503 <em>names</em> which one is down.</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s1">Stage 1</span>The Netlify rewrite reaches the API</p>
+        <p><code>https://&lt;site&gt;.netlify.app/api/v1/../health</code></p>
+        <p class="expect"><b>You should see</b> the same JSON. A timeout here means the pinger isn't running and Render was asleep.</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s1">Stage 1</span>Log in with the seeded credentials</p>
+        <p>On the Netlify URL, using the TOTP code from §6 step 4.</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s1">Stage 1</span>Reload the page while logged in</p>
+        <p class="expect"><b>You should stay</b> logged in. Being thrown back to the login screen means the session cookie is not surviving — the rewrite isn't in front of <code>/api/*</code>, or <code>VITE_API_BASE_URL</code> was overridden in the Netlify UI.</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s1">Stage 1</span>Open a seeded note and click a line</p>
+        <p class="expect"><b>You should see</b> the transcript passage that line cites. This is the whole grounding mechanism working, and it needs no audio.</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s2">Stage 2</span>Record 20 seconds and watch the worker log</p>
+        <p class="expect"><b>You should see</b> <code>transcribe_encounter</code> then <code>generate_note</code>, and the file appear in the Drive folder.</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s2">Stage 2</span>Play a cited passage</p>
+        <p class="expect"><b>You should hear</b> that moment only — playback stops at the end of the citation, not the end of the consultation.</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title"><span class="chip s2">Stage 2</span>Withdraw consent, then look in Drive</p>
+        <p class="expect bad"><b>The file must be gone</b> — and <strong>not sitting in Trash</strong>. If it is still there, the service account's shared-drive role is too low; go back to §5A step 6.</p>
+      </div></label></li>
+    </ol>
+  </section>
+
+  <!-- ══ 8 ══ -->
+  <section>
+    <div class="sec-head"><span class="sec-num">8</span><h2>What this deployment cannot do</h2></div>
     <p class="lede">State these plainly to anyone who asks what they are looking at.</p>
 
     <ul class="cannot">
-      <li>
-        <b>It is not for patients.</b> No vendor here signs a BAA on a free tier — not
-        Groq, not Upstash, not Cloudflare, and a free personal Google account cannot
-        have one for Drive. <strong>And Legal has not cleared the RA 4200 consent
-        script</strong>, which is a criminal-liability question under the
-        Anti-Wiretapping Act, not a product gap. Your own voice is fine. A patient is
-        not.
-      </li>
-      <li>
-        <b>Free tier is demo scale, and here is the number.</b> Neon's 512 MB is
-        exceeded by <em>transcripts alone</em> at real volume: 20 consults/day ×
-        20 min is roughly <strong>415 MB</strong> of encrypted transcript in a 90-day
-        window, before notes, revisions or the audit log. Expect a few dozen
-        encounters, not a clinic month.
-      </li>
-      <li>
-        <b>Groq's free tier cannot carry a full consultation.</b> ~8,000 tokens/min
-        against a 10–20k-token transcript sent in one call. Short recordings work.
-      </li>
-      <li>
-        <b>First request after idle is slow or fails.</b> Render sleeps at 15 min;
-        Neon scales to zero at 5. The pinger fixes the API, not Neon's cold start.
-      </li>
-      <li>
-        <b>Audio lives in one person's Google account</b>, owned by them (§0).
-      </li>
-      <li>
-        <b>Playback proxies PHI through the API</b>, which the S3 path was built to
-        avoid, on a 0.1 CPU / 512 MB instance.
-      </li>
-      <li>
-        <b>Nothing is alerting.</b> The alert rules exist; delivery needs a Sentry
-        account nobody has created. If the worker dies at 2&nbsp;a.m., nobody is told.
-      </li>
-      <li>
-        <b>Retention loses its storage-layer backstop</b> — no Drive lifecycle rules,
-        so only the Celery purge deletes expired audio, and that purge runs only while
-        your always-on machine is on.
-      </li>
+      <li><b>It is not for patients.</b> No vendor here signs a BAA on a free tier — not Groq, not Upstash, and not a free Google account. <strong>And Legal has not cleared the RA 4200 consent script</strong>, which is a criminal-liability question under the Anti-Wiretapping Act, not a product gap. Your own voice is fine. A patient is not.</li>
+      <li><b>Free tier is demo scale, and here is the number.</b> Neon's 512 MB is exceeded by <em>transcripts alone</em> at real volume: 20 consults/day × 20 min is roughly <strong>415 MB</strong> of encrypted transcript in a 90-day window, before notes, revisions or the audit log. Expect a few dozen encounters, not a clinic month.</li>
+      <li><b>Groq's free tier cannot carry a full consultation.</b> ~8,000 tokens/min against a 10–20k-token transcript sent in one call. Short recordings work.</li>
+      <li><b>First request after idle is slow or fails.</b> Render sleeps at 15 min; Neon scales to zero at 5. The pinger fixes the API, not Neon's cold start.</li>
+      <li><b>Playback proxies PHI through the API</b>, which the S3 path was built to avoid, on a 0.1 CPU / 512 MB instance.</li>
+      <li><b>Retention has no storage-layer backstop.</b> Drive has no lifecycle rules, so only the Celery purge deletes expired audio — and it runs only while your always-on machine is on.</li>
+      <li><b>Nothing is alerting.</b> The alert rules exist; delivery needs a Sentry account nobody has created. If the worker dies at 2&nbsp;a.m., nobody is told.</li>
     </ul>
   </section>
 
   <footer>
-    Source of truth is <code>docs/runbooks/deploy-free-tier.md</code> in the repo;
-    this page mirrors it. Platform figures were verified against official
-    documentation on 2026-09-01 — free tiers change often, so re-check anything
-    load-bearing. The app-side numbers (audio sizing, the Redis command budget, the
-    transcript volume) are measured from this codebase. Ticks are kept in this
-    browser only.
+    Source of truth is <code>docs/runbooks/deploy-free-tier.md</code> in the repo; this
+    page mirrors it. Platform figures were verified against official documentation on
+    2026-09-01 — free tiers change often, so re-check anything load-bearing. The
+    app-side numbers (audio sizing, the Redis command budget, the transcript volume)
+    are measured from this codebase. Ticks are kept in this browser only.
   </footer>
 
 </main>
@@ -1243,7 +1099,7 @@ export PHI_ENCRYPTION_KEY=&lt;the same key as Render&gt;
 <script>
   (function () {
     "use strict";
-    const KEY = "remedy-deploy-free-tier-v1";
+    const KEY = "remedy-deploy-free-tier-v2";
     const boxes = Array.from(document.querySelectorAll('.task input[type="checkbox"]'));
     const fill = document.getElementById("fill");
     const read = document.getElementById("read");

@@ -136,19 +136,30 @@ _token_cache: tuple[str, float] | None = None
 
 
 def _access_token() -> str:
-    """Exchange the stored refresh token for an access token.
+    """Return a cached access token, minting one by whichever grant is configured.
 
-    The refresh token belongs to a **human** Google account, not a service
-    account — decision 0040 explains why there is no choice: Google's docs
-    state plainly that "Service accounts don't have storage quota and can't
-    own files", and the Shared Drive that would fix it requires paid
-    Workspace.
+    **A service account is preferred when one is set**, because it takes the
+    human out of the loop entirely: nobody owns the recordings personally,
+    nobody's departure or quota takes them away, and nobody can revoke the
+    grant by tidying up their Google account permissions.
+
+    It requires a **Shared Drive** — a service account has no storage quota
+    of its own, so the files must be owned by a shared drive it belongs to.
+    Where there is no shared drive (a personal account), the only option is a
+    human's refresh token, and decision 0040 records what that costs.
+
+    Precedence is deliberate rather than alphabetical: if both are present,
+    the service account wins, because the reason to have configured one at
+    all is to stop depending on the human's.
     """
     global _token_cache
     settings = get_settings()
 
     if _token_cache is not None and _token_cache[1] > time.time() + 60:
         return _token_cache[0]
+
+    if settings.google_drive_service_account_json:
+        return _service_account_token()
 
     missing = [
         name
@@ -160,7 +171,10 @@ def _access_token() -> str:
         if not value
     ]
     if missing:
-        raise DriveError(f"Drive storage is selected but {', '.join(missing)} is not set.")
+        raise DriveError(
+            f"Drive storage is selected but {', '.join(missing)} is not set "
+            "(and GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON is not set either)."
+        )
 
     response = httpx.post(
         GOOGLE_TOKEN_ENDPOINT,
@@ -172,6 +186,92 @@ def _access_token() -> str:
         },
         timeout=_TIMEOUT,
     )
+    return _token_from(response, "refresh the Google Drive access token")
+
+
+def _service_account_token() -> str:
+    """Sign a JWT with the service account's key and trade it for a token.
+
+    This is Google's `jwt-bearer` grant. It is implemented here rather than
+    pulled in with `google-auth` for the reason the whole module exists: it
+    is one signature and one form post, against a dependency tree that
+    would otherwise arrive to do exactly that. `cryptography` is already a
+    dependency — the PHI encryption uses it — so RS256 costs nothing new.
+
+    ⚠️ **A service account only works against a Shared Drive.** It has no
+    storage quota of its own, so `GOOGLE_DRIVE_FOLDER_ID` must name a
+    folder inside a shared drive the service account is a *member* of.
+    Point it at a personal folder and every write fails with a quota error
+    that does not mention any of this.
+    """
+    import base64
+    import json
+
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import padding, rsa
+
+    settings = get_settings()
+    try:
+        key_data = json.loads(settings.google_drive_service_account_json)
+    except ValueError as exc:
+        # Never echo the payload: it is a private key.
+        raise DriveError("GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON is not valid JSON.") from exc
+
+    client_email = key_data.get("client_email")
+    private_key_pem = key_data.get("private_key")
+    if not client_email or not private_key_pem:
+        raise DriveError("The service-account JSON is missing client_email or private_key.")
+
+    def b64(raw: bytes) -> bytes:
+        return base64.urlsafe_b64encode(raw).rstrip(b"=")
+
+    now = int(time.time())
+    header = b64(json.dumps({"alg": "RS256", "typ": "JWT"}).encode())
+    claims = b64(
+        json.dumps(
+            {
+                "iss": client_email,
+                # Full drive scope: the adapter creates, reads and *deletes*
+                # files, and drive.file would only see what this client
+                # itself created — which breaks retention after any manual
+                # tidy-up in the Drive UI.
+                "scope": "https://www.googleapis.com/auth/drive",
+                "aud": GOOGLE_TOKEN_ENDPOINT,
+                "iat": now,
+                "exp": now + 3600,
+            }
+        ).encode()
+    )
+    signing_input = header + b"." + claims
+
+    try:
+        key = serialization.load_pem_private_key(private_key_pem.encode(), password=None)
+    except Exception as exc:  # noqa: BLE001 - any parse failure is the same problem
+        raise DriveError("The service-account private key could not be read.") from exc
+    if not isinstance(key, rsa.RSAPrivateKey):
+        raise DriveError("The service-account key is not an RSA key.")
+
+    signature = key.sign(signing_input, padding.PKCS1v15(), hashes.SHA256())
+    assertion = (signing_input + b"." + b64(signature)).decode()
+
+    response = httpx.post(
+        GOOGLE_TOKEN_ENDPOINT,
+        data={"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": assertion},
+        timeout=_TIMEOUT,
+    )
+    return _token_from(response, "get a Google Drive access token for the service account")
+
+
+def _token_from(response: httpx.Response, what: str) -> str:
+    """Shared tail of both grants: cache the token, and never quote a body.
+
+    A token-endpoint error body can carry the client id or the assertion,
+    and `_mark_stage_failure` writes `str(exc)` into an unencrypted column.
+    """
+    global _token_cache
+
+    if response.status_code != 200:
+        raise DriveError(f"Could not {what} (HTTP {response.status_code}).")
     if response.status_code != 200:
         # Status only. A token-endpoint body can contain the client id.
         raise DriveError(f"Could not refresh the Google Drive access token (HTTP {response.status_code}).")

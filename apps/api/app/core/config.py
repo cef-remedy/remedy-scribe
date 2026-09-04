@@ -64,15 +64,29 @@ class Settings(BaseSettings):
     storage_backend: Literal["s3", "drive"] = "s3"
 
     # --- Google Drive (only read when storage_backend == "drive") ---
-    # These belong to a *human* Google account, not a service account:
-    # Google documents that service accounts have no storage quota and
-    # cannot own files, and the Shared Drive that would fix it needs paid
-    # Workspace. So the audio is owned by whoever consented. See 0040.
+    #
+    # Two ways to authenticate, and the adapter prefers the first:
+    #
+    # 1. **A service account**, which is only usable against a **Shared
+    #    Drive** — Google documents that service accounts have no storage
+    #    quota and cannot own files, so they must write into a shared
+    #    drive that owns the files instead. No human is in the loop, and
+    #    nobody can revoke it by losing interest in the app.
+    # 2. **A human's refresh token**, the only option on a personal
+    #    account. The audio is then owned by whoever consented, unless
+    #    they upload into a shared drive. See decision 0040.
+    #
+    # Set the whole service-account JSON key as one env var. Render and
+    # Netlify both take multi-line values, and keeping it as issued means
+    # nobody has to pick fields out of it by hand.
+    google_drive_service_account_json: str = ""
     google_drive_client_id: str = ""
     google_drive_client_secret: str = ""
     google_drive_refresh_token: str = ""
-    #: The folder audio is written into. Unset means the account root,
-    #: which works but makes a human clean-up much harder.
+    #: The folder audio is written into. On a shared drive this is a folder
+    #: *inside* it. Unset means the account root, which works but makes a
+    #: human clean-up much harder — and a service account has no root of
+    #: its own, so it is effectively required there.
     google_drive_folder_id: str = ""
 
     s3_endpoint_url: str = "http://localhost:9000"

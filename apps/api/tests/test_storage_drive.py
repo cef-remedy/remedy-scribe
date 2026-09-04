@@ -22,6 +22,12 @@ from app.services.storage_drive import (
 )
 
 
+#: Captured at import, before the autouse fixture below replaces it with a
+#: stub. The service-account tests need the genuine grant, and once the
+#: fixture has patched the module attribute the original is unreachable.
+_REAL_ACCESS_TOKEN = storage_drive._access_token
+
+
 class _Resp:
     """Minimal httpx.Response stand-in."""
 
@@ -421,3 +427,131 @@ def test_a_shared_drive_recording_is_findable_and_therefore_deletable(monkeypatc
     assert storage_drive.delete_object("encounters/e1/audio/abc.webm") is True
     assert len(deleted) == 1
     assert "shared-file-1" in deleted[0]
+
+
+# --- service-account auth -------------------------------------------------
+#
+# The grant that takes the human out of the loop. It only works against a
+# Shared Drive, because a service account has no storage quota of its own.
+
+
+def _service_account_json() -> str:
+    """A real, throwaway RSA key — the signing path is the thing under test,
+    so a fake key would test nothing."""
+    import json
+
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    pem = key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode()
+    return json.dumps({"client_email": "remedy@project.iam.gserviceaccount.com", "private_key": pem})
+
+
+def test_a_service_account_is_preferred_over_a_humans_refresh_token(monkeypatch):
+    """Precedence is deliberate: configuring a service account is precisely
+    the act of deciding to stop depending on a person's grant, so it must win
+    even while the older refresh token is still sitting in the environment.
+    """
+    import base64
+    import json
+
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "google_drive_service_account_json", _service_account_json(), raising=False)
+    storage_drive.reset_token_cache()
+
+    sent: dict = {}
+
+    def _post(url, **kwargs):
+        sent.update(kwargs.get("data") or {})
+        return _Resp(200, payload={"access_token": "sa-token", "expires_in": 3600})
+
+    monkeypatch.setattr(storage_drive.httpx, "post", _post)
+
+    assert _REAL_ACCESS_TOKEN() == "sa-token"
+    assert sent["grant_type"] == "urn:ietf:params:oauth:grant-type:jwt-bearer"
+    assert "refresh_token" not in sent
+
+    # The assertion is a real JWT: three parts, and claims Google will accept.
+    header_b64, claims_b64, signature_b64 = sent["assertion"].split(".")
+    claims = json.loads(base64.urlsafe_b64decode(claims_b64 + "=="))
+    assert claims["iss"] == "remedy@project.iam.gserviceaccount.com"
+    assert claims["aud"] == storage_drive.GOOGLE_TOKEN_ENDPOINT
+    assert claims["scope"] == "https://www.googleapis.com/auth/drive"
+    assert claims["exp"] > claims["iat"]
+    assert signature_b64 and "=" not in signature_b64  # base64url, unpadded
+
+
+def test_a_broken_service_account_key_never_reaches_the_error_message(monkeypatch):
+    """`_mark_stage_failure` writes `str(exc)` into an unencrypted column, and
+    this payload is a *private key*. Same rule as GroqNoteParseError: report
+    the shape of the problem, never the material.
+    """
+    from app.core.config import get_settings
+
+    secret = "-----BEGIN PRIVATE KEY-----SUPERSECRETKEYMATERIAL-----END PRIVATE KEY-----"
+    monkeypatch.setattr(
+        get_settings(),
+        "google_drive_service_account_json",
+        '{"client_email": "a@b.iam.gserviceaccount.com", "private_key": "%s"}' % secret,
+        raising=False,
+    )
+    storage_drive.reset_token_cache()
+
+    with pytest.raises(storage_drive.DriveError) as caught:
+        _REAL_ACCESS_TOKEN()
+
+    assert "SUPERSECRETKEYMATERIAL" not in str(caught.value)
+    assert "private key" in str(caught.value).lower()
+
+
+def test_malformed_service_account_json_is_named_without_being_quoted(monkeypatch):
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "google_drive_service_account_json", "not json {", raising=False)
+    storage_drive.reset_token_cache()
+
+    with pytest.raises(storage_drive.DriveError) as caught:
+        _REAL_ACCESS_TOKEN()
+
+    assert "not json {" not in str(caught.value)
+    assert "GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON" in str(caught.value)
+
+
+def test_a_token_endpoint_failure_reports_status_only(monkeypatch):
+    """A token-endpoint error body can echo the assertion back."""
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "google_drive_service_account_json", _service_account_json(), raising=False)
+    storage_drive.reset_token_cache()
+    monkeypatch.setattr(
+        storage_drive.httpx,
+        "post",
+        lambda url, **kw: _Resp(401, payload={"error": "invalid_grant", "assertion": "eyJhbG..."}),
+    )
+
+    with pytest.raises(storage_drive.DriveError) as caught:
+        _REAL_ACCESS_TOKEN()
+
+    assert "401" in str(caught.value)
+    assert "eyJhbG" not in str(caught.value)
+
+
+def test_with_no_credentials_at_all_the_error_names_both_options(monkeypatch):
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "google_drive_service_account_json", "", raising=False)
+    monkeypatch.setattr(settings, "google_drive_refresh_token", "", raising=False)
+    storage_drive.reset_token_cache()
+
+    with pytest.raises(storage_drive.DriveError) as caught:
+        _REAL_ACCESS_TOKEN()
+
+    assert "GOOGLE_DRIVE_REFRESH_TOKEN" in str(caught.value)
+    assert "GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON" in str(caught.value)
