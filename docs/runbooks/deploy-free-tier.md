@@ -25,19 +25,59 @@ And the escape hatch that would normally fix it is paid:
 > "**Personal Google Accounts (@gmail.com) cannot create shared drives**"
 > — same source
 
-So on a free Google account there is **no service-account path**. The app
+So on a **personal** Google account there is no service-account path. The app
 cannot hold its own Drive credentials and own its own files. What is left:
 
-| Path | Works on free? | What it means in practice |
+| Path | Personal account | Workspace with Shared Drives |
 |---|---|---|
-| Service account + its own quota | **No** | Documented as impossible. |
-| Service account + Shared Drive | **No** | Shared Drive needs paid Workspace. |
-| **OAuth as a human user** | **Yes** | A named person authorises the app once. Audio lands in *their* personal 15 GB and is **owned by them**, not by the clinic. |
+| Service account + its own quota | **No** — documented as impossible | **No** — same limitation |
+| Service account + Shared Drive | **No** — needs paid Workspace | **Yes**, but needs an auth path this adapter does not have yet (below) |
+| **OAuth as a human, into a Shared Drive** | **No** | **Yes — and this is the recommended setup** |
+| OAuth as a human, into My Drive | **Yes** | works, but don't — it is the option with all the problems |
 
-**We proceed with OAuth-as-a-human**, because it is the only free path — but
-be clear on what that means: the recordings live in one employee's Google
-account. If they leave, or hit their quota, or revoke access, the audio goes
-with them. That is a governance fact to state to your supervisor, not a
+### ✅ If the company Workspace has Shared Drives, use one
+
+A screenshot of the company account's Drive showing **"Create a shared
+drive"** settles the plan question: Shared Drives require Business Standard
+or above, and Business Starter does not have them. If that button is there,
+the plan is eligible.
+
+**This removes most of the ownership problem, and it needs no code change —
+only a different folder id.** Files in a Shared Drive are owned by the
+*shared drive itself*, not by whoever uploaded them, and they consume the
+organisation's **pooled** storage rather than one person's 15 GB. So:
+
+| | My Drive | Shared Drive |
+|---|---|---|
+| Who owns the recordings | a named employee | **the organisation** |
+| If that person leaves | audio leaves with them | **audio stays** |
+| Storage pool | their personal 15 GB, shared with Gmail | the org's pooled quota (2 TB+ on Business Standard) |
+| Filling it up | **also stops their email arriving** | an org-level capacity question |
+| Admin visibility / recovery | none — it is a personal account | Workspace admin controls and audit |
+
+Point `GOOGLE_DRIVE_FOLDER_ID` at a folder **inside the shared drive** and
+that is the whole change.
+
+⚠️ **What a Shared Drive does *not* fix.** The refresh token still belongs to
+a human, so that person can still revoke access and break uploads — it is now
+an availability problem rather than a data-ownership one. Removing the human
+entirely means a **service account added as a member of the shared drive**,
+which is genuinely supported here and is the right end state — but the
+adapter currently authenticates with a refresh token only, so that is a
+**code change, not a config change**. It is not built. Ask for it before
+Stage 2 if you want it.
+
+⚠️ **And two costs are unchanged at every tier, Workspace included:** Drive
+still has **no presigned GET** (so playback stays proxied through the API)
+and **no lifecycle rules** (so retention keeps only the Celery purge). Those
+are Drive limitations, not free-tier limitations.
+
+### If it turns out to be a personal account after all
+
+**Proceed with OAuth-as-a-human into My Drive**, because it is then the only
+path — but be clear on what that means: the recordings live in one employee's
+Google account. If they leave, hit their quota, or revoke access, the audio
+goes with them. That is a governance fact to state to your supervisor, not a
 technical detail.
 
 ### Two further Drive limits worth knowing before the engineer starts
@@ -256,6 +296,11 @@ editing.**
 - [ ] **Google Cloud project** — enable the Drive API, create an **OAuth
       client (Web application)**, and complete the consent flow **once** as
       the human whose Drive will hold the audio. Store the refresh token.
+- [ ] **If the company Workspace has Shared Drives (see §0), create one** and
+      a folder inside it for the audio, then use **that folder's id** as
+      `GOOGLE_DRIVE_FOLDER_ID`. The human doing the OAuth consent must be a
+      **member** of that shared drive with at least Contributor access, or
+      the uploads 404 with nothing useful in the message.
 - [ ] **Generate a fresh PHI key** and keep it somewhere it cannot be
       casually deleted:
       ```bash

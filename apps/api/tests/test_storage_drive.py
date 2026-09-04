@@ -359,3 +359,65 @@ def test_the_dispatcher_routes_to_the_configured_backend(monkeypatch):
     from app.services import storage_s3
 
     assert storage._backend() is storage_s3
+
+
+# --- shared drives --------------------------------------------------------
+#
+# A Shared Drive is invisible to the Drive API unless each call opts in, and
+# the API does not complain: it answers 200 with an empty result. So these
+# assert the query parameters rather than a behaviour, because the behaviour
+# they prevent is *silence*.
+
+
+def _capture_get_params(monkeypatch) -> dict:
+    """Run a lookup and hand back the params the module actually sent."""
+    seen: dict = {}
+
+    def _get(url, **kwargs):
+        seen.update(kwargs.get("params") or {})
+        return _Resp(200, payload={"files": []})
+
+    monkeypatch.setattr(storage_drive.httpx, "get", _get)
+    return seen
+
+
+def test_file_lookup_opts_into_shared_drives(monkeypatch):
+    """`files.list` needs BOTH flags; every other call needs only the first,
+    which is how this one came to be missed. Without them a Shared Drive
+    reads as an empty drive.
+    """
+    seen = _capture_get_params(monkeypatch)
+    storage_drive.head_object("encounters/e1/audio/abc.webm")
+
+    assert seen["supportsAllDrives"] == "true"
+    assert seen["includeItemsFromAllDrives"] == "true"
+
+
+def test_a_shared_drive_recording_is_findable_and_therefore_deletable(monkeypatch):
+    """The failure this guards is not an error, it is a false success.
+
+    `delete_object` resolves a key through `_find_file_id`, so a lookup that
+    cannot see the Shared Drive returns None, which reads as "already gone".
+    A consent withdrawal would then report success having deleted nothing —
+    P0-1 violated, silently, with the recording still in Drive.
+    """
+    deleted: list[str] = []
+
+    def _get(url, **kwargs):
+        params = kwargs.get("params") or {}
+        # Stand in for Drive: a file in a Shared Drive is returned only when
+        # the caller opted in, exactly as the real API behaves.
+        if params.get("includeItemsFromAllDrives") != "true":
+            return _Resp(200, payload={"files": []})
+        return _Resp(200, payload={"files": [{"id": "shared-file-1", "size": "2048"}]})
+
+    def _delete(url, **kwargs):
+        deleted.append(url)
+        return _Resp(204)
+
+    monkeypatch.setattr(storage_drive.httpx, "get", _get)
+    monkeypatch.setattr(storage_drive.httpx, "delete", _delete)
+
+    assert storage_drive.delete_object("encounters/e1/audio/abc.webm") is True
+    assert len(deleted) == 1
+    assert "shared-file-1" in deleted[0]

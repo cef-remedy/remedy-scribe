@@ -51,6 +51,35 @@ find it silently returns nothing.
 
 ### 1. There is no service account, and that is a governance problem
 
+> **Update, 2026-09-04 — this cost is largely retired.** The company Google
+> account turns out to be a **Workspace plan with Shared Drives**, evidenced
+> by its Drive offering "Create a shared drive" (Business Starter does not).
+> Files in a Shared Drive are owned by **the shared drive**, not by whoever
+> uploaded them, and they draw on the organisation's pooled storage rather
+> than one person's 15 GB — so pointing `GOOGLE_DRIVE_FOLDER_ID` at a folder
+> inside one fixes the ownership problem **with no code change at all**.
+>
+> What remains is smaller: the refresh token still belongs to a human, so
+> that person can still revoke access. That is an *availability* problem, not
+> a data-ownership one. Closing it needs a **service account added as a
+> member of the shared drive** — supported on this plan, and the right end
+> state, but the adapter authenticates by refresh token only, so it is a code
+> change and is **not built**.
+>
+> Costs 2 and 3 below are **unchanged**: no presigned GET and no lifecycle
+> rules are Drive limitations at every tier, Workspace included.
+>
+> ⚠️ And this surfaced a real bug. `files.list` needs **both**
+> `supportsAllDrives` and `includeItemsFromAllDrives` to see a Shared Drive,
+> where every other call in the adapter needs only the first — so the one
+> call that was missing them was the lookup five functions resolve keys
+> through. Drive answers `200` with an empty array rather than an error, so a
+> Shared Drive read as an empty drive: `head_object` would have reported
+> every recording missing, and `delete_object` would have read "no file id"
+> as "already gone" — **a consent withdrawal reporting success having
+> deleted nothing.** Fixed, with two tests named after that silence.
+
+
 Google, verbatim:
 
 > "Service accounts don't have storage quota and can't own files. Instead,

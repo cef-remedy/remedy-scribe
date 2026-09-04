@@ -234,7 +234,25 @@ def _find_file_id(key: str) -> str | None:
     response = httpx.get(
         DRIVE_FILES_ENDPOINT,
         headers=_auth_headers(),
-        params={"q": query, "fields": "files(id,size,mimeType)", "pageSize": 1},
+        params={
+            "q": query,
+            "fields": "files(id,size,mimeType)",
+            "pageSize": 1,
+            # ⚠️ `files.list` needs BOTH flags to see a shared drive, and every
+            # other call in this module needs only the first — which is exactly
+            # why this one was missed. Without them the request still returns
+            # 200 with an empty `files` array, so a shared drive looks like an
+            # empty drive.
+            #
+            # That silence is the danger. Five functions resolve a key through
+            # here, and the worst is `delete_object`: "no file id" reads as
+            # "already gone", so a consent withdrawal would report success
+            # while the recording stayed. `head_object` would meanwhile report
+            # every encounter's audio as missing, degrading grounding to
+            # transcript-only forever.
+            "supportsAllDrives": "true",
+            "includeItemsFromAllDrives": "true",
+        },
         timeout=_TIMEOUT,
     )
     if response.status_code != 200:

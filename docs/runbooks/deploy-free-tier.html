@@ -543,24 +543,88 @@
 
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Path</th><th>Free?</th><th>What it means in practice</th></tr></thead>
+        <thead><tr><th>Path</th><th>Personal account</th><th>Workspace with Shared Drives</th></tr></thead>
         <tbody>
-          <tr><td>Service account + its own quota</td><td class="yes">No</td><td>Documented as impossible.</td></tr>
-          <tr><td>Service account + Shared Drive</td><td class="yes">No</td><td>A Shared Drive needs paid Workspace.</td></tr>
-          <tr><td><strong>OAuth as a human user</strong></td><td class="no">Yes</td><td>A named person authorises the app once. Audio lands in <em>their</em> personal 15&nbsp;GB and is <strong>owned by them</strong>, not by the clinic.</td></tr>
+          <tr><td>Service account + its own quota</td><td class="yes">No</td><td class="yes">No — same limitation</td></tr>
+          <tr><td>Service account + Shared Drive</td><td class="yes">No</td><td>Yes, but needs an auth path this adapter does not have yet</td></tr>
+          <tr><td><strong>OAuth as a human, into a Shared Drive</strong></td><td class="yes">No</td><td class="no"><strong>Yes — the recommended setup</strong></td></tr>
+          <tr><td>OAuth as a human, into My Drive</td><td class="no">Yes</td><td>works, but don't — the option with all the problems</td></tr>
         </tbody>
       </table>
     </div>
 
+    <h3>If the company Workspace has Shared Drives, use one</h3>
+
+    <div class="note done">
+      <span class="note-label">The plan question is already settled</span>
+      <p>
+        A Drive page showing a <strong>"Create a shared drive"</strong> button
+        settles it: Shared Drives need <strong>Business Standard or above</strong>,
+        and Business Starter does not have them. If the button is there, the plan is
+        eligible.
+      </p>
+    </div>
+
+    <p>
+      This removes most of the ownership problem, and it needs <strong>no code
+      change — only a different folder id</strong>. Files in a Shared Drive are owned
+      by the <em>shared drive itself</em> rather than by whoever uploaded them, and
+      they consume the organisation's <strong>pooled</strong> storage instead of one
+      person's 15&nbsp;GB.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>My Drive</th><th>Shared Drive</th></tr></thead>
+        <tbody>
+          <tr><td>Who owns the recordings</td><td>a named employee</td><td><strong>the organisation</strong></td></tr>
+          <tr><td>If that person leaves</td><td class="yes">audio leaves with them</td><td class="no">audio stays</td></tr>
+          <tr><td>Storage pool</td><td>their personal 15 GB, shared with Gmail</td><td>the org's pooled quota (2 TB+ on Business Standard)</td></tr>
+          <tr><td>Filling it up</td><td class="yes">also stops their email arriving</td><td>an org-level capacity question</td></tr>
+          <tr><td>Admin visibility and recovery</td><td class="yes">none — it is a personal account</td><td>Workspace admin controls and audit</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      Point <code>GOOGLE_DRIVE_FOLDER_ID</code> at a folder <strong>inside the shared
+      drive</strong> and that is the whole change.
+    </p>
+
+    <div class="note warn">
+      <span class="note-label">What a Shared Drive does not fix</span>
+      <p>
+        The refresh token still belongs to a human, so that person can still revoke
+        access and break uploads — but that is now an <em>availability</em> problem
+        rather than a data-ownership one. Removing the human entirely means a
+        <strong>service account added as a member of the shared drive</strong>, which
+        is genuinely supported here and is the right end state — but the adapter
+        authenticates with a refresh token only, so that is a <strong>code change,
+        not a config change</strong>. It is not built. Ask for it before Stage 2 if
+        you want it.
+      </p>
+    </div>
+
+    <div class="note stop">
+      <span class="note-label">Unchanged at every tier, Workspace included</span>
+      <p>
+        Drive still has <strong>no presigned GET</strong>, so playback stays proxied
+        through the API; and <strong>no lifecycle rules</strong>, so retention keeps
+        only the Celery purge. These are Drive limitations, not free-tier
+        limitations, and no plan removes them.
+      </p>
+    </div>
+
+    <h3>If it turns out to be a personal account after all</h3>
+
     <div class="note stop">
       <span class="note-label">Governance, not a technical detail</span>
       <p>
-        We proceed with OAuth-as-a-human because it is the only free path. The
-        recordings then live in one employee's Google account. If they leave, hit
-        their quota, or revoke access, <strong>the audio goes with them</strong> —
-        and Gmail shares the same 15&nbsp;GB, so filling Drive with audio also stops
-        that person receiving email. State this to your supervisor rather than
-        absorbing it.
+        Then OAuth-as-a-human into My Drive is the only path, and the recordings live
+        in one employee's Google account. If they leave, hit their quota, or revoke
+        access, <strong>the audio goes with them</strong> — and Gmail shares the same
+        15&nbsp;GB, so filling Drive with audio also stops that person receiving
+        email. State this to your supervisor rather than absorbing it.
       </p>
     </div>
 
@@ -905,6 +969,14 @@ Access-Control-Allow-Headers: content-range</code></pre>
         <strong>OAuth client (Web application)</strong>, and complete the consent flow
         <strong>once</strong> as the human whose Drive will hold the audio. Store the
         refresh token.
+      </span></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
+        <span class="chip s2">Stage 2</span> <span class="chip you">You</span>
+        <strong>If the company Workspace has Shared Drives (§0), create one</strong>
+        and a folder inside it for the audio, then use <em>that folder's</em> id as
+        <code>GOOGLE_DRIVE_FOLDER_ID</code>. ⚠️ The human doing the OAuth consent must
+        be a <strong>member</strong> of that shared drive with at least Contributor
+        access, or uploads 404 with nothing useful in the message.
       </span></label></li>
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><span class="task-text">
         <span class="chip s1">Stage 1</span> <span class="chip you">You</span>
