@@ -41,5 +41,29 @@ export default defineConfig({
     // two ever disagree the browser blocks every request before it reaches
     // a route, with nothing in the API log to show for it.
     strictPort: true,
+    // Free-tier deploy runbook §8: recording a demo before Netlify exists
+    // means pointing this dev server at the real Render API. The tempting
+    // way to do that is adding http://localhost:5173 to CORS_ALLOW_ORIGINS
+    // on Render — and the production boot guard refuses to boot with a
+    // localhost origin in that list, correctly, because it cannot tell a
+    // deliberate temporary addition from someone deploying a dev .env by
+    // mistake. So this proxies instead: set RENDER_DEV_PROXY_TARGET (a
+    // plain shell var, deliberately not VITE_-prefixed so it can never
+    // leak into the bundle) and requests to /api/* leave this Node
+    // process for Render server-side — the browser only ever talks to
+    // localhost:5173, exactly the same same-origin trick the real
+    // Netlify rewrite (netlify.toml) performs in production, just
+    // running locally instead. Needs `VITE_API_BASE_URL=/` in
+    // apps/web/.env too, or the client's own dev default
+    // (http://localhost:8000) wins over this proxy entirely.
+    proxy: process.env.RENDER_DEV_PROXY_TARGET
+      ? {
+          "/api": {
+            target: process.env.RENDER_DEV_PROXY_TARGET,
+            changeOrigin: true,
+            secure: true,
+          },
+        }
+      : undefined,
   },
 });

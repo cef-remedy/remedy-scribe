@@ -1219,34 +1219,56 @@ export GOOGLE_DRIVE_FOLDER_ID=&lt;from §5A step 7 / §5B step 4&gt;
       this terminal session.
     </p>
 
-    <h3>If Netlify isn't ready yet: a temporary stand-in, not a shortcut</h3>
+    <h3>If Netlify isn't ready yet: proxy through Vite, don't touch Render's CORS</h3>
 
     <p>
       You can record a real browser demo before §3 exists, by running the web
-      app on your own machine and pointing it at the real Render backend. This
-      is a genuine setup, not a hack — just one you tear back down afterward.
+      app on your own machine with its dev server <strong>proxying</strong>
+      <code>/api/*</code> to the real Render backend server-side. This is the
+      same same-origin trick the real Netlify rewrite (<code>netlify.toml</code>)
+      performs in production, just running locally instead of on Netlify's edge.
     </p>
+
+    <div class="note stop">
+      <span class="note-label">The tempting alternative does not work, and it is not a bug</span>
+      <p>
+        Adding <code>http://localhost:5173</code> to Render's
+        <code>CORS_ALLOW_ORIGINS</code> hits the production boot guard doing
+        exactly its job: it refuses to start with <em>any</em>
+        <code>localhost</code>/<code>127.0.0.1</code> origin in that list,
+        because it cannot tell a deliberate temporary addition from someone
+        deploying a dev <code>.env</code> by accident. If you already tried
+        this and Render is refusing to boot, revert
+        <code>CORS_ALLOW_ORIGINS</code> to just
+        <code>https://remedy-scribe.example</code> and redeploy before
+        continuing.
+      </p>
+    </div>
 
     <ol class="steps">
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Temporarily add your local origin to Render's CORS list</p>
-        <p>Append to <code>CORS_ALLOW_ORIGINS</code>:</p>
-<pre><code>CORS_ALLOW_ORIGINS=https://remedy-scribe.example,http://localhost:5173</code></pre>
-      </div></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Point the local frontend at Render</p>
+        <p class="step-title">Set <code>VITE_API_BASE_URL=/</code></p>
         <span class="where">In <code>apps/web/.env</code> — your local one, already gitignored</span>
-<pre><code>VITE_API_BASE_URL=https://&lt;render-service&gt;.onrender.com</code></pre>
+        <p>Not the Render URL. <code>/</code> is what makes the client call relative paths against <code>localhost:5173</code>, which is what the proxy below actually intercepts; pointing it straight at Render skips the proxy and lands back on the cross-origin problem this section exists to avoid.</p>
       </div></label></li>
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Run it</p>
+        <p class="step-title">Run the dev server with the proxy target set</p>
+        <span class="shell-label">PowerShell</span>
 <pre><code>cd apps/web
+$env:RENDER_DEV_PROXY_TARGET = "https://&lt;render-service&gt;.onrender.com"
 npm run dev</code></pre>
-        <p>Open <code>http://localhost:5173</code>.</p>
+        <span class="shell-label">bash / macOS / Linux</span>
+<pre><code>cd apps/web
+RENDER_DEV_PROXY_TARGET="https://&lt;render-service&gt;.onrender.com" npm run dev</code></pre>
+        <p>Deliberately <strong>not</strong> <code>VITE_</code>-prefixed — that would let it leak into the built bundle; this one is read only by <code>vite.config.ts</code> in Node, never shipped to the browser.</p>
       </div></label></li>
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Log in, and don't reload the page mid-recording</p>
-        <p class="expect bad"><b>Cross-origin like this breaks session refresh</b> <code>SameSite=lax</code> only survives same-origin — exactly why the real Netlify rewrite exists. Your access token lasts 30 minutes in memory; a normal-length recording is fine, just don't hit refresh.</p>
+        <p class="step-title">Open <code>http://localhost:5173</code></p>
+        <p>Requests to <code>/api/*</code> now leave your machine for Render server-side; the browser only ever talks to <code>localhost:5173</code>, so no CORS preflight happens at all.</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Log in normally</p>
+        <p class="expect"><b>Nothing to avoid here</b> Because this is genuinely same-origin from the browser's point of view — unlike pointing <code>VITE_API_BASE_URL</code> straight at Render — the refresh cookie behaves exactly as it does in production: session resume, page reload, all of it.</p>
       </div></label></li>
     </ol>
 

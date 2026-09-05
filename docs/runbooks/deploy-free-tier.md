@@ -628,28 +628,50 @@ Optional, and everything above exists to make this the easy part. Needs
 Stage 2 done and a worker + Beat running somewhere durable — not tied to
 this terminal session.
 
-### If Netlify isn't ready yet: a temporary stand-in, not a shortcut
+### If Netlify isn't ready yet: proxy through Vite, don't touch Render's CORS
 
 You can record a real browser demo before §3 exists, by running the web app
-on your own machine and pointing it at the real Render backend. This is a
-genuine setup, not a hack — just one you tear back down afterward.
+on your own machine with its dev server **proxying** `/api/*` to the real
+Render backend server-side. This is the same same-origin trick the real
+Netlify rewrite (`netlify.toml`) performs in production, just running
+locally instead of on Netlify's edge.
 
-1. [ ] **Temporarily add your local origin to Render's CORS list.** Append
-       to `CORS_ALLOW_ORIGINS`:
+⚠️ **The tempting alternative — adding `http://localhost:5173` to Render's
+`CORS_ALLOW_ORIGINS` — does not work, and it is not a config mistake to
+fix, it is the production boot guard doing its job.** It refuses to start
+with *any* `localhost`/`127.0.0.1` origin in that list, because it cannot
+tell a deliberate temporary addition from someone deploying a dev `.env` by
+accident. If you already tried this and Render is refusing to boot, revert
+`CORS_ALLOW_ORIGINS` to just `https://remedy-scribe.example` and redeploy
+before continuing.
+
+1. [ ] **Set `VITE_API_BASE_URL=/`** in `apps/web/.env` (your local one,
+       already gitignored) — not the Render URL. `/` is what makes the
+       client call relative paths against `localhost:5173`, which is what
+       the proxy below actually intercepts; pointing it straight at Render
+       skips the proxy and lands back on the cross-origin problem this
+       section exists to avoid.
+2. [ ] **Run the dev server with the proxy target set:**
+       ```powershell
+       cd apps/web
+       $env:RENDER_DEV_PROXY_TARGET = "https://<render-service>.onrender.com"
+       npm run dev
        ```
-       CORS_ALLOW_ORIGINS=https://remedy-scribe.example,http://localhost:5173
+       ```bash
+       cd apps/web
+       RENDER_DEV_PROXY_TARGET="https://<render-service>.onrender.com" npm run dev
        ```
-2. [ ] **Point the local frontend at Render** — in `apps/web/.env` (your
-       local one, already gitignored):
-       ```
-       VITE_API_BASE_URL=https://<render-service>.onrender.com
-       ```
-3. [ ] **Run it:** `cd apps/web && npm run dev`, open `http://localhost:5173`.
-4. [ ] **Log in, and don't reload the page mid-recording.** Cross-origin
-       like this means the session cookie can't refresh — `SameSite=lax`
-       only survives same-origin, which is exactly why the real Netlify
-       rewrite exists. Your access token lasts 30 minutes in memory; a
-       normal-length recording is fine, just don't hit refresh.
+       Deliberately **not** `VITE_`-prefixed — that would let it leak into
+       the built bundle; this one is read only by `vite.config.ts` in
+       Node, never shipped to the browser.
+3. [ ] **Open `http://localhost:5173`.** Requests to `/api/*` now leave
+       your machine for Render server-side; the browser only ever talks to
+       `localhost:5173`, so no CORS preflight happens at all.
+4. [ ] **Log in normally.** Because this is genuinely same-origin from the
+       browser's point of view — unlike pointing `VITE_API_BASE_URL`
+       straight at Render — the refresh cookie behaves exactly as it does
+       in production: session resume, page reload, all of it. Nothing to
+       avoid here.
 
 If §3 is already live by the time you record, skip all four steps above and
 open the real Netlify site instead — nothing else in this section changes.
