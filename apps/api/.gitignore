@@ -11,3 +11,9 @@ dist/
 smoke.db
 tests/test.db
 bench*.db
+
+# Celery Beat's own local scheduler state (shelve/DBM), created wherever
+# `celery beat` is actually run. Pure runtime state for one machine, not
+# something a repo should carry -- it churns on every Beat run and has no
+# meaning on anyone else's machine.
+celerybeat-schedule*
