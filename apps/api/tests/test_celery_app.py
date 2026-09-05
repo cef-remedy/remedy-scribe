@@ -1,18 +1,27 @@
-"""`app.tasks.celery_app` -- specifically the TLS gap this deploy found.
+"""`app.tasks.celery_app` -- two gaps this deploy found, both live.
 
-`redis.Redis.from_url()` (routes/health.py) infers TLS from a `rediss://`
-scheme with no further configuration. Kombu, Celery's own broker/backend
-client, does not: it refuses a `rediss://` connection outright unless a
-certificate policy is stated explicitly, and it refuses at the first real
-connection -- `chain.apply_async()` inside `complete_upload` -- not at
-import or at `Celery()` construction. So `/ready` reported Redis healthy
-while every upload still 500'd with nothing in the response naming Celery,
-Kombu, or TLS. Found deploying against Upstash.
+1. TLS. `redis.Redis.from_url()` (routes/health.py) infers TLS from a
+   `rediss://` scheme with no further configuration. Kombu, Celery's own
+   broker/backend client, does not: it refuses a `rediss://` connection
+   outright unless a certificate policy is stated explicitly, and it
+   refuses at the first real connection -- `chain.apply_async()` inside
+   `complete_upload` -- not at import or at `Celery()` construction. So
+   `/ready` reported Redis healthy while every upload still 500'd with
+   nothing in the response naming Celery, Kombu, or TLS.
+
+2. The Upstash command-budget setting. `docs/runbooks/deploy-free-tier.md`
+   told every reader to pass `--broker-transport-options` on the `celery
+   worker` command line. That flag has never existed there -- it is an
+   application-config setting -- so the documented command failed at
+   argument parsing before the worker so much as tried to connect:
+   `Error: No such option '--broker-transport-options'`.
+
+Both found deploying against Upstash.
 """
 import importlib
 import ssl
 
-from app.tasks.celery_app import _tls_options
+from app.tasks.celery_app import BROKER_TRANSPORT_OPTIONS, _tls_options
 
 
 def test_a_plain_redis_url_gets_no_ssl_options():
@@ -57,6 +66,18 @@ def test_the_running_celery_app_carries_the_options_its_own_broker_needs(monkeyp
         # rebuilds `celery_app` against the real `redis_url` again.
         monkeypatch.undo()
         importlib.reload(celery_app_module)
+
+
+def test_the_broker_transport_options_actually_reach_celery_conf():
+    """Not a CLI flag -- the fix for the invalid `--broker-transport-options`
+    argument is to set this in `celery_app.conf` directly, so this checks the
+    thing that is actually load-bearing: the running app's own config, not
+    just the constant existing somewhere in the module.
+    """
+    from app.tasks.celery_app import celery_app
+
+    assert celery_app.conf.broker_transport_options == BROKER_TRANSPORT_OPTIONS
+    assert BROKER_TRANSPORT_OPTIONS["brpop_timeout"] == 30  # the number the runbook's arithmetic depends on
 
 
 def test_a_local_dev_broker_carries_no_ssl_options():

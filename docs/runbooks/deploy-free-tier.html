@@ -1117,26 +1117,31 @@ $env:DATABASE_URL = "&lt;neon-url&gt;"
         <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Start the Celery worker on an always-on machine</p>
         <span class="where">A clinic PC, a spare laptop — anything that stays on</span>
         <p>There is no free hosted option: Render's background workers and cron jobs are paid-only, Railway's free credit is consumed in hours, and Fly retired its free tier. The worker needs <strong>no inbound network</strong>, only outbound access to Neon, Upstash, Drive and Groq.</p>
+        <p class="expect bad"><b>At Stage 2, this shell needs the Drive variables too</b>, matching whichever setup Render is running (§5A or §5B) — not just <code>DATABASE_URL</code>/<code>REDIS_URL</code>/<code>GROQ_API_KEY</code>/<code>PHI_ENCRYPTION_KEY</code>. The worker reads its <strong>own</strong> environment, entirely separate from Render's. Miss this and the worker connects fine, picks up the first queued upload, and then fails downloading the audio — with the error naming <code>localhost:9002</code> or wherever <em>this machine's own</em> local <code>.env</code> happens to point, not Drive, and not anything that looks like a missing variable. Found live: a worker started with only the four Stage-1 variables silently fell back to the S3 defaults for everything else.</p>
         <span class="shell-label">PowerShell</span>
 <pre><code>cd apps/api
 $env:DATABASE_URL = "&lt;neon-url&gt;"
 $env:REDIS_URL = "&lt;upstash-url&gt;"
 $env:GROQ_API_KEY = "&lt;your key&gt;"
 $env:PHI_ENCRYPTION_KEY = "&lt;the same key as Render&gt;"
+$env:STORAGE_BACKEND = "drive"
+$env:GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON = "&lt;Setup A: paste the whole JSON&gt;"
+$env:GOOGLE_DRIVE_FOLDER_ID = "&lt;from §5A step 7 / §5B step 4&gt;"
+# Setup B instead of A: set GOOGLE_DRIVE_CLIENT_ID / _SECRET / _REFRESH_TOKEN here too.
 
-.venv\Scripts\python.exe -m celery -A app.tasks.celery_app worker `
-  --loglevel=info --pool=solo `
-  --broker-transport-options '{"socket_timeout": 60, "brpop_timeout": 30}'</code></pre>
+.venv\Scripts\python.exe -m celery -A app.tasks.celery_app worker --loglevel=info --pool=solo</code></pre>
         <span class="shell-label">bash / macOS / Linux</span>
 <pre><code>cd apps/api
 export DATABASE_URL="&lt;neon-url&gt;" REDIS_URL="&lt;upstash-url&gt;" GROQ_API_KEY=…
 export PHI_ENCRYPTION_KEY=&lt;the same key as Render&gt;
+export STORAGE_BACKEND=drive
+export GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON='&lt;Setup A: paste the whole JSON&gt;'
+export GOOGLE_DRIVE_FOLDER_ID=&lt;from §5A step 7 / §5B step 4&gt;
+# Setup B instead of A: export GOOGLE_DRIVE_CLIENT_ID / _SECRET / _REFRESH_TOKEN here too.
 
-.venv/Scripts/python -m celery -A app.tasks.celery_app worker \
-  --loglevel=info --pool=solo \
-  --broker-transport-options '{"socket_timeout": 60, "brpop_timeout": 30}'</code></pre>
-        <p>In PowerShell the trailing <code>`</code> continues the line, not <code>\</code>; a single-quoted string is literal there too, so the JSON option is unchanged from the bash version.</p>
-        <p>⚠️ <strong>That <code>brpop_timeout</code> is not optional.</strong> Celery's default ~1-second blocking read produces about <strong>2,592,000 commands a month against Upstash's 500,000 — 5× over, with the worker completely idle.</strong> At 30 seconds it is about 86,000.</p>
+.venv/Scripts/python -m celery -A app.tasks.celery_app worker --loglevel=info --pool=solo</code></pre>
+        <p class="expect bad"><b>This command used to also carry <code>--broker-transport-options '{"socket_timeout": 60, "brpop_timeout": 30}'</code>. That flag has never existed on <code>celery worker</code></b> — found live, deploying against Upstash: <code>Error: No such option '--broker-transport-options'</code>. The setting it was trying to pass is real and still needed, but it's an application-config value, not a CLI flag, so it now lives in <code>app/tasks/celery_app.py</code> (<code>BROKER_TRANSPORT_OPTIONS</code>) where it actually reaches the client Kombu builds. Nothing to add to this command — it's already covered once you're on a version of the code with that fix.</p>
+        <p>⚠️ <strong>The setting itself is not optional, wherever it lives.</strong> Celery's default ~1-second blocking read produces about <strong>2,592,000 commands a month against Upstash's 500,000 — 5× over, with the worker completely idle.</strong> At 30 seconds it is about 86,000.</p>
       </div></label></li>
 
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">

@@ -525,33 +525,56 @@ State this to your supervisor rather than absorbing it.
        paid-only, Railway's free credit is consumed in hours, and Fly retired
        its free tier. The worker needs **no inbound network**, only outbound
        access to Neon, Upstash, Drive and Groq.
+
+       ⚠️ **At Stage 2, this shell needs the Drive variables too, matching
+       whichever setup Render is running (§5A or §5B) — not just
+       `DATABASE_URL`/`REDIS_URL`/`GROQ_API_KEY`/`PHI_ENCRYPTION_KEY`.** The
+       worker reads its **own** environment, entirely separate from
+       Render's. Miss this and the worker connects fine, picks up the
+       first queued upload, and then fails downloading the audio — with
+       the error naming `localhost:9002` or wherever *this machine's own*
+       local `.env` happens to point, not Drive, and not anything that
+       looks like a missing variable. Found live: a worker started with
+       only the four Stage-1 variables silently fell back to the S3
+       defaults for everything else.
        ```powershell
        cd apps/api
        $env:DATABASE_URL = "<neon-url>"
        $env:REDIS_URL = "<upstash-url>"
        $env:GROQ_API_KEY = "<your key>"
        $env:PHI_ENCRYPTION_KEY = "<the same key as Render>"
+       $env:STORAGE_BACKEND = "drive"
+       $env:GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON = "<Setup A: paste the whole JSON>"
+       $env:GOOGLE_DRIVE_FOLDER_ID = "<from §5A step 7 / §5B step 4>"
+       # Setup B instead of A: set GOOGLE_DRIVE_CLIENT_ID / _SECRET / _REFRESH_TOKEN here too.
 
-       .venv\Scripts\python.exe -m celery -A app.tasks.celery_app worker `
-         --loglevel=info --pool=solo `
-         --broker-transport-options '{"socket_timeout": 60, "brpop_timeout": 30}'
+       .venv\Scripts\python.exe -m celery -A app.tasks.celery_app worker --loglevel=info --pool=solo
        ```
        ```bash
        cd apps/api
        export DATABASE_URL="<neon-url>" REDIS_URL="<upstash-url>" GROQ_API_KEY=…
        export PHI_ENCRYPTION_KEY=<the same key as Render>
+       export STORAGE_BACKEND=drive
+       export GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON='<Setup A: paste the whole JSON>'
+       export GOOGLE_DRIVE_FOLDER_ID=<from §5A step 7 / §5B step 4>
+       # Setup B instead of A: export GOOGLE_DRIVE_CLIENT_ID / _SECRET / _REFRESH_TOKEN here too.
 
-       .venv/Scripts/python -m celery -A app.tasks.celery_app worker \
-         --loglevel=info --pool=solo \
-         --broker-transport-options '{"socket_timeout": 60, "brpop_timeout": 30}'
+       .venv/Scripts/python -m celery -A app.tasks.celery_app worker --loglevel=info --pool=solo
        ```
-       → In PowerShell the trailing `` ` `` continues the line, not `\`; a
-       single-quoted string is literal there too, so the JSON option is
-       unchanged from the bash version.
-       ⚠️ **That `brpop_timeout` is not optional.** Celery's default
-       ~1-second blocking read produces about **2,592,000 commands a month
-       against Upstash's 500,000 — 5× over, with the worker completely
-       idle.** At 30 seconds it is about 86,000.
+       → ⚠️ **This command used to also carry
+       `--broker-transport-options '{"socket_timeout": 60, "brpop_timeout": 30}'`.
+       That flag has never existed on `celery worker`** — found live,
+       deploying against Upstash: `Error: No such option
+       '--broker-transport-options'`. The setting it was trying to pass is
+       real and still needed, but it's an application-config value, not a
+       CLI flag, so it now lives in `app/tasks/celery_app.py`
+       (`BROKER_TRANSPORT_OPTIONS`) where it actually reaches the client
+       Kombu builds. Nothing to add to this command — it's already covered
+       once you're on a version of the code with that fix.
+       ⚠️ **The setting itself is not optional, wherever it lives.**
+       Celery's default ~1-second blocking read produces about **2,592,000
+       commands a month against Upstash's 500,000 — 5× over, with the
+       worker completely idle.** At 30 seconds it is about 86,000.
 6. [ ] **Start Beat — exactly one, ever.** (Same shell session as step 5, so
        its env vars are already set.)
        ```powershell

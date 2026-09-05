@@ -36,6 +36,23 @@ def _tls_options(redis_url: str) -> dict | None:
     return {"ssl_cert_reqs": ssl.CERT_REQUIRED}
 
 
+#: Celery's default blocking `BRPOP` read is ~1 second, which against a
+#: managed Redis with a command-count budget (Upstash's free tier: 500,000
+#: commands/month) produces roughly 2,592,000 commands a month from an
+#: **idle** worker alone — about 5x over, before a single task runs. At 30
+#: seconds it is roughly 86,000.
+#:
+#: `docs/runbooks/deploy-free-tier.md` told every reader to pass this as a
+#: `--broker-transport-options` CLI flag. That flag has never existed on
+#: `celery worker` — it is an application-config setting, never a command
+#: line one — so the command in the runbook has always failed at argument
+#: parsing before the worker so much as tried to connect. Found live,
+#: deploying against Upstash: `Error: No such option
+#: '--broker-transport-options'`. Set here instead, where it actually
+#: reaches the client Kombu builds.
+BROKER_TRANSPORT_OPTIONS = {"socket_timeout": 60, "brpop_timeout": 30}
+
+
 @setup_logging.connect
 def _configure_worker_logging(**_kwargs) -> None:
     """Phase 5.2 (P0-8): install this app's PHI-scrubbing logging in the
@@ -67,6 +84,7 @@ celery_app.conf.update(
     enable_utc=True,
     broker_use_ssl=_tls_options(settings.redis_url),
     redis_backend_use_ssl=_tls_options(settings.redis_url),
+    broker_transport_options=BROKER_TRANSPORT_OPTIONS,
     # Transcription/note-gen calls are slow, retryable, external — acks_late
     # + a modest prefetch keep a worker crash from silently dropping an
     # in-flight encounter.
