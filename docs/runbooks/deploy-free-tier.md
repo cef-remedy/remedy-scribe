@@ -436,6 +436,7 @@ State this to your supervisor rather than absorbing it.
        CORS_ALLOW_ORIGINS=https://<site>.netlify.app   # no localhost — the guard refuses it
        GROQ_API_KEY=…
        NOTE_GENERATOR_PROVIDER=groq
+       S3_SECRET_KEY=<a random string — see below>
        S3_PROVISION_BUCKET_ON_STARTUP=false
        AUDIO_RETENTION_DAYS=90
 
@@ -443,6 +444,28 @@ State this to your supervisor rather than absorbing it.
        # STORAGE_BACKEND=drive
        # …plus whichever set §5 told you to use
        ```
+       → ⚠️ **`S3_SECRET_KEY` needs a real value even though Stage 1 doesn't
+       use S3.** Its default (`remedy-dev-secret`, in `.env.example`) is a
+       fingerprinted published secret, and the boot guard checks it
+       **unconditionally** — it has no way to know the field is unused. Any
+       non-default string clears it:
+       ```bash
+       python -c "import secrets; print(secrets.token_urlsafe(32))"
+       ```
+       → ⚠️ **If your boss wants the API running before Netlify exists**
+       (skipping §3 for now), you don't yet have a real value for
+       `CORS_ALLOW_ORIGINS` — but the guard only checks that it *isn't*
+       `localhost`/`127.0.0.1`, not that it's your final domain. Use a
+       clearly-fake placeholder on the reserved `.example` TLD, the same
+       convention `scripts/seed_staging.py` uses:
+       ```
+       CORS_ALLOW_ORIGINS=https://remedy-scribe.example
+       ```
+       This is safe because nothing you can check before §3 exists needs
+       real CORS — hitting `/health` directly is a top-level navigation, not
+       a CORS-governed request. **Come back and set the real value once §3
+       gives you a Netlify URL**, or a browser-based login will be silently
+       rejected by CORS with nothing useful in the API log (checklist 0.1).
        → *If it refuses to boot*, that is the guard working. It prints
        **every** problem at once rather than one per restart.
 3. [ ] **Run the migrations yourself — never on boot.**

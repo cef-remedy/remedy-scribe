@@ -1043,13 +1043,21 @@ REFRESH_COOKIE_SAMESITE=lax           # 'lax' works *because* of the Netlify rew
 CORS_ALLOW_ORIGINS=https://&lt;site&gt;.netlify.app   # no localhost — the guard refuses it
 GROQ_API_KEY=…
 NOTE_GENERATOR_PROVIDER=groq
+S3_SECRET_KEY=&lt;a random string — see below&gt;
 S3_PROVISION_BUCKET_ON_STARTUP=false
 AUDIO_RETENTION_DAYS=90
 
 # Stage 2 only — leave all of these unset for Stage 1.
 # STORAGE_BACKEND=drive
 # …plus whichever set §5 told you to use</code></pre>
-        <p class="expect"><b>If it refuses to boot</b> that is the guard working. It prints <em>every</em> problem at once rather than one per restart.</p>
+        <p class="expect"><b>If it refuses to boot</b> that is the guard working. It prints <em>every</em> problem at once rather than one per restart — read the full bullet list, not just its first line.</p>
+        <p class="expect bad"><b><code>S3_SECRET_KEY</code> needs a real value even though Stage 1 doesn't use S3.</b> Its default (<code>remedy-dev-secret</code>, in <code>.env.example</code>) is a fingerprinted published secret, and the boot guard checks it <strong>unconditionally</strong> — it has no way to know the field is unused. Any non-default string clears it:
+<pre><code>python -c "import secrets; print(secrets.token_urlsafe(32))"</code></pre>
+        </p>
+        <p class="expect bad"><b>If your boss wants the API running before Netlify exists</b> (skipping §3 for now), you don't yet have a real value for <code>CORS_ALLOW_ORIGINS</code> — but the guard only checks that it <em>isn't</em> <code>localhost</code>/<code>127.0.0.1</code>, not that it's your final domain. Use a clearly-fake placeholder on the reserved <code>.example</code> TLD, the same convention <code>scripts/seed_staging.py</code> uses:
+<pre><code>CORS_ALLOW_ORIGINS=https://remedy-scribe.example</code></pre>
+        This is safe because nothing you can check before §3 exists needs real CORS — hitting <code>/health</code> directly is a top-level navigation, not a CORS-governed request. <strong>Come back and set the real value once §3 gives you a Netlify URL</strong>, or a browser-based login will be silently rejected by CORS with nothing useful in the API log.
+        </p>
       </div></label></li>
 
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
