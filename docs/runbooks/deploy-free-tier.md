@@ -489,20 +489,34 @@ State this to your supervisor rather than absorbing it.
        ```
        Deliberate: three processes share this image, and migrating on boot
        means three racing for the same lock.
-4. [ ] **Seed a demo account.**
+4. [ ] **Seed a demo account, with `--no-audio` for Stage 1.**
        ```powershell
        $env:REMEDY_ALLOW_SYNTHETIC_SEED = "1"
        $env:ENVIRONMENT = "staging"
        $env:DATABASE_URL = "<neon-url>"
-       .venv\Scripts\python.exe scripts\seed_staging.py --yes
+       .venv\Scripts\python.exe scripts\seed_staging.py --yes --no-audio
        ```
        ```bash
        REMEDY_ALLOW_SYNTHETIC_SEED=1 ENVIRONMENT=staging DATABASE_URL="<neon-url>" \
-         .venv/Scripts/python scripts/seed_staging.py --yes
+         .venv/Scripts/python scripts/seed_staging.py --yes --no-audio
        ```
        ⚠️ `ENVIRONMENT` must **not** be `production` here — the seed refuses
        to run against anything that looks real. Set Render to `production`
        *after* this.
+
+       → ⚠️ **`--no-audio` is required at Stage 1, not optional.** The seed
+       normally uploads real audio bytes to object storage, which is exactly
+       the thing Stage 1 has none of configured yet. Omit the flag and it
+       tries to reach `localhost:9002` (or wherever your own machine's local
+       `.env` points) looking for a MinIO container that has no reason to be
+       running here, and dies with
+       `EndpointConnectionError: Could not connect to the endpoint URL`.
+       `--no-audio` seeds every encounter as never-recorded instead; the
+       retention-expired and consent-withdrawn scenarios are unaffected,
+       since they never needed an object either. **Once Stage 2 is done**
+       (Drive credentials in place), re-run the seed *without* `--no-audio`
+       if you want a seeded note with a real playable recording — see §7
+       step 6.
        → *You should see* working credentials printed, including a live TOTP
        code.
 5. [ ] **Start the Celery worker on an always-on machine you control** — a

@@ -1098,16 +1098,18 @@ DATABASE_URL="&lt;neon-url&gt;" .venv/Scripts/python -m alembic upgrade head</co
       </div></label></li>
 
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Seed a demo account</p>
+        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Seed a demo account, with <code>--no-audio</code> for Stage 1</p>
         <span class="shell-label">PowerShell</span>
 <pre><code>$env:REMEDY_ALLOW_SYNTHETIC_SEED = "1"
 $env:ENVIRONMENT = "staging"
 $env:DATABASE_URL = "&lt;neon-url&gt;"
-.venv\Scripts\python.exe scripts\seed_staging.py --yes</code></pre>
+.venv\Scripts\python.exe scripts\seed_staging.py --yes --no-audio</code></pre>
         <span class="shell-label">bash / macOS / Linux</span>
 <pre><code>REMEDY_ALLOW_SYNTHETIC_SEED=1 ENVIRONMENT=staging DATABASE_URL="&lt;neon-url&gt;" \
-  .venv/Scripts/python scripts/seed_staging.py --yes</code></pre>
+  .venv/Scripts/python scripts/seed_staging.py --yes --no-audio</code></pre>
         <p>⚠️ <code>ENVIRONMENT</code> must <strong>not</strong> be <code>production</code> here — the seed refuses to run against anything that looks real. Set Render to <code>production</code> <em>after</em> this.</p>
+        <p class="expect bad"><b><code>--no-audio</code> is required at Stage 1, not optional.</b> The seed normally uploads real audio bytes to object storage — exactly the thing Stage 1 has none of configured yet. Omit it and the script tries to reach a local MinIO container that has no reason to be running here, and dies with <code>EndpointConnectionError: Could not connect to the endpoint URL</code>. <code>--no-audio</code> seeds every encounter as never-recorded instead; the retention-expired and consent-withdrawn scenarios are unaffected, since they never needed an object either.</p>
+        <p><strong>Once Stage 2 is done</strong> (Drive credentials in place), re-run the seed <em>without</em> <code>--no-audio</code> for a seeded note with a real playable recording — see §7 step 6.</p>
         <p class="expect"><b>You should see</b> working credentials printed, including a live TOTP code.</p>
       </div></label></li>
 
