@@ -1007,8 +1007,28 @@ STORAGE_BACKEND=drive</code></pre>
     <ol class="steps">
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
         <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Create the Render web service</p>
-        <span class="where">render.com → New → Web Service → from <code>apps/api/Dockerfile</code></span>
-        <p>The image honours <code>$PORT</code>, so no start-command override is needed.</p>
+        <span class="where">render.com → New → Web Service</span>
+        <p>Render's source picker offers three options — pick <strong>Git Provider</strong>, connect GitHub, and select this repo.</p>
+        <p class="expect bad"><b>Not "Public Git Repository"</b> that mode has no auto-redeploy on push and no easy branch switch later, even for a public repo.</p>
+        <p class="expect bad"><b>Not "Existing Image"</b> that expects an already-built image sitting in a registry. You have a <code>Dockerfile</code>, not a built image.</p>
+        <p>
+          This repo's Dockerfile lives at <code>apps/api/Dockerfile</code>, not the
+          repo root, so on the form that follows:
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Field</th><th>Value</th><th>Why</th></tr></thead>
+            <tbody>
+              <tr><td>Language / Runtime</td><td><strong>Docker</strong></td><td>Left on auto-detect, Render tries a native Python buildpack instead and silently skips the Dockerfile — no non-root user, none of Phase 5.1's hardening.</td></tr>
+              <tr><td>Root Directory</td><td><code>apps/api</code></td><td>Becomes the build context. Wrong, and the build fails immediately looking for a Dockerfile at the repo root.</td></tr>
+              <tr><td>Dockerfile Path</td><td><code>./Dockerfile</code></td><td>Relative to Root Directory above, so this resolves to <code>apps/api/Dockerfile</code>.</td></tr>
+              <tr><td>Branch</td><td><code>main</code></td><td></td></tr>
+              <tr><td>Instance Type</td><td><strong>Free</strong></td><td>The 0.1 CPU / 512 MB tier this runbook assumes.</td></tr>
+              <tr><td>Health Check Path</td><td><code>/health</code></td><td>Render polls this to judge a deploy healthy. Blank means it only checks that <em>some</em> port opened, not that the app booted.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The image honours <code>$PORT</code> itself, so no start-command override is needed. Don't click <strong>Create Web Service</strong> yet — the environment variables in the next step go on this same form, further down.</p>
       </div></label></li>
 
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">

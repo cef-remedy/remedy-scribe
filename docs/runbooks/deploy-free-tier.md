@@ -401,9 +401,29 @@ State this to your supervisor rather than absorbing it.
 
 ## 6. Deploy
 
-1. [ ] **Create the Render web service** (render.com → New → Web Service →
-       from `apps/api/Dockerfile`). The image honours `$PORT`, so no
-       start-command override is needed.
+1. [ ] **Create the Render web service** (render.com → New → Web Service).
+       Render's source picker offers three options — pick **Git Provider**,
+       connect GitHub, and select this repo.
+       - ⚠️ *Not* "Public Git Repository" — that mode has no auto-redeploy on
+         push and no easy branch switch later, even for a public repo.
+       - ⚠️ *Not* "Existing Image" — that expects a already-built image in a
+         registry. You have a `Dockerfile`, not a built image.
+
+       On the form that follows, this repo's Dockerfile lives at
+       `apps/api/Dockerfile`, not the repo root, so:
+
+       | Field | Value | Why |
+       |---|---|---|
+       | Language / Runtime | **Docker** | Left on auto-detect, Render tries a native Python buildpack instead and silently skips the Dockerfile — no non-root user, none of Phase 5.1's hardening. |
+       | Root Directory | `apps/api` | Becomes the build context. Wrong, and the build fails immediately looking for a Dockerfile at the repo root. |
+       | Dockerfile Path | `./Dockerfile` | Relative to Root Directory above, so this resolves to `apps/api/Dockerfile`. |
+       | Branch | `main` | |
+       | Instance Type | **Free** | The 0.1 CPU / 512 MB tier this runbook assumes. |
+       | Health Check Path | `/health` | Render polls this to judge a deploy healthy. Blank means it only checks that *some* port opened, not that the app booted. |
+
+       The image honours `$PORT` itself, so no start-command override is
+       needed. Don't click **Create Web Service** yet — the environment
+       variables in the next step go on this same form, further down.
 2. [ ] **Set the environment variables:**
        ```
        ENVIRONMENT=production
