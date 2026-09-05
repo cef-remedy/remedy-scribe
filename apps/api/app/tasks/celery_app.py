@@ -1,3 +1,6 @@
+import ssl
+from urllib.parse import urlparse
+
 from celery import Celery
 from celery.signals import setup_logging
 
@@ -5,6 +8,32 @@ from app.core.config import get_settings
 from app.core.observability import configure_logging
 
 settings = get_settings()
+
+
+def _tls_options(redis_url: str) -> dict | None:
+    """Kombu's redis transport does not inherit redis-py's TLS defaults.
+
+    `check_redis()` in `routes/health.py` calls `redis.Redis.from_url()`
+    directly, which infers TLS from the `rediss://` scheme with no further
+    config needed. Kombu (Celery's broker/backend client) does not: it
+    refuses to open a `rediss://` connection at all unless a certificate
+    policy is stated explicitly — and it refuses *late*, at the first real
+    connection attempt rather than at import or at `Celery()` construction.
+    That attempt is `chain.apply_async()` inside `complete_upload`
+    (`routes/uploads.py`), so the failure mode is a plain 500 on the upload
+    route with nothing pointing at Celery, Kombu, or Redis at all.
+
+    `CERT_REQUIRED` rather than `CERT_NONE`: Upstash (and every managed
+    Redis this app targets) presents a certificate signed by a public CA,
+    so there is no reason to accept an unverified one. Returns `None` for a
+    plain `redis://` broker (local dev, docker-compose) — passing an empty
+    dict instead of `None` is not equivalent here: older Celery releases
+    treat `{}` as "use TLS with defaults", which would force a handshake
+    against a socket that was never going to speak TLS.
+    """
+    if urlparse(redis_url).scheme != "rediss":
+        return None
+    return {"ssl_cert_reqs": ssl.CERT_REQUIRED}
 
 
 @setup_logging.connect
@@ -36,6 +65,8 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
+    broker_use_ssl=_tls_options(settings.redis_url),
+    redis_backend_use_ssl=_tls_options(settings.redis_url),
     # Transcription/note-gen calls are slow, retryable, external — acks_late
     # + a modest prefetch keep a worker crash from silently dropping an
     # in-flight encounter.
