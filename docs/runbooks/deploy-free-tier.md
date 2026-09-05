@@ -2,7 +2,7 @@
 # Deployment runbook — free tier (Netlify + Google Drive)
 
 **Target:** a working demo, driven with your own voice. Not a patient pilot —
-see §8 for why, and it is not negotiable by configuration.
+see §9 for why, and it is not negotiable by configuration.
 
 Every part is a numbered step with something you can check afterwards.
 
@@ -68,7 +68,7 @@ machine is on. Neither is a free-tier limitation and no plan removes them.
 | Frontend | **Netlify** | 300 credits/mo (~15 GB) | Engineer's account. Part 3. |
 | API | **Render** web service | 750 instance-hrs/mo, 0.1 CPU / 512 MB | Sleeps after 15 min idle |
 | Worker + Beat | **your own always-on machine** | free | No free host exists. §6. |
-| Postgres | **Neon** | 512 MB, scale-to-zero | Demo-scale only — §8 |
+| Postgres | **Neon** | 512 MB, scale-to-zero | Demo-scale only — §9 |
 | Redis | **Upstash** | 500 K commands/mo | ⚠️ Must raise the poll timeout |
 | Audio | **Google Drive** | org pooled, or 15 GB personal | §0 and §5 |
 | ASR + notes | **Groq** | free tier | Cannot carry a full consult |
@@ -622,7 +622,77 @@ you where the problem is.
 
 ---
 
-## 8. What this deployment cannot do
+## 8. Record a demo for your supervisor
+
+Optional, and everything above exists to make this the easy part. Needs
+Stage 2 done and a worker + Beat running somewhere durable — not tied to
+this terminal session.
+
+### If Netlify isn't ready yet: a temporary stand-in, not a shortcut
+
+You can record a real browser demo before §3 exists, by running the web app
+on your own machine and pointing it at the real Render backend. This is a
+genuine setup, not a hack — just one you tear back down afterward.
+
+1. [ ] **Temporarily add your local origin to Render's CORS list.** Append
+       to `CORS_ALLOW_ORIGINS`:
+       ```
+       CORS_ALLOW_ORIGINS=https://remedy-scribe.example,http://localhost:5173
+       ```
+2. [ ] **Point the local frontend at Render** — in `apps/web/.env` (your
+       local one, already gitignored):
+       ```
+       VITE_API_BASE_URL=https://<render-service>.onrender.com
+       ```
+3. [ ] **Run it:** `cd apps/web && npm run dev`, open `http://localhost:5173`.
+4. [ ] **Log in, and don't reload the page mid-recording.** Cross-origin
+       like this means the session cookie can't refresh — `SameSite=lax`
+       only survives same-origin, which is exactly why the real Netlify
+       rewrite exists. Your access token lasts 30 minutes in memory; a
+       normal-length recording is fine, just don't hit refresh.
+
+If §3 is already live by the time you record, skip all four steps above and
+open the real Netlify site instead — nothing else in this section changes.
+
+### Before you hit record
+
+5. [ ] **Start your screen recorder.** `Win + Alt + R` (Xbox Game Bar) is
+       built into Windows and saves to `Videos\Captures`; OBS Studio is
+       worth it instead if you want to trim or edit before sending.
+6. [ ] **Close or minimize anything showing a live secret** — a terminal
+       with `$env:DATABASE_URL`, `PHI_ENCRYPTION_KEY`, or the Groq key
+       visible; the credentials file; browser DevTools' Network tab, which
+       shows the bearer token in plain text.
+
+### The walkthrough itself
+
+7. [ ] **Log in** with the seeded doctor credentials.
+8. [ ] **Start a new encounter and walk through consent.**
+9. [ ] **Record a short, real consultation** — a sentence or two of actual
+       speech into a real microphone. Synthetic silence or garbage bytes
+       will upload and reach Drive just fine, and then get correctly
+       rejected by Groq with a 400 — proving the pipeline plumbing works
+       without producing anything worth showing a supervisor.
+10. [ ] **Stop, let it upload, and wait for the pipeline to advance** —
+       `uploaded` → `transcribed` → `note_generated`. Refresh the worklist
+       if it doesn't update on its own.
+11. [ ] **Open the generated note** and walk through the APSO sections.
+12. [ ] **Click a line to see the transcript passage it cites**, then click
+       again to hear that moment played back — the trust mechanism this
+       whole system exists to provide.
+13. [ ] **Sign the note.**
+14. [ ] **Stop the recording.**
+
+### After
+
+15. [ ] **Revert the temporary CORS entry on Render** if you used the local
+        stand-in above — don't leave `localhost` in a production CORS list.
+16. [ ] **Caption the recording plainly**: seeded synthetic data, a demo
+        deployment, not a place real patients have ever been recorded (§9).
+
+---
+
+## 9. What this deployment cannot do
 
 State these plainly to anyone who asks what they are looking at.
 

@@ -498,7 +498,7 @@
       Netlify, Render, Neon, Upstash and Google Drive — a working demo you drive
       with <em>your own voice</em>, on services that cost nothing recurring. Every
       part is a numbered step with something you can check afterwards. Not a
-      patient pilot; §8 says why, and it is not negotiable by configuration.
+      patient pilot; §9 says why, and it is not negotiable by configuration.
     </p>
     <ul class="audiences">
       <li><b>You</b><span>Own the checklist: accounts, Drive, Render, Neon, migrations, the worker.</span></li>
@@ -592,7 +592,7 @@
           <tr><td>Frontend</td><td><strong>Netlify</strong></td><td class="num">300 credits/mo (~15 GB)</td><td>Engineer's account. Part 3.</td></tr>
           <tr><td>API</td><td><strong>Render</strong> web service</td><td class="num">750 instance-hrs/mo · 0.1 CPU / 512 MB</td><td>Sleeps after 15 min idle</td></tr>
           <tr><td>Worker + Beat</td><td><strong>your own always-on machine</strong></td><td class="num">free</td><td>No free host exists. §6.</td></tr>
-          <tr><td>Postgres</td><td><strong>Neon</strong></td><td class="num">512 MB, scale-to-zero</td><td>Demo-scale only — §8</td></tr>
+          <tr><td>Postgres</td><td><strong>Neon</strong></td><td class="num">512 MB, scale-to-zero</td><td>Demo-scale only — §9</td></tr>
           <tr><td>Redis</td><td><strong>Upstash</strong></td><td class="num">500 K commands/mo</td><td>⚠️ Must raise the poll timeout</td></tr>
           <tr><td>Audio</td><td><strong>Google Drive</strong></td><td class="num">org pooled, or 15 GB personal</td><td>§0 and §5</td></tr>
           <tr><td>ASR + notes</td><td><strong>Groq</strong></td><td class="num">free tier</td><td>Cannot carry a full consult</td></tr>
@@ -1212,7 +1212,111 @@ export GOOGLE_DRIVE_FOLDER_ID=&lt;from §5A step 7 / §5B step 4&gt;
 
   <!-- ══ 8 ══ -->
   <section>
-    <div class="sec-head"><span class="sec-num">8</span><h2>What this deployment cannot do</h2></div>
+    <div class="sec-head"><span class="sec-num">8</span><h2>Record a demo for your supervisor</h2></div>
+    <p class="lede">
+      Optional, and everything above exists to make this the easy part. Needs
+      Stage 2 done and a worker + Beat running somewhere durable — not tied to
+      this terminal session.
+    </p>
+
+    <h3>If Netlify isn't ready yet: a temporary stand-in, not a shortcut</h3>
+
+    <p>
+      You can record a real browser demo before §3 exists, by running the web
+      app on your own machine and pointing it at the real Render backend. This
+      is a genuine setup, not a hack — just one you tear back down afterward.
+    </p>
+
+    <ol class="steps">
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Temporarily add your local origin to Render's CORS list</p>
+        <p>Append to <code>CORS_ALLOW_ORIGINS</code>:</p>
+<pre><code>CORS_ALLOW_ORIGINS=https://remedy-scribe.example,http://localhost:5173</code></pre>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Point the local frontend at Render</p>
+        <span class="where">In <code>apps/web/.env</code> — your local one, already gitignored</span>
+<pre><code>VITE_API_BASE_URL=https://&lt;render-service&gt;.onrender.com</code></pre>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Run it</p>
+<pre><code>cd apps/web
+npm run dev</code></pre>
+        <p>Open <code>http://localhost:5173</code>.</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Log in, and don't reload the page mid-recording</p>
+        <p class="expect bad"><b>Cross-origin like this breaks session refresh</b> <code>SameSite=lax</code> only survives same-origin — exactly why the real Netlify rewrite exists. Your access token lasts 30 minutes in memory; a normal-length recording is fine, just don't hit refresh.</p>
+      </div></label></li>
+    </ol>
+
+    <div class="note done">
+      <span class="note-label">If §3 is already live</span>
+      <p>Skip all four steps above and open the real Netlify site instead — nothing else in this section changes.</p>
+    </div>
+
+    <h3>Before you hit record</h3>
+
+    <ol class="steps">
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Start your screen recorder</p>
+        <p><code>Win + Alt + R</code> (Xbox Game Bar) is built into Windows and saves to <code>Videos\Captures</code>; OBS Studio is worth it instead if you want to trim or edit before sending.</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Close or minimize anything showing a live secret</p>
+        <p>A terminal with <code>$env:DATABASE_URL</code>, <code>PHI_ENCRYPTION_KEY</code>, or the Groq key visible; the credentials file; browser DevTools' Network tab, which shows the bearer token in plain text.</p>
+      </div></label></li>
+    </ol>
+
+    <h3>The walkthrough itself</h3>
+
+    <ol class="steps">
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Log in with the seeded doctor credentials</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Start a new encounter and walk through consent</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Record a short, real consultation</p>
+        <p class="expect bad"><b>Use a real microphone and real speech</b> Synthetic silence or garbage bytes will upload and reach Drive just fine, then get correctly rejected by Groq with a 400 — proving the pipeline plumbing works without producing anything worth showing a supervisor.</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Stop, let it upload, and wait for the pipeline to advance</p>
+        <p class="expect"><b>You should see</b> <code>uploaded</code> → <code>transcribed</code> → <code>note_generated</code>. Refresh the worklist if it doesn't update on its own.</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Open the generated note and walk through the APSO sections</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Click a line to see the transcript passage it cites, then click again to hear it</p>
+        <p>The trust mechanism this whole system exists to provide.</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Sign the note</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Stop the recording</p>
+      </div></label></li>
+    </ol>
+
+    <h3>After</h3>
+
+    <ol class="steps">
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Revert the temporary CORS entry on Render, if you used the local stand-in above</p>
+        <p class="expect bad"><b>Don't leave <code>localhost</code></b> in a production CORS list.</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Caption the recording plainly</p>
+        <p>Seeded synthetic data, a demo deployment, not a place real patients have ever been recorded (§9).</p>
+      </div></label></li>
+    </ol>
+  </section>
+
+  <!-- ══ 9 ══ -->
+  <section>
+    <div class="sec-head"><span class="sec-num">9</span><h2>What this deployment cannot do</h2></div>
     <p class="lede">State these plainly to anyone who asks what they are looking at.</p>
 
     <ul class="cannot">
