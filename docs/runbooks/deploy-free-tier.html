@@ -249,6 +249,18 @@
     line-height: 1.55;
   }
   pre code { background: none; border: none; padding: 0; color: inherit; font-size: inherit; word-break: normal; }
+  /* Shell-labelled command pairs: PowerShell first, since it's this repo's
+     primary environment, then bash — never interchangeable syntax. */
+  .shell-label {
+    display: block;
+    font-family: var(--f-mono);
+    font-size: .68rem;
+    font-weight: 500;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: .8rem 0 -.4rem;
+  }
 
   blockquote {
     margin: 1rem 0;
@@ -1060,18 +1072,40 @@ AUDIO_RETENTION_DAYS=90
         </p>
       </div></label></li>
 
+      <div class="note warn">
+        <span class="note-label">PowerShell first, then bash — not interchangeable</span>
+        <p>
+          PowerShell has no <code>VAR=value command</code> prefix syntax — it is a
+          parser error there, not an env-var assignment. And a bare <code>&amp;</code>
+          in an unquoted value is PowerShell's own command separator, which Neon's
+          connection strings routinely contain (<code>&amp;channel_binding=require</code>).
+          Always <strong>double-quote the whole value</strong> in PowerShell.
+        </p>
+      </div>
+
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
         <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Run the migrations yourself — never on boot</p>
         <span class="where">Your machine, pointed at Neon</span>
+        <span class="shell-label">PowerShell</span>
 <pre><code>cd apps/api
-DATABASE_URL=&lt;neon-url&gt; .venv/Scripts/python -m alembic upgrade head</code></pre>
+$env:DATABASE_URL = "&lt;neon-url&gt;"
+.venv\Scripts\python.exe -m alembic upgrade head</code></pre>
+        <span class="shell-label">bash / macOS / Linux</span>
+<pre><code>cd apps/api
+DATABASE_URL="&lt;neon-url&gt;" .venv/Scripts/python -m alembic upgrade head</code></pre>
         <p>Deliberate: three processes share this image, and migrating on boot means three of them racing for the same lock.</p>
         <p class="expect"><b>You should see</b> Alembic running each revision, ending at <code>head</code>.</p>
       </div></label></li>
 
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
         <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Seed a demo account</p>
-<pre><code>REMEDY_ALLOW_SYNTHETIC_SEED=1 ENVIRONMENT=staging DATABASE_URL=&lt;neon-url&gt; \
+        <span class="shell-label">PowerShell</span>
+<pre><code>$env:REMEDY_ALLOW_SYNTHETIC_SEED = "1"
+$env:ENVIRONMENT = "staging"
+$env:DATABASE_URL = "&lt;neon-url&gt;"
+.venv\Scripts\python.exe scripts\seed_staging.py --yes</code></pre>
+        <span class="shell-label">bash / macOS / Linux</span>
+<pre><code>REMEDY_ALLOW_SYNTHETIC_SEED=1 ENVIRONMENT=staging DATABASE_URL="&lt;neon-url&gt;" \
   .venv/Scripts/python scripts/seed_staging.py --yes</code></pre>
         <p>⚠️ <code>ENVIRONMENT</code> must <strong>not</strong> be <code>production</code> here — the seed refuses to run against anything that looks real. Set Render to <code>production</code> <em>after</em> this.</p>
         <p class="expect"><b>You should see</b> working credentials printed, including a live TOTP code.</p>
@@ -1081,18 +1115,34 @@ DATABASE_URL=&lt;neon-url&gt; .venv/Scripts/python -m alembic upgrade head</code
         <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Start the Celery worker on an always-on machine</p>
         <span class="where">A clinic PC, a spare laptop — anything that stays on</span>
         <p>There is no free hosted option: Render's background workers and cron jobs are paid-only, Railway's free credit is consumed in hours, and Fly retired its free tier. The worker needs <strong>no inbound network</strong>, only outbound access to Neon, Upstash, Drive and Groq.</p>
+        <span class="shell-label">PowerShell</span>
 <pre><code>cd apps/api
-export DATABASE_URL=&lt;neon-url&gt; REDIS_URL=&lt;upstash-url&gt; GROQ_API_KEY=…
+$env:DATABASE_URL = "&lt;neon-url&gt;"
+$env:REDIS_URL = "&lt;upstash-url&gt;"
+$env:GROQ_API_KEY = "&lt;your key&gt;"
+$env:PHI_ENCRYPTION_KEY = "&lt;the same key as Render&gt;"
+
+.venv\Scripts\python.exe -m celery -A app.tasks.celery_app worker `
+  --loglevel=info --pool=solo `
+  --broker-transport-options '{"socket_timeout": 60, "brpop_timeout": 30}'</code></pre>
+        <span class="shell-label">bash / macOS / Linux</span>
+<pre><code>cd apps/api
+export DATABASE_URL="&lt;neon-url&gt;" REDIS_URL="&lt;upstash-url&gt;" GROQ_API_KEY=…
 export PHI_ENCRYPTION_KEY=&lt;the same key as Render&gt;
 
 .venv/Scripts/python -m celery -A app.tasks.celery_app worker \
   --loglevel=info --pool=solo \
   --broker-transport-options '{"socket_timeout": 60, "brpop_timeout": 30}'</code></pre>
+        <p>In PowerShell the trailing <code>`</code> continues the line, not <code>\</code>; a single-quoted string is literal there too, so the JSON option is unchanged from the bash version.</p>
         <p>⚠️ <strong>That <code>brpop_timeout</code> is not optional.</strong> Celery's default ~1-second blocking read produces about <strong>2,592,000 commands a month against Upstash's 500,000 — 5× over, with the worker completely idle.</strong> At 30 seconds it is about 86,000.</p>
       </div></label></li>
 
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
         <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Start Beat — exactly one, ever</p>
+        <p>Same shell session as the worker step, so its env vars are already set.</p>
+        <span class="shell-label">PowerShell</span>
+<pre><code>.venv\Scripts\python.exe -m celery -A app.tasks.celery_app beat --loglevel=info</code></pre>
+        <span class="shell-label">bash / macOS / Linux</span>
 <pre><code>.venv/Scripts/python -m celery -A app.tasks.celery_app beat --loglevel=info</code></pre>
         <p class="expect bad"><b>Never two</b> Two Beat processes double-fire the retention purge, and <strong>that purge deletes patient data</strong>. Before restarting it, confirm the old one is actually dead.</p>
       </div></label></li>

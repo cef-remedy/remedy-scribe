@@ -468,16 +468,36 @@ State this to your supervisor rather than absorbing it.
        rejected by CORS with nothing useful in the API log (checklist 0.1).
        → *If it refuses to boot*, that is the guard working. It prints
        **every** problem at once rather than one per restart.
+> ⚠️ **The commands below are shown for PowerShell first** — this repo's
+> primary environment — **then bash/macOS/Linux.** They are not
+> interchangeable: PowerShell has no `VAR=value command` prefix syntax (it
+> parses that as a syntax error, not an env-var assignment), and a bare `&`
+> in an unquoted value is PowerShell's own command separator — Neon's
+> connection strings routinely contain `&channel_binding=require`, so an
+> unquoted URL breaks even once the assignment syntax is fixed. Always
+> **double-quote the whole value** in PowerShell.
+
 3. [ ] **Run the migrations yourself — never on boot.**
+       ```powershell
+       cd apps/api
+       $env:DATABASE_URL = "<neon-url>"
+       .venv\Scripts\python.exe -m alembic upgrade head
+       ```
        ```bash
        cd apps/api
-       DATABASE_URL=<neon-url> .venv/Scripts/python -m alembic upgrade head
+       DATABASE_URL="<neon-url>" .venv/Scripts/python -m alembic upgrade head
        ```
        Deliberate: three processes share this image, and migrating on boot
        means three racing for the same lock.
 4. [ ] **Seed a demo account.**
+       ```powershell
+       $env:REMEDY_ALLOW_SYNTHETIC_SEED = "1"
+       $env:ENVIRONMENT = "staging"
+       $env:DATABASE_URL = "<neon-url>"
+       .venv\Scripts\python.exe scripts\seed_staging.py --yes
+       ```
        ```bash
-       REMEDY_ALLOW_SYNTHETIC_SEED=1 ENVIRONMENT=staging DATABASE_URL=<neon-url> \
+       REMEDY_ALLOW_SYNTHETIC_SEED=1 ENVIRONMENT=staging DATABASE_URL="<neon-url>" \
          .venv/Scripts/python scripts/seed_staging.py --yes
        ```
        ⚠️ `ENVIRONMENT` must **not** be `production` here — the seed refuses
@@ -491,20 +511,38 @@ State this to your supervisor rather than absorbing it.
        paid-only, Railway's free credit is consumed in hours, and Fly retired
        its free tier. The worker needs **no inbound network**, only outbound
        access to Neon, Upstash, Drive and Groq.
+       ```powershell
+       cd apps/api
+       $env:DATABASE_URL = "<neon-url>"
+       $env:REDIS_URL = "<upstash-url>"
+       $env:GROQ_API_KEY = "<your key>"
+       $env:PHI_ENCRYPTION_KEY = "<the same key as Render>"
+
+       .venv\Scripts\python.exe -m celery -A app.tasks.celery_app worker `
+         --loglevel=info --pool=solo `
+         --broker-transport-options '{"socket_timeout": 60, "brpop_timeout": 30}'
+       ```
        ```bash
        cd apps/api
-       export DATABASE_URL=<neon-url> REDIS_URL=<upstash-url> GROQ_API_KEY=…
+       export DATABASE_URL="<neon-url>" REDIS_URL="<upstash-url>" GROQ_API_KEY=…
        export PHI_ENCRYPTION_KEY=<the same key as Render>
 
        .venv/Scripts/python -m celery -A app.tasks.celery_app worker \
          --loglevel=info --pool=solo \
          --broker-transport-options '{"socket_timeout": 60, "brpop_timeout": 30}'
        ```
+       → In PowerShell the trailing `` ` `` continues the line, not `\`; a
+       single-quoted string is literal there too, so the JSON option is
+       unchanged from the bash version.
        ⚠️ **That `brpop_timeout` is not optional.** Celery's default
        ~1-second blocking read produces about **2,592,000 commands a month
        against Upstash's 500,000 — 5× over, with the worker completely
        idle.** At 30 seconds it is about 86,000.
-6. [ ] **Start Beat — exactly one, ever.**
+6. [ ] **Start Beat — exactly one, ever.** (Same shell session as step 5, so
+       its env vars are already set.)
+       ```powershell
+       .venv\Scripts\python.exe -m celery -A app.tasks.celery_app beat --loglevel=info
+       ```
        ```bash
        .venv/Scripts/python -m celery -A app.tasks.celery_app beat --loglevel=info
        ```
