@@ -174,7 +174,7 @@ export function GroundedSection({
               cited window, not a generic spinner. */}
           {player.playing && (
             <div className="playhead-track" aria-hidden="true">
-              <div className="playhead-fill" style={{ width: `${player.progress * 100}%` }} />
+              <div className="playhead-fill" style={{ transform: `scaleX(${player.progress})` }} />
             </div>
           )}
           {selected.segmentIds.length === 0 ? (

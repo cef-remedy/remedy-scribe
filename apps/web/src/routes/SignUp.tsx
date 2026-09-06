@@ -14,6 +14,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { register } from "../api/client";
 import { useAuth } from "../lib/auth";
 import { FieldError } from "../components/Banner";
+import { PasswordField } from "../components/PasswordField";
 
 export function SignUp() {
   const { signIn } = useAuth();
@@ -49,9 +50,9 @@ export function SignUp() {
     // Straight into the app — the account just proved it's real by
     // choosing its own password, and asking for it again immediately
     // would only be friction, not security.
-    const loginDetail = await signIn(email, password);
+    const loginFailure = await signIn(email, password);
     setBusy(false);
-    if (loginDetail) {
+    if (loginFailure) {
       // Created but couldn't sign in automatically — rare, but send them
       // to the normal sign-in screen rather than leaving this one stuck.
       navigate("/login");
@@ -87,25 +88,23 @@ export function SignUp() {
           onChange={(e) => setEmail(e.target.value)}
         />
 
-        <label htmlFor="signup-password">Password</label>
-        <input
+        <PasswordField
           id="signup-password"
-          type="password"
+          label="Password"
           autoComplete="new-password"
           required
           minLength={8}
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={setPassword}
         />
 
-        <label htmlFor="signup-confirm">Confirm password</label>
-        <input
+        <PasswordField
           id="signup-confirm"
-          type="password"
+          label="Confirm password"
           autoComplete="new-password"
           required
           value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
+          onChange={setConfirm}
         />
 
         <FieldError>{error}</FieldError>

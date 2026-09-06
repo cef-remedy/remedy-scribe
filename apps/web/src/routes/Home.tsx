@@ -21,7 +21,7 @@
  * - `compliance` is a real, seeded, RBAC-enforced role with nowhere to go —
  *   it landed on this exact doctor worklist. Redirected to `/audit` instead.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { api, OfflineError } from "../api/client";
 import { useAuth } from "../lib/auth";
@@ -57,6 +57,15 @@ export function Home() {
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [retrying, setRetrying] = useState<string | null>(null);
+  // Loose / Recent / Needs attention used to be three sections stacked one
+  // after another — a lot of scrolling once Recent has anywhere near its
+  // full 25. Tabbed instead, using the same folder-tab shape the per-
+  // encounter status already wears (apps/web/index.html's direction), just
+  // toned neutrally rather than status-colored, so the two don't read as
+  // the same kind of thing. "Needs attention" keeps a visible dot when it
+  // has failures even while another tab is open — the one section a
+  // doctor must not lose track of just because it isn't the active tab.
+  const [activeTab, setActiveTab] = useState<"recent" | "loose" | "attention">("recent");
 
   // The compliance role has real RBAC-enforced routes (GET /audit-logs) but
   // never had a screen to reach them from — it landed here, on a worklist
@@ -67,6 +76,12 @@ export function Home() {
   }, [role, navigate]);
 
   useEffect(() => {
+    // A compliance account is redirected away by the effect above, but that
+    // redirect doesn't stop this one from firing on the same mount — all
+    // three of these are doctor-only (RBAC) and a compliance session got
+    // three 403s out of every visit here for a screen it was never going
+    // to see. Found by Playwright surfacing console errors, not by eye.
+    if (role === "compliance") return;
     let cancelled = false;
 
     async function load() {
@@ -95,7 +110,7 @@ export function Home() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [role]);
 
   // The one action every downstream screen assumes already happened.
   // `crypto.randomUUID()` (browser-native, no dependency) matches
@@ -168,8 +183,156 @@ export function Home() {
 
       <QueueStatus entries={entries} storage={storage} onRetry={retry} onUploadNow={uploadNow} />
 
-      <section>
-        <h2>Loose sessions</h2>
+      {(() => {
+        const tabs: { key: "recent" | "loose" | "attention"; label: string; count: number | null }[] = [
+          { key: "recent", label: "Recent", count: recent?.length ?? null },
+          { key: "loose", label: "Loose sessions", count: loose?.length ?? null },
+          { key: "attention", label: "Needs attention", count: failed?.length ?? null },
+        ];
+        const activeIndex = tabs.findIndex((t) => t.key === activeTab);
+
+        function onTabKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+          if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+          event.preventDefault();
+          const delta = event.key === "ArrowRight" ? 1 : -1;
+          const next = tabs[(activeIndex + delta + tabs.length) % tabs.length];
+          setActiveTab(next.key);
+          const el = document.getElementById(`worklist-tab-${next.key}`);
+          el?.focus();
+        }
+
+        return (
+          <div
+            className="rack-tabs"
+            role="tablist"
+            aria-label="Encounter worklist"
+            onKeyDown={onTabKeyDown}
+          >
+            {tabs.map((t) => (
+              <button
+                key={t.key}
+                id={`worklist-tab-${t.key}`}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === t.key}
+                aria-controls={`worklist-panel-${t.key}`}
+                tabIndex={activeTab === t.key ? 0 : -1}
+                className={
+                  "rack-tab" +
+                  (activeTab === t.key ? " is-active" : "") +
+                  (t.key === "attention" && (failed?.length ?? 0) > 0 ? " has-attention" : "")
+                }
+                onClick={() => setActiveTab(t.key)}
+              >
+                {t.label}
+                {t.count !== null && <span className="count"> ({t.count})</span>}
+              </button>
+            ))}
+          </div>
+        );
+      })()}
+
+      {/* Without this there was no way back to a note after filing it: the
+          only lists were loose sessions and failures, so linking a patient
+          removed an encounter from the one tray that showed it. Found by
+          walking the onboarding runbook in a browser, not by a test. */}
+      <div
+        className="rack-panel"
+        role="tabpanel"
+        id="worklist-panel-recent"
+        aria-labelledby="worklist-tab-recent"
+        hidden={activeTab !== "recent"}
+      >
+        <p className="muted">Your last 25 encounters, newest first.</p>
+        {recent === null ? (
+          <p className="muted">Loading…</p>
+        ) : recent.length === 0 ? (
+          <p className="muted">Nothing yet. Start a recording and it will appear here.</p>
+        ) : (
+          <ul className="loose">
+            {recent.map((e) => {
+              const seq = sequencePosition(e.pipeline_status, Boolean(e.note_id));
+              // A note exists -> open it. No note yet, but this encounter is
+              // still at the very first pipeline stage -> nothing has left
+              // this laptop yet, so it's resumable, not just viewable: back
+              // into Record.tsx, which re-checks the consent gate itself on
+              // mount and needs nothing carried over from this click. Every
+              // later stage (uploaded/transcribed/generating) is mid-flight
+              // on the server with no screen to land on, so those stay
+              // un-clickable rather than linking somewhere that looks like
+              // progress but shows nothing.
+              const dest = e.note_id
+                ? `/notes/${e.note_id}`
+                : e.pipeline_status === "recording"
+                  ? `/encounters/${e.id}/record`
+                  : null;
+              return (
+                <li
+                  key={e.id}
+                  className={dest ? "folder-row is-clickable" : "folder-row"}
+                  role={dest ? "link" : undefined}
+                  tabIndex={dest ? 0 : undefined}
+                  onClick={dest ? () => navigate(dest) : undefined}
+                  onKeyDown={
+                    dest
+                      ? (event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            navigate(dest);
+                          }
+                        }
+                      : undefined
+                  }
+                >
+                  <FolderTab
+                    kind={encounterTab(e.pipeline_status)}
+                    label={PIPELINE_LABEL[e.pipeline_status] ?? e.pipeline_status}
+                  />
+                  <div className="folder-head">
+                    <span className="folder-id">{e.id.slice(0, 8)}</span>
+                    <span className="folder-date">{new Date(e.created_at).toLocaleDateString()}</span>
+                  </div>
+                  <StepSequence
+                    length={SEQUENCE_LENGTH}
+                    index={seq.index}
+                    terminal={seq.terminal}
+                    label={PIPELINE_LABEL[e.pipeline_status] ?? e.pipeline_status}
+                  />
+                  <div className="folder-actions" style={{ marginTop: ".6rem" }}>
+                    {e.note_id ? (
+                      // stopPropagation: the row above already navigates
+                      // here on click — without this, this nested link's
+                      // own click bubbles up and fires that navigation too
+                      // (harmless, same destination, but pointless).
+                      <Link className="ghost" to={`/notes/${e.note_id}`} onClick={(ev) => ev.stopPropagation()}>
+                        Open note
+                      </Link>
+                    ) : e.pipeline_status === "recording" ? (
+                      <Link
+                        className="ghost"
+                        to={`/encounters/${e.id}/record`}
+                        onClick={(ev) => ev.stopPropagation()}
+                      >
+                        Resume recording
+                      </Link>
+                    ) : (
+                      <span className="muted">no note yet</span>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      <div
+        className="rack-panel"
+        role="tabpanel"
+        id="worklist-panel-loose"
+        aria-labelledby="worklist-tab-loose"
+        hidden={activeTab !== "loose"}
+      >
         <p className="muted">Recordings not yet linked to a patient (P0-6).</p>
         {loose === null ? (
           <p className="muted">Loading…</p>
@@ -216,57 +379,15 @@ export function Home() {
           </ul>
         )}
         {linkError && <Banner tone="error">{linkError}</Banner>}
-      </section>
+      </div>
 
-      {/* Without this there was no way back to a note after filing it: the
-          only lists were loose sessions and failures, so linking a patient
-          removed an encounter from the one tray that showed it. Found by
-          walking the onboarding runbook in a browser, not by a test. */}
-      <section>
-        <h2>Recent</h2>
-        <p className="muted">Your last 25 encounters, newest first.</p>
-        {recent === null ? (
-          <p className="muted">Loading…</p>
-        ) : recent.length === 0 ? (
-          <p className="muted">Nothing yet. Start a recording and it will appear here.</p>
-        ) : (
-          <ul className="loose">
-            {recent.map((e) => {
-              const seq = sequencePosition(e.pipeline_status, Boolean(e.note_id));
-              return (
-                <li key={e.id} className="folder-row">
-                  <FolderTab
-                    kind={encounterTab(e.pipeline_status)}
-                    label={PIPELINE_LABEL[e.pipeline_status] ?? e.pipeline_status}
-                  />
-                  <div className="folder-head">
-                    <span className="folder-id">{e.id.slice(0, 8)}</span>
-                    <span className="folder-date">{new Date(e.created_at).toLocaleDateString()}</span>
-                  </div>
-                  <StepSequence
-                    length={SEQUENCE_LENGTH}
-                    index={seq.index}
-                    terminal={seq.terminal}
-                    label={PIPELINE_LABEL[e.pipeline_status] ?? e.pipeline_status}
-                  />
-                  <div className="folder-actions" style={{ marginTop: ".6rem" }}>
-                    {e.note_id ? (
-                      <Link className="ghost" to={`/notes/${e.note_id}`}>
-                        Open note
-                      </Link>
-                    ) : (
-                      <span className="muted">no note yet</span>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
-      <section>
-        <h2>Needs attention</h2>
+      <div
+        className="rack-panel"
+        role="tabpanel"
+        id="worklist-panel-attention"
+        aria-labelledby="worklist-tab-attention"
+        hidden={activeTab !== "attention"}
+      >
         <p className="muted">
           Encounters whose pipeline failed after all retries (Phase 1.5). Each one can be retried.
         </p>
@@ -295,7 +416,7 @@ export function Home() {
             ))}
           </ul>
         )}
-      </section>
+      </div>
 
       <section className="card">
         <h2>How this works</h2>

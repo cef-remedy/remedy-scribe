@@ -90,6 +90,20 @@ class Settings(BaseSettings):
     google_drive_folder_id: str = ""
 
     s3_endpoint_url: str = "http://localhost:9000"
+    # The presigned URL a *browser* is handed to PUT/GET audio directly
+    # (decision 0013) needs a host the browser can resolve — not
+    # necessarily the same one this server uses for its own calls to
+    # object storage. They coincide everywhere this app has actually
+    # deployed to (real S3/R2/Supabase, and bare-metal local dev where
+    # MinIO listens on localhost for everyone). They diverge exactly once:
+    # `infra/docker-compose.yml` runs the API *and* MinIO as containers on
+    # the same Docker network, where `s3_endpoint_url=http://minio:9000`
+    # is correct for the API's own boto3 calls but unresolvable from the
+    # browser on the host — found live, via Playwright, as a presigned
+    # part-upload PUT failing with net::ERR_NAME_NOT_RESOLVED and every
+    # recording silently stuck at pipeline_status="recording" forever.
+    # Unset here falls back to `s3_endpoint_url`, so nothing else changes.
+    s3_public_endpoint_url: str | None = None
     # The region SigV4 signs with. boto3 silently falls back to us-east-1
     # when nothing sets this, which is fine for MinIO (it ignores the
     # region) and fails on providers that do not: Supabase Storage expects
@@ -99,6 +113,12 @@ class Settings(BaseSettings):
     # is an env change rather than a code change.
     s3_region: str = "us-east-1"
     s3_bucket: str = "remedy-scribe-audio"
+
+    @property
+    def s3_public_endpoint_url_effective(self) -> str:
+        return self.s3_public_endpoint_url or self.s3_endpoint_url
+
+
     s3_access_key: str = "remedy"
     s3_secret_key: str = "remedy-dev-secret"
     s3_presigned_url_expires_seconds: int = 900  # 15 min per part-upload URL

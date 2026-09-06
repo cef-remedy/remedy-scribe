@@ -68,6 +68,12 @@ def storage_module(minio_config, monkeypatch):
         config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
     )
     monkeypatch.setattr(storage_s3, "_client", lambda: client)
+    # This test's "browser" (httpx.put, below) and this server are the same
+    # process talking to the same ephemeral container — no Docker-internal
+    # vs. host-visible split to reproduce here, so both clients are this
+    # one. See s3_public_endpoint_url_effective's own comment for the one
+    # case (docker-compose) where they're genuinely different.
+    monkeypatch.setattr(storage_s3, "_public_client", lambda: client)
 
     bucket = storage.get_settings().s3_bucket
     try:

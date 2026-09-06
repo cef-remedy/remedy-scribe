@@ -215,7 +215,9 @@ api.use(authMiddleware);
  * never has to travel through React state.
  * ------------------------------------------------------------------ */
 
-export type LoginResult = { ok: true } | { ok: false; status: number; detail: string };
+export type LoginResult =
+  | { ok: true }
+  | { ok: false; status: number; detail: string; retryAfterSeconds: number | null };
 
 /**
  * A 422 deserves its own message. It means the request was malformed, not
@@ -250,7 +252,17 @@ export async function login(email: string, password: string, mfaCode?: string): 
   });
 
   if (error || !data) {
-    return { ok: false, status: response.status, detail: describeLoginFailure(response.status, error) };
+    // Only meaningful on a 429 (see app/services/auth_rate_limit.py), and
+    // only readable at all because main.py exposes it past CORS — a plain
+    // fetch response hides any header not on the CORS-safelist otherwise.
+    const rawRetryAfter = response.headers.get("retry-after");
+    const parsedRetryAfter = rawRetryAfter === null ? NaN : Number(rawRetryAfter);
+    return {
+      ok: false,
+      status: response.status,
+      detail: describeLoginFailure(response.status, error),
+      retryAfterSeconds: Number.isFinite(parsedRetryAfter) ? parsedRetryAfter : null,
+    };
   }
 
   // data.refresh_token exists in the response body for non-browser callers.

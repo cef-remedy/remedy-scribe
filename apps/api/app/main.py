@@ -196,7 +196,13 @@ app.add_middleware(
     # unless it is exposed. Without this the API stamps a correlation ID the
     # web client cannot read, which breaks the one thing a correlation ID is
     # for — a doctor's error report naming the same ID the server logged.
-    expose_headers=[CORRELATION_HEADER],
+    #
+    # Retry-After (added alongside the login rate-limit countdown) needs
+    # the same treatment for the same reason: it is not on the fetch spec's
+    # small CORS-safelisted header list, so without this line the web
+    # client's `response.headers.get("retry-after")` silently returns null
+    # on a cross-origin dev setup even though the server sent it.
+    expose_headers=[CORRELATION_HEADER, "Retry-After"],
 )
 
 # Added before the correlation middleware, so it sits inside it and still

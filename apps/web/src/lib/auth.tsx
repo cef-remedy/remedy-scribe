@@ -25,11 +25,16 @@ import {
 
 type AuthStatus = "checking" | "signed-in" | "signed-out";
 
+/** A failed sign-in, with enough to render a live countdown when the
+ * server named one (429 — rate-limited or locked-out) rather than just
+ * a static "wait a few minutes" string that never updates. */
+export type SignInFailure = { detail: string; retryAfterSeconds: number | null };
+
 type AuthContextValue = {
   status: AuthStatus;
   /** A routing hint only — see `getClinicianRole`'s own comment. */
   role: string | null;
-  signIn: (email: string, password: string, mfaCode?: string) => Promise<string | null>;
+  signIn: (email: string, password: string, mfaCode?: string) => Promise<SignInFailure | null>;
   signOut: () => Promise<void>;
 };
 
@@ -72,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRole(getClinicianRole());
       return null;
     }
-    return result.detail;
+    return { detail: result.detail, retryAfterSeconds: result.retryAfterSeconds };
   }, []);
 
   const signOut = useCallback(async () => {

@@ -57,8 +57,35 @@ MAX_PART_NUMBER = 10000
 MIN_PART_SIZE_BYTES = 5 * 1024 * 1024  # every part but the last
 
 
+def _client_config() -> Config:
+    return Config(
+        signature_version="s3v4",
+        # MinIO (and most non-AWS S3-compatible stores) don't support
+        # virtual-hosted-style bucket addressing (bucket.host/key) —
+        # only path style (host/bucket/key). Real AWS S3 accepts
+        # path style too, so this is safe for both targets rather
+        # than needing a MinIO-vs-AWS branch.
+        s3={"addressing_style": "path"},
+        # boto3's defaults (60s connect, up to several retries with
+        # backoff) turn "object storage is unreachable" into a
+        # multi-minute hang on every request — including the
+        # startup bucket-configuration check, which otherwise stalls
+        # API boot (and, worse, every test that spins up a TestClient)
+        # for minutes when nothing is listening on s3_endpoint_url.
+        # A synchronous request handler should fail fast, not hang.
+        connect_timeout=5,
+        read_timeout=10,
+        retries={"max_attempts": 1},
+    )
+
+
 @lru_cache
 def _client():
+    """For every call this server makes to object storage itself
+    (create/complete/list/head/get/delete/bucket-config) — needs
+    `s3_endpoint_url`, which on `infra/docker-compose.yml` is the
+    Docker-internal `http://minio:9000`.
+    """
     settings = get_settings()
     return boto3.client(
         "s3",
@@ -66,25 +93,27 @@ def _client():
         region_name=settings.s3_region,
         aws_access_key_id=settings.s3_access_key,
         aws_secret_access_key=settings.s3_secret_key,
-        config=Config(
-            signature_version="s3v4",
-            # MinIO (and most non-AWS S3-compatible stores) don't support
-            # virtual-hosted-style bucket addressing (bucket.host/key) —
-            # only path style (host/bucket/key). Real AWS S3 accepts
-            # path style too, so this is safe for both targets rather
-            # than needing a MinIO-vs-AWS branch.
-            s3={"addressing_style": "path"},
-            # boto3's defaults (60s connect, up to several retries with
-            # backoff) turn "object storage is unreachable" into a
-            # multi-minute hang on every request — including the
-            # startup bucket-configuration check, which otherwise stalls
-            # API boot (and, worse, every test that spins up a TestClient)
-            # for minutes when nothing is listening on s3_endpoint_url.
-            # A synchronous request handler should fail fast, not hang.
-            connect_timeout=5,
-            read_timeout=10,
-            retries={"max_attempts": 1},
-        ),
+        config=_client_config(),
+    )
+
+
+@lru_cache
+def _public_client():
+    """For presigned URLs handed to a browser (part upload, playback) —
+    needs `s3_public_endpoint_url_effective`, which is a browser-reachable
+    host. See that setting's own comment in app/core/config.py for why
+    this has to be a second client rather than a second endpoint on the
+    same one: boto3 bakes a client's configured endpoint into every URL
+    `generate_presigned_url` produces.
+    """
+    settings = get_settings()
+    return boto3.client(
+        "s3",
+        endpoint_url=settings.s3_public_endpoint_url_effective,
+        region_name=settings.s3_region,
+        aws_access_key_id=settings.s3_access_key,
+        aws_secret_access_key=settings.s3_secret_key,
+        config=_client_config(),
     )
 
 
@@ -111,7 +140,7 @@ def create_multipart_upload(key: str, content_type: str | None) -> str:
 
 def presign_part_upload(key: str, upload_id: str, part_number: int, expires_in: int | None = None) -> str:
     settings = get_settings()
-    return _client().generate_presigned_url(
+    return _public_client().generate_presigned_url(
         "upload_part",
         Params={
             "Bucket": settings.s3_bucket,
@@ -148,7 +177,7 @@ def presign_audio_playback(key: str, expires_in: int | None = None) -> tuple[str
     """
     settings = get_settings()
     expires = expires_in or settings.s3_playback_url_expires_seconds
-    url = _client().generate_presigned_url(
+    url = _public_client().generate_presigned_url(
         "get_object",
         Params={
             "Bucket": settings.s3_bucket,

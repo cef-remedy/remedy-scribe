@@ -84,6 +84,14 @@ services:
       DATABASE_URL: postgresql+psycopg://remedy:remedy@postgres:5432/remedy_scribe
       REDIS_URL: redis://redis:6379/0
       S3_ENDPOINT_URL: http://minio:9000
+      # The API's own calls to MinIO stay on the Docker-internal hostname
+      # above, but a presigned URL handed to the *browser* has to resolve
+      # from the host machine — `minio` never will. Without this, every
+      # part-upload PUT and every grounding-audio GET fails with
+      # net::ERR_NAME_NOT_RESOLVED and a recording sits at
+      # pipeline_status="recording" forever. Only `api` needs this: the
+      # worker never generates a presigned URL, only reads objects itself.
+      S3_PUBLIC_ENDPOINT_URL: http://localhost:9002
     ports:
       - "8000:8000"
     depends_on:

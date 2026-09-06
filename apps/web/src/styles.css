@@ -150,13 +150,33 @@ a { color: var(--tab-progress); text-underline-offset: .15em; }
 /* ── Forms ───────────────────────────────────────────────────────────── */
 
 label { display: block; font-size: .85rem; color: var(--ink-2); margin: .9rem 0 .3rem; font-weight: 600; }
-input, select, textarea {
+input:not([type="checkbox"]):not([type="radio"]), select, textarea {
   width: 100%; font: inherit; padding: .6rem .75rem; border-radius: 6px;
   border: 1px solid var(--rule-strong); background: var(--paper-sunken); color: var(--ink);
+}
+/* Checkboxes/radios were inheriting the text-input box above — a native
+   checkbox ignores its own background/border paint, but still keeps
+   width:100%'s layout box, so inside a flex `.roster label` (Consent.tsx)
+   the checkbox silently stretched to fill the row and shoved its own
+   label text out to the far edge, with a wide invisible hit-area between
+   them. Found sweeping the consent screen with Playwright, not by eye. */
+input[type="checkbox"], input[type="radio"] {
+  width: auto; flex: none; padding: 0; border-radius: 3px; accent-color: var(--tab-progress);
 }
 input:focus-visible, select:focus-visible, textarea:focus-visible { border-color: var(--tab-progress); }
 textarea { line-height: 1.55; resize: vertical; }
 textarea:disabled { opacity: .7; cursor: not-allowed; }
+
+.password-field { position: relative; }
+.password-field input { padding-right: 2.5rem; }
+.password-toggle {
+  position: absolute; top: 0; bottom: 0; right: .15rem; margin: 0;
+  display: flex; align-items: center; justify-content: center;
+  width: 2.2rem; padding: 0; border: none; border-radius: 4px;
+  background: transparent; color: var(--ink-3);
+}
+.password-toggle:hover { color: var(--ink); background: var(--paper-sunken); }
+.password-toggle:focus-visible { outline: 2px solid var(--tab-progress); outline-offset: -2px; }
 
 button {
   font: 700 .92rem var(--f-body); padding: .6rem 1.15rem; border-radius: 6px; cursor: pointer;
@@ -242,6 +262,13 @@ button.ghost:hover { border-color: var(--ink); color: var(--ink); background: va
   margin: 1.3rem 0 .85rem;
 }
 .folder-row:first-child { margin-top: .6rem; }
+/* A row that leads somewhere (an existing note, or a recording still at
+   its first stage and so resumable) reads as clickable, not just as a
+   card that happens to contain a link — real cursor, a lift on hover, a
+   visible ring on keyboard focus, same as any other control on the page. */
+.folder-row.is-clickable { cursor: pointer; }
+.folder-row.is-clickable:hover { border-color: var(--tab-progress); box-shadow: var(--shadow), 0 0 0 1px var(--tab-progress); }
+.folder-row.is-clickable:focus-visible { outline: 2px solid var(--tab-progress); outline-offset: 2px; }
 
 .folder-tab {
   position: absolute;
@@ -288,6 +315,43 @@ button.ghost:hover { border-color: var(--ink); color: var(--ink); background: va
 .loose { list-style: none; padding: 0; margin: 0; }
 .loose-head { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; }
 .loose-head .ghost { margin: 0 0 0 auto; padding: .3rem .7rem; font-size: .8rem; }
+
+/* Loose / Recent / Needs-attention navigation — the same folder-tab
+   silhouette the per-encounter status wears, toned neutrally (ink/paper,
+   not the semantic status palette) so the two never read as the same
+   kind of information: one says "what section", the other "what state". */
+.rack-tabs { display: flex; gap: .3rem; margin: 1.3rem 0 0; padding-left: .3rem; }
+.rack-tab {
+  position: relative;
+  margin: 0;
+  padding: .55rem 1rem .5rem;
+  clip-path: polygon(6% 0, 94% 0, 100% 100%, 0% 100%);
+  font: 700 .82rem var(--f-body);
+  background: var(--paper-sunken);
+  color: var(--ink-2);
+  border: none;
+}
+.rack-tab:hover { background: var(--rule); color: var(--ink); }
+.rack-tab.is-active { background: var(--paper-raised); color: var(--ink); box-shadow: var(--shadow); }
+.rack-tab .count { font-family: var(--f-mono); font-size: .74rem; color: inherit; opacity: .7; }
+/* A dot, not a re-color of the whole tab — attention is real color
+   territory (--tab-attention) already spoken for by encounter status;
+   borrowing it for the tab itself would blur the two meanings this
+   split exists to keep apart. */
+.rack-tab.has-attention::after {
+  content: ""; position: absolute; top: .4rem; right: .55rem;
+  width: .4rem; height: .4rem; border-radius: 50%; background: var(--tab-attention);
+}
+.rack-tab.has-attention.is-active::after { top: .5rem; }
+
+.rack-panel {
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 0 10px 10px 10px;
+  box-shadow: var(--shadow);
+  padding: 1.1rem 1.1rem 1.3rem;
+  margin: 0 0 1.1rem;
+}
 
 /* ── consent flow (2.3) ─────────────────────────────────────────────── */
 
@@ -452,9 +516,14 @@ button.ghost:hover { border-color: var(--ink); color: var(--ink); background: va
   margin: .5rem 0 0; overflow: hidden;
 }
 .playhead-fill {
-  position: absolute; inset: 0 auto 0 0; width: 0%; background: var(--tab-progress);
-  border-radius: 2px; transition: width .1s linear;
+  /* scaleX, not width -- a width transition thrashes layout on every
+     timeupdate tick; transform is compositor-only and reads identically
+     for a left-anchored fill. */
+  position: absolute; inset: 0 0 0 0; width: 100%; background: var(--tab-progress);
+  border-radius: 2px; transform-origin: left center; transform: scaleX(0);
+  transition: transform .1s linear;
 }
+@media (prefers-reduced-motion: reduce) { .playhead-fill { transition: none; } }
 
 /* ── post-encounter rating (Phase 6) ────────────────────────────────── */
 

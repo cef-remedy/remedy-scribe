@@ -169,6 +169,12 @@ def test_login_rate_limited_after_threshold_from_one_ip(db, client):
     )
     assert limited.status_code == 429
     assert "address" in limited.json()["detail"]
+    # Within the 1-minute IP window, never negative, never the bare window
+    # length either — it's computed from the oldest counted attempt, not a
+    # constant, so this is the one assertion that would catch a Retry-After
+    # that's simply hardcoded to "60".
+    retry_after = int(limited.headers["retry-after"])
+    assert 0 <= retry_after <= 60
 
 
 def test_account_locked_after_repeated_failures_for_one_email(db, client):
@@ -187,6 +193,9 @@ def test_account_locked_after_repeated_failures_for_one_email(db, client):
     )
     assert locked.status_code == 429
     assert "account" in locked.json()["detail"]
+    # Within the 15-minute lockout window (settings.login_lockout_window_minutes).
+    retry_after = int(locked.headers["retry-after"])
+    assert 0 <= retry_after <= 15 * 60
 
 
 # --- MFA enrollment: provision -> confirm before activating ---------------

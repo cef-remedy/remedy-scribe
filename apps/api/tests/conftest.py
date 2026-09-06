@@ -25,6 +25,16 @@ os.environ.setdefault("JWT_SECRET", "test-secret")
 # real bucket-provisioning path is exercised for real in
 # tests/test_storage_specific.py against an actual MinIO container.
 os.environ["S3_PROVISION_BUCKET_ON_STARTUP"] = "false"
+# Pinned, not left to fall through to whatever's in a developer's own
+# apps/api/.env — test_self_service_auth.py has both a `require_mfa=True`
+# baseline (no monkeypatch) and explicit `require_mfa=False` cases
+# (monkeypatch.setattr per-test). The baseline tests assume True; a local
+# .env with REQUIRE_MFA=false (added for demo/local testing convenience)
+# silently flipped that baseline and broke them with no code change at
+# all — caught live when a developer's own .env picked up exactly that
+# override. Blind overwrite, like DATABASE_URL above: the whole point is
+# that nothing outside this file gets a vote on the test suite's baseline.
+os.environ["REQUIRE_MFA"] = "true"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

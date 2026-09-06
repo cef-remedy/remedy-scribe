@@ -20,6 +20,7 @@ import { useNavigate } from "react-router-dom";
 import QRCode from "qrcode";
 import { api } from "../api/client";
 import { FieldError } from "../components/Banner";
+import { PasswordField } from "../components/PasswordField";
 
 type Step = "identify" | "scan" | "done";
 
@@ -169,14 +170,13 @@ export function MfaEnroll() {
           onChange={(e) => setEmail(e.target.value)}
         />
 
-        <label htmlFor="mfa-password">Password</label>
-        <input
+        <PasswordField
           id="mfa-password"
-          type="password"
+          label="Password"
           autoComplete="current-password"
           required
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={setPassword}
         />
 
         <FieldError>{error}</FieldError>

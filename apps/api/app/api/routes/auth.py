@@ -175,10 +175,17 @@ def login(
 
     try:
         check_login_rate_limit(db, email=payload.email, ip_address=ip_address)
-    except RateLimitedError as exc:
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, str(exc)) from exc
-    except AccountLockedError as exc:
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, str(exc)) from exc
+    except (RateLimitedError, AccountLockedError) as exc:
+        # Retry-After is the standard HTTP header for exactly this (RFC
+        # 9110 §10.2.3) — seconds until the client may retry, computed
+        # from the actual oldest counted attempt rather than the fixed
+        # window length, so it counts down accurately instead of always
+        # showing the full window.
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            str(exc),
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
 
     clinician = db.query(Clinician).filter(Clinician.email == payload.email).one_or_none()
     require_mfa = get_settings().require_mfa
