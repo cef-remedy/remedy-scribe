@@ -134,10 +134,35 @@ services:
     build:
       context: ../apps/api
     command: celery -A app.tasks.celery_app beat --loglevel=info
+    # The default shelve-based scheduler writes celerybeat-schedule in its
+    # working directory, and apps/api/Dockerfile deliberately runs as a
+    # non-root user against a root-owned, read-only-by-convention /app --
+    # so beat needs to run somewhere it's actually allowed to write.
+    # /var/lib/remedy-beat is created and chowned to that user for exactly
+    # this (Dockerfile's own comment on the line that creates it).
+    # docker-compose.prod.yml already gets this right (plus a persisted
+    # volume, so `last_run_at` survives a restart there); this service was
+    # simply missing the line, so every local dev beat crashed on its
+    # first write with "PermissionError: [Errno 13] Permission denied:
+    # 'celerybeat-schedule'" -- found live, not in any test, because
+    # nothing here asserts beat is actually running. No volume for dev:
+    # losing the schedule state on a restart just means one sweep fires
+    # a little early, and this project's git history already shows the
+    # opposite mistake (accidentally committing this file) being fixed
+    # twice, so a fresh one every restart is the safer default locally.
+    working_dir: /var/lib/remedy-beat
     env_file:
       - ../apps/api/.env
     environment:
       REDIS_URL: redis://redis:6379/0
+      # Celery's app-loader (`-A app.tasks.celery_app`) only ever adds the
+      # *current* directory to sys.path (celery.utils.imports.cwd_in_path)
+      # — with working_dir pointed away from /app, the actual `app`
+      # package falls off the import path entirely and beat dies on
+      # startup with "ModuleNotFoundError: No module named 'app'" instead
+      # of ever reaching the permission error working_dir was fixing.
+      # Needs both, not either.
+      PYTHONPATH: /app
     depends_on:
       redis:
         condition: service_healthy

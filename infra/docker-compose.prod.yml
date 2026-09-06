@@ -285,7 +285,20 @@ services:
   # ==================================================================
   beat:
     <<: *api-image
-    environment: *api-environment
+    environment:
+      <<: *api-environment
+      # Celery's app-loader (`-A app.tasks.celery_app`) only ever adds the
+      # *current* directory to sys.path
+      # (celery.utils.imports.cwd_in_path) — with working_dir below
+      # pointed away from /app so beat can actually write its schedule
+      # file, the `app` package falls off the import path entirely and
+      # beat dies on startup with "ModuleNotFoundError: No module named
+      # 'app'". Found live in infra/docker-compose.yml (the dev file) the
+      # same way this whole file warns about itself never having been
+      # deployed: working_dir alone looked like the complete fix and
+      # wasn't. api and worker don't need this — their working_dir is the
+      # image's own /app — but it's harmless there too.
+      PYTHONPATH: /app
     # ⚠️⚠️ THIS `container_name` IS A SAFETY CONTROL, NOT A LABEL. ⚠️⚠️
     #
     # Docker refuses to create two containers with the same name, so
