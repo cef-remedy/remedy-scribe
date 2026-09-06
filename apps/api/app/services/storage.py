@@ -35,6 +35,7 @@ deploy-time setting anyway.
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 from app.core.config import get_settings
@@ -66,8 +67,49 @@ MAX_PART_NUMBER: int = _ACTIVE.MAX_PART_NUMBER
 MIN_PART_SIZE_BYTES: int = _ACTIVE.MIN_PART_SIZE_BYTES
 
 
+# Recognized recording formats -> file extension. Not an enforced allowlist
+# (docs/decisions/0003-style open calls; a strict one would repeat 0011's
+# mistake) — anything unrecognized still gets accepted, just with a generic
+# extension. That generic extension is exactly what broke real transcription
+# live: Groq's Whisper endpoint identifies audio format from the *filename*
+# extension in the multipart upload, and 400s on anything it doesn't
+# recognize (confirmed against Groq directly: the accepted list is flac,
+# mp3, mp4, mpeg, mpga, m4a, ogg, opus, wav, webm — notably not "weba",
+# which the browser's real MIME type used to map to below, and not the
+# ".audio" fallback every real Chromium/Edge recording was actually
+# landing on, since MediaRecorder's mimeType always carries a `;codecs=`
+# parameter this dict's lookup was never stripping).
+#
+# Used to live duplicated, "identically, deliberately" (storage_drive.py's
+# own words) in both storage_s3.py and storage_drive.py — which is exactly
+# how half of it got fixed and the other half didn't, the first time this
+# was touched. build_audio_object_key has no S3/Drive-specific behavior at
+# all, so it belongs here once, not per-backend.
+_CONTENT_TYPE_EXTENSIONS = {
+    "audio/aac": ".aac",
+    "audio/mp4": ".m4a",
+    "audio/m4a": ".m4a",
+    "audio/opus": ".opus",
+    "audio/ogg": ".ogg",
+    "audio/webm": ".webm",
+    "audio/wav": ".wav",
+    "audio/x-wav": ".wav",
+}
+
+
 def build_audio_object_key(encounter_id: str, content_type: str | None) -> str:
-    return _backend().build_audio_object_key(encounter_id, content_type)
+    """Server-generated, never client-supplied (docs/decisions/0013).
+
+    `content_type` is a full MIME type, sometimes with parameters a real
+    browser attaches — `audio/webm;codecs=opus` is MediaRecorder's actual,
+    default value, not a hypothetical one. Only the bare type before any
+    `;` is a lookup key here; matching on the parameterized string would
+    never hit and silently fall back to the extension below regardless of
+    how many entries this dict has, which is exactly the bug that shipped.
+    """
+    bare_content_type = (content_type or "").split(";", 1)[0].strip()
+    extension = _CONTENT_TYPE_EXTENSIONS.get(bare_content_type, ".audio")
+    return f"encounters/{encounter_id}/audio/{uuid.uuid4().hex}{extension}"
 
 
 def create_multipart_upload(key: str, content_type: str | None) -> str:

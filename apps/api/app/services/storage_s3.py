@@ -20,7 +20,6 @@ knowing before debugging a "completion always fails" report.
 from __future__ import annotations
 
 import logging
-import uuid
 from functools import lru_cache
 from typing import Any
 
@@ -32,22 +31,6 @@ from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-# Recognized recording formats -> file extension. Not an enforced
-# allowlist (Phase 2.2 hasn't picked a codec yet — see
-# docs/decisions/0003-style open calls; inventing a strict allowlist
-# before that decision exists would be the same mistake 0011 warned
-# against for EncounterPipelineStatus). Anything unrecognized still
-# gets accepted, just with a generic extension.
-_CONTENT_TYPE_EXTENSIONS = {
-    "audio/aac": ".aac",
-    "audio/mp4": ".m4a",
-    "audio/m4a": ".m4a",
-    "audio/opus": ".opus",
-    "audio/ogg": ".ogg",
-    "audio/webm": ".weba",
-    "audio/wav": ".wav",
-    "audio/x-wav": ".wav",
-}
 _DEFAULT_CONTENT_TYPE = "application/octet-stream"
 
 # S3-imposed multipart limits (not this app's choice — see the module
@@ -115,18 +98,6 @@ def _public_client():
         aws_secret_access_key=settings.s3_secret_key,
         config=_client_config(),
     )
-
-
-def build_audio_object_key(encounter_id: str, content_type: str | None) -> str:
-    """Server-generated, never client-supplied (see docs/decisions/0013
-    for why: an earlier version of this flow let the client hand the
-    server an arbitrary `audio_object_key` string with zero proof it
-    pointed at anything real). The encounter id in the path also means a
-    directory listing of the bucket groups every object by encounter
-    without needing a separate index.
-    """
-    extension = _CONTENT_TYPE_EXTENSIONS.get(content_type or "", ".audio")
-    return f"encounters/{encounter_id}/audio/{uuid.uuid4().hex}{extension}"
 
 
 def create_multipart_upload(key: str, content_type: str | None) -> str:

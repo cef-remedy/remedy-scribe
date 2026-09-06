@@ -52,7 +52,6 @@ from __future__ import annotations
 import logging
 import re
 import time
-import uuid
 from typing import Any
 
 import httpx
@@ -87,16 +86,6 @@ SESSION_URI_TTL_SECONDS = 7 * 24 * 3600
 _RANGE_HEADER = re.compile(r"bytes=(\d+)-(\d*)")
 _DRIVE_RANGE = re.compile(r"bytes=0-(\d+)")
 
-_CONTENT_TYPE_EXTENSIONS = {
-    "audio/aac": ".aac",
-    "audio/mp4": ".m4a",
-    "audio/m4a": ".m4a",
-    "audio/opus": ".opus",
-    "audio/ogg": ".ogg",
-    "audio/webm": ".weba",
-    "audio/wav": ".wav",
-    "audio/x-wav": ".wav",
-}
 _DEFAULT_CONTENT_TYPE = "application/octet-stream"
 
 # A slow-but-real dependency, like the ASR call: generous read timeout,
@@ -303,17 +292,6 @@ def _auth_headers() -> dict[str, str]:
 # the S3 path, so `Encounter.audio_object_key` needs no migration and the
 # grounding UI's expectations hold) and this module resolves key -> file id
 # by searching the configured folder by name.
-
-
-def build_audio_object_key(encounter_id: str, content_type: str | None) -> str:
-    """Identical to the S3 backend's, deliberately.
-
-    Keeping the same shape means an encounter recorded under one backend
-    still has a meaningful key under the other, and nothing downstream has
-    to know which produced it.
-    """
-    extension = _CONTENT_TYPE_EXTENSIONS.get(content_type or "", ".audio")
-    return f"encounters/{encounter_id}/audio/{uuid.uuid4().hex}{extension}"
 
 
 def _drive_name(key: str) -> str:
