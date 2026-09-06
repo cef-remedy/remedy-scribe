@@ -427,7 +427,26 @@ def list_uploaded_parts(key: str, upload_id: str) -> list[dict[str, Any]]:
 
     if response.status_code in (200, 201):
         size = int(response.json().get("size", 0) or 0)
-        return _parts_for_bytes(size)
+        # Complete is unconditional here, not something to reconstruct via
+        # `_parts_for_bytes`'s *floor*. That floor was wrong the moment a
+        # whole recording fit under one MIN_PART_SIZE_BYTES unit:
+        # floor(59_841 / 262_144) is 0, so a session Drive had already
+        # finished still reported "nothing done". The resuming client then
+        # re-PUT to a resumable session Drive had already retired, which
+        # fails — and can never self-heal, because the exact same false
+        # negative recurs on every retry forever. Found live: a real 58 KB
+        # recording stuck for a day, its bytes already sitting in Drive the
+        # entire time.
+        #
+        # Ceiling instead: the trailing part here is real and already
+        # received, exactly the case S3's own floor already exempts as
+        # "the last part" (planParts.ts). A 200/201 says so unconditionally,
+        # so there is nothing left to under-count.
+        whole = -(-size // MIN_PART_SIZE_BYTES) if size > 0 else 0
+        return [
+            {"part_number": i + 1, "size_bytes": MIN_PART_SIZE_BYTES, "etag": ""}
+            for i in range(whole)
+        ]
 
     if response.status_code == 308:
         received = response.headers.get("range")

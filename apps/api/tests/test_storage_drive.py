@@ -155,6 +155,25 @@ def test_a_completed_upload_reports_every_part(monkeypatch):
     assert [p["part_number"] for p in parts] == [1, 2, 3, 4]
 
 
+def test_a_completed_upload_smaller_than_one_part_still_reports_done(monkeypatch):
+    """Regression: a whole recording under MIN_PART_SIZE_BYTES (any
+    consult short enough that Drive's 256 KiB floor never triggers) used to
+    floor to zero parts done even though the 200 says the file is complete.
+    A resuming client then re-PUT to a session Drive had already retired —
+    which fails, forever, since the same false negative recurs on every
+    retry. Found live: a real 58 KB recording stuck for a day.
+    """
+    monkeypatch.setattr(
+        storage_drive.httpx,
+        "put",
+        lambda *a, **kw: _Resp(200, payload={"size": "59841"}),
+    )
+
+    parts = storage_drive.list_uploaded_parts("k", "https://session")
+
+    assert [p["part_number"] for p in parts] == [1]
+
+
 def test_an_expired_session_reports_no_parts_rather_than_raising(monkeypatch):
     """A 404 means the session is gone. Nothing survives it, and the honest
     answer is an empty list so the client starts over — not an exception
