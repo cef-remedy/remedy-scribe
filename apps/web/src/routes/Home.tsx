@@ -1,11 +1,18 @@
 /**
- * Placeholder shell for the signed-in app. Phase 2.2 puts recording here;
- * 2.5 patient identity; 2.6 review/sign. Deliberately does not pretend to
- * offer features that do not exist yet — it names what is wired and what
- * is not, so a walkthrough cannot mistake a stub for a build.
+ * The signed-in app's home / worklist.
+ *
+ * ⚠️ Found live, deploying a demo: this file's own header comment used to
+ * claim patient identity, review/sign and the grounding UI were "not built
+ * yet" — stale since Phase 2.5+2.6 and Phase 3 shipped (both are real,
+ * tested: NoteReview.tsx is 370+ lines wiring `fetchGrounding`, not a
+ * stub). Worse, there was no button anywhere on this page that created a
+ * new encounter — `Consent.tsx` only ever *reads* `:encounterId` from the
+ * URL, never creates one — so the only way into the real consent/record
+ * flow was typing a manually-created encounter's URL by hand. Fixed both:
+ * "Start a new consultation" below does what a doctor actually does first.
  */
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { api, OfflineError } from "../api/client";
 import { useAuth } from "../lib/auth";
 import { useOnlineStatus } from "../lib/offline";
@@ -27,6 +34,7 @@ type Encounter = {
 
 export function Home() {
   const { signOut } = useAuth();
+  const navigate = useNavigate();
   const online = useOnlineStatus();
   const { entries, storage, retry, uploadNow } = useQueue();
   const [linking, setLinking] = useState<string | null>(null);
@@ -35,6 +43,32 @@ export function Home() {
   const [failed, setFailed] = useState<Encounter[] | null>(null);
   const [recent, setRecent] = useState<Encounter[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
+
+  // The one action every one of these screens assumes already happened:
+  // `Consent.tsx` only ever reads `:encounterId` from the URL, it never
+  // creates one. `crypto.randomUUID()` (browser-native, no dependency)
+  // matches EncounterCreate's own doc comment — generated once per
+  // recording session and replayed on every chunk/retry (P0-2), so this
+  // key is exactly the one that flows through the rest of the queue.
+  async function startConsultation() {
+    setStarting(true);
+    setError(null);
+    try {
+      const res = await api.POST("/api/v1/encounters", {
+        body: { upload_idempotency_key: crypto.randomUUID() },
+      });
+      if (!res.data) {
+        setError("Could not start a new consultation. Try again.");
+        return;
+      }
+      navigate(`/encounters/${res.data.id}/consent`);
+    } catch (e) {
+      setError(e instanceof OfflineError ? "You're offline — reconnect to start a consultation." : "Could not start a new consultation. Try again.");
+    } finally {
+      setStarting(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -78,6 +112,16 @@ export function Home() {
 
       {!online && <OfflineBanner />}
       {error && <Banner tone="error">{error}</Banner>}
+
+      <section className="card">
+        <button type="button" onClick={() => void startConsultation()} disabled={starting}>
+          {starting ? "Starting…" : "Start a new consultation"}
+        </button>
+        <p className="muted">
+          Consent first, then recording — the consent screen never lets the
+          microphone open before the roster and script are logged (P0-1).
+        </p>
+      </section>
 
       <QueueStatus entries={entries} storage={storage} onRetry={retry} onUploadNow={uploadNow} />
 
@@ -185,14 +229,15 @@ export function Home() {
       </section>
 
       <section className="card">
-        <h2>Not built yet</h2>
-        <ul className="muted">
-          <li>Patient search and identity matching — Phase 2.5.</li>
-          <li>Note review, editing, and signing — Phase 2.6.</li>
-          <li>Grounding UI (tap a note line, hear the audio) — Phase 3.</li>
-          <li className="muted">Recording, consent, and the upload queue are built: capture runs at mono Opus
-            {" "}{TARGET_BITS_PER_SECOND / 1000} kbps (~{Math.round(estimatedBytesPerMinute() / 1024)} KB/min).</li>
-        </ul>
+        <h2>How this works</h2>
+        <p className="muted">
+          Consent, recording, the offline upload queue, patient identity,
+          note review/edit/sign, and the grounding UI (tap a note line to
+          see and hear where it came from) are all built and wired end to
+          end — starting a consultation above is the one entry point into
+          all of it. Capture runs at mono Opus{" "}
+          {TARGET_BITS_PER_SECOND / 1000} kbps (~{Math.round(estimatedBytesPerMinute() / 1024)} KB/min).
+        </p>
       </section>
     </main>
   );
