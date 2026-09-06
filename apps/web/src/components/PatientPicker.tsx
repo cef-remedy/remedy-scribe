@@ -19,6 +19,7 @@ import {
   type SearchOutcome,
 } from "../lib/patients";
 import { Banner } from "./Banner";
+import { useToast } from "./Toast";
 
 const DEBOUNCE_MS = 400;
 
@@ -30,6 +31,7 @@ export function PatientPicker({
   /** P0-6's "links silently". Off where a deliberate choice is wanted. */
   autoLinkExact?: boolean;
 }) {
+  const { showToast } = useToast();
   const [query, setQuery] = useState("");
   const [outcome, setOutcome] = useState<SearchOutcome | null>(null);
   const [busy, setBusy] = useState(false);
@@ -80,6 +82,10 @@ export function PatientPicker({
       return;
     }
     onPicked({ id: result.id, full_name: query.trim(), birthdate: newBirthdate });
+    // Low-stakes confirmation only: onPicked already drives whatever the
+    // caller shows next (a linked banner, a row leaving a list) — this just
+    // names the thing that quietly happened, a brand-new directory record.
+    showToast(`Created patient: ${query.trim()}.`);
   }, [query, newBirthdate, onPicked]);
 
   return (

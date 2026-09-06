@@ -107,7 +107,7 @@ export function Login() {
               : "Sign in"}
         </button>
 
-        <p className="muted" style={{ marginTop: "1rem" }}>
+        <p className="muted auth-switch">
           No account yet? <Link to="/sign-up">Sign up</Link>.
         </p>
       </form>

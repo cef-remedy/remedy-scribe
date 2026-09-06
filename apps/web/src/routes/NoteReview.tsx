@@ -26,14 +26,16 @@
  *    visually separated and requires typing the licence number every time.
  */
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { api, OfflineError } from "../api/client";
-import { Banner } from "../components/Banner";
+import { Banner, OfflineBanner } from "../components/Banner";
 import { PatientPicker } from "../components/PatientPicker";
 import { RatingPrompt } from "../components/RatingPrompt";
 import { GroundedSection } from "../components/GroundedSection";
+import { useToast } from "../components/Toast";
 import { audioNotice, fetchGrounding, type Grounding } from "../lib/grounding";
-import { fetchPriorVisit, type PriorVisit } from "../lib/patients";
+import { useOnlineStatus } from "../lib/offline";
+import { fetchPatient, fetchPriorVisit, type PriorVisit } from "../lib/patients";
 import { usePassagePlayer } from "../lib/usePassagePlayer";
 
 type Section = "assessment" | "plan" | "subjective" | "objective";
@@ -74,6 +76,12 @@ const NEXT_STATUS: Record<Note["status"], Note["status"] | null> = {
 
 export function NoteReview() {
   const { noteId = "" } = useParams();
+  const navigate = useNavigate();
+  const { showToast } = useToast();
+  // Found by `/impeccable critique`: this is the screen where a note is
+  // filed and signed — a dropped connection here used to give no advance
+  // warning, only a failure after the doctor already typed a PRC licence.
+  const online = useOnlineStatus();
   const [note, setNote] = useState<Note | null>(null);
   const [drafts, setDrafts] = useState<Record<Section, string>>({
     assessment: "",
@@ -117,8 +125,17 @@ export function NoteReview() {
       });
       const linkedPatientId = encounter.data?.patient_id ?? null;
       if (linkedPatientId) {
-        setPatient({ id: linkedPatientId, full_name: "", birthdate: "" });
-        setPrior(await fetchPriorVisit(linkedPatientId, loaded.encounter_id));
+        // Found by `/impeccable critique`'s P0: this is the reload path for
+        // a note that was already linked to a patient (the common case, not
+        // the fresh-pick one PatientPicker's onPicked already covers), and
+        // it used to leave full_name/birthdate blank forever — the signing
+        // screen showed a bare UUID instead of a name. Fetch the real thing.
+        const [fetchedPatient, priorVisit] = await Promise.all([
+          fetchPatient(linkedPatientId),
+          fetchPriorVisit(linkedPatientId, loaded.encounter_id),
+        ]);
+        setPatient(fetchedPatient ?? { id: linkedPatientId, full_name: "", birthdate: "" });
+        setPrior(priorVisit);
       }
     } catch (e) {
       setError(e instanceof OfflineError ? "No connection — this note cannot be loaded." : "Could not load this note.");
@@ -152,6 +169,12 @@ export function NoteReview() {
           return;
         }
         setNote(data as Note);
+        // Low-stakes confirmation only: this section was never anything but
+        // silent once "Saving…" (GroundedSection.tsx) disappeared, and a
+        // revision already exists server-side to recover from — a doctor
+        // who misses this toast loses a nicety, not an edit. A failed save
+        // stays the persistent error Banner above, not a toast.
+        showToast("Saved.");
         // The edit may have shifted every offset after it, so the spans this
         // screen is highlighting by are now suspect. Re-ask the server rather
         // than keep rendering links it would no longer vouch for.
@@ -220,11 +243,32 @@ export function NoteReview() {
     <main className="app">
       <header>
         <h1>Review note</h1>
-        <code>{note.status}</code>
+        <div style={{ display: "flex", alignItems: "center", gap: ".7rem" }}>
+          <code>{note.status}</code>
+          <button type="button" className="ghost" onClick={() => navigate("/")}>
+            Back to worklist
+          </button>
+        </div>
       </header>
 
+      {/* Found by `/impeccable critique`'s P0: the one screen where a wrong
+          patient is most consequential is also the one that used to stop
+          showing who it was linked to. Visible for the note's whole
+          lifetime, not only while "Confirm the patient" below still needs
+          an answer. */}
+      {patient?.id && (
+        <p className="patient-identity">
+          {patient.full_name || "Name unavailable"}
+          {patient.birthdate && ` · born ${patient.birthdate}`}
+        </p>
+      )}
+
+      {!online && <OfflineBanner />}
       {error && <Banner tone="error">{error}</Banner>}
-      {info && <Banner tone="info">{info}</Banner>}
+      {/* Found by `/impeccable polish`: this only ever carries the post-sign
+          confirmation (advance() sets `info` for no other transition), so it
+          should read as the payoff it is, not as a routine info message. */}
+      {info && <Banner tone="success">{info}</Banner>}
 
       {/* Phase 6: the one pilot signal nothing can derive. After signing,
           never before — asking mid-workflow buys a rating at the cost of
@@ -232,7 +276,7 @@ export function NoteReview() {
       {signed && <RatingPrompt encounterId={note.encounter_id} />}
 
       {signed && (
-        <Banner tone="info">
+        <Banner tone="success">
           Signed
           {note.signed_at ? ` on ${new Date(note.signed_at).toLocaleString()}` : ""} under PRC licence{" "}
           {note.signed_prc_license_number}. Signed notes are immutable.
@@ -248,8 +292,21 @@ export function NoteReview() {
             someone's permanent record — the last point a mis-linked recording is cheap to catch.
           </p>
           {patient?.id ? (
-            <Banner tone="info">
-              Linked to patient <code>{patient.id.slice(0, 8)}</code>. Filing will confirm this.
+            <Banner
+              tone="info"
+              action={
+                // P3: PatientPicker's exact-match auto-link fires with no
+                // confirmation step of its own, right before a legal
+                // document is created — this is that missing confirmation,
+                // one banner later rather than none at all. Clearing the
+                // link re-shows the picker so the doctor can search again.
+                <button type="button" className="ghost" onClick={() => setPatient(null)}>
+                  Not them? Undo
+                </button>
+              }
+            >
+              Linked to <strong>{patient.full_name || "this patient"}</strong>
+              {patient.birthdate && `, born ${patient.birthdate}`}. Filing will confirm this.
             </Banner>
           ) : (
             <PatientPicker onPicked={setPatient} />

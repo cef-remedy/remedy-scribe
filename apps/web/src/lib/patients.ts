@@ -107,6 +107,28 @@ export async function linkEncounterToPatient(
   }
 }
 
+/**
+ * Resolves a patient id to a name (P0 gap found by `/impeccable critique`:
+ * NoteReview re-opens an encounter that was already linked to a patient —
+ * usually the common case, not the first-link one PatientPicker handles —
+ * and had no route to ask who that is, so the signing screen showed a
+ * truncated UUID instead of a name). Returns null rather than throwing so a
+ * failed lookup degrades to "no name available" instead of blocking the
+ * note, matching how `fetchPriorVisit` already treats its own failures.
+ */
+export async function fetchPatient(
+  patientId: string,
+): Promise<{ id: string; full_name: string; birthdate: string } | null> {
+  try {
+    const { data } = await api.GET("/api/v1/patients/{patient_id}", {
+      params: { path: { patient_id: patientId } },
+    });
+    return data ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export type PriorVisit = {
   note_id: string;
   encounter_id: string;

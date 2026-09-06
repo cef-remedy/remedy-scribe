@@ -15,7 +15,8 @@
 import { useCallback, useState, type FormEvent } from "react";
 import { useAuth } from "../lib/auth";
 import { api, OfflineError } from "../api/client";
-import { Banner } from "../components/Banner";
+import { Banner, OfflineBanner } from "../components/Banner";
+import { useOnlineStatus } from "../lib/offline";
 
 type AuditRow = {
   id: string;
@@ -29,7 +30,8 @@ type AuditRow = {
 };
 
 export function ComplianceAudit() {
-  const { signOut } = useAuth();
+  const { signOut, name } = useAuth();
+  const online = useOnlineStatus();
   const [entityType, setEntityType] = useState("");
   const [entityId, setEntityId] = useState("");
   const [actionPrefix, setActionPrefix] = useState("");
@@ -70,10 +72,15 @@ export function ComplianceAudit() {
     <main className="app">
       <header>
         <h1>Audit log</h1>
-        <button type="button" className="ghost" onClick={() => void signOut()}>
-          Sign out
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: ".7rem" }}>
+          {name && <span className="muted">Signed in as {name}</span>}
+          <button type="button" className="ghost" onClick={() => void signOut()}>
+            Sign out
+          </button>
+        </div>
       </header>
+
+      {!online && <OfflineBanner />}
 
       <section className="card">
         <h2>Filter</h2>
@@ -129,7 +136,7 @@ export function ComplianceAudit() {
         ) : rows.length === 0 ? (
           <p className="muted">Nothing matches this query.</p>
         ) : (
-          <div style={{ overflowX: "auto" }}>
+          <div className="table-scroll">
             <table className="audit-table">
               <thead>
                 <tr>

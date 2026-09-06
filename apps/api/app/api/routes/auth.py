@@ -226,7 +226,14 @@ def login(
         db.commit()
         db.refresh(clinician)
 
-    access_token = create_access_token(subject=clinician.id, extra_claims={"role": clinician.role})
+    # full_name rides alongside role (found by `/impeccable critique`: no
+    # screen ever showed who was signed in on this shared clinic laptop —
+    # only a bare "Sign out" button). Same non-security routing-hint status
+    # as role: it's a plaintext account field already, not PHI, and the
+    # client only ever displays it, never trusts it for access control.
+    access_token = create_access_token(
+        subject=clinician.id, extra_claims={"role": clinician.role, "full_name": clinician.full_name}
+    )
     refresh_token, _ = issue_refresh_token(db, clinician.id)
     _set_refresh_cookie(response, refresh_token)
     # Still returned in the body for non-browser callers and the Phase 0.3
@@ -266,7 +273,14 @@ def refresh(
             status.HTTP_401_UNAUTHORIZED, "Clinician not found or inactive", headers=_clear_cookie_headers()
         )
 
-    access_token = create_access_token(subject=clinician.id, extra_claims={"role": clinician.role})
+    # full_name rides alongside role (found by `/impeccable critique`: no
+    # screen ever showed who was signed in on this shared clinic laptop —
+    # only a bare "Sign out" button). Same non-security routing-hint status
+    # as role: it's a plaintext account field already, not PHI, and the
+    # client only ever displays it, never trusts it for access control.
+    access_token = create_access_token(
+        subject=clinician.id, extra_claims={"role": clinician.role, "full_name": clinician.full_name}
+    )
     _set_refresh_cookie(response, new_refresh_token)
     return TokenResponse(access_token=access_token, refresh_token=new_refresh_token)
 

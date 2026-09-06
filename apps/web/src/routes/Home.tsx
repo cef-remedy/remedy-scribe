@@ -27,6 +27,7 @@ import { api, OfflineError } from "../api/client";
 import { useAuth } from "../lib/auth";
 import { useOnlineStatus } from "../lib/offline";
 import { Banner, OfflineBanner } from "../components/Banner";
+import { useToast } from "../components/Toast";
 import { QueueStatus } from "../components/QueueStatus";
 import { useQueue } from "../lib/queue/useQueue";
 import { PatientPicker } from "../components/PatientPicker";
@@ -45,7 +46,8 @@ type Encounter = {
 };
 
 export function Home() {
-  const { signOut, role } = useAuth();
+  const { signOut, role, name } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const online = useOnlineStatus();
   const { entries, storage, retry, uploadNow } = useQueue();
@@ -152,6 +154,11 @@ export function Home() {
         return;
       }
       setFailed((prev) => (prev ?? []).filter((e) => e.id !== encounterId));
+      // Low-stakes confirmation only: the row already disappearing from
+      // "Needs attention" is the real signal this worked. If retrying fails
+      // instead, that stays a persistent Banner (setError above), not a
+      // toast — a doctor who misses this one loses nothing but a nicety.
+      showToast("Retry queued.");
     } catch (e) {
       setError(e instanceof OfflineError ? "You're offline — reconnect to retry." : "Could not retry this encounter.");
     } finally {
@@ -163,9 +170,15 @@ export function Home() {
     <main className="app">
       <header>
         <h1>Remedy Scribe</h1>
-        <button type="button" className="ghost" onClick={() => void signOut()}>
-          Sign out
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: ".7rem" }}>
+          {/* Found by `/impeccable critique`: a shared clinic laptop with no
+              on-screen answer to "whose account is this?" beyond a bare
+              Sign out button. */}
+          {name && <span className="muted">Signed in as {name}</span>}
+          <button type="button" className="ghost" onClick={() => void signOut()}>
+            Sign out
+          </button>
+        </div>
       </header>
 
       {!online && <OfflineBanner />}
@@ -243,6 +256,20 @@ export function Home() {
         aria-labelledby="worklist-tab-recent"
         hidden={activeTab !== "recent"}
       >
+        {/* Found by `/impeccable critique`: the folder-tab color family is
+            learned once and reused everywhere (FolderTab.tsx's own header
+            comment), but nothing ever explained the four colors themselves to
+            someone seeing this rack for the first time. Each tab still
+            carries its own text label — this is a legend for the color, not
+            the only way to read it. Scoped to Recent: it's the only tab that
+            ever shows all four colors — Loose sessions is always "blank" and
+            Needs attention is always "attention". */}
+        <p className="tab-legend muted">
+          <span><span className="legend-swatch tab-progress" aria-hidden="true" />In progress</span>
+          <span><span className="legend-swatch tab-done" aria-hidden="true" />Done</span>
+          <span><span className="legend-swatch tab-attention" aria-hidden="true" />Needs attention</span>
+          <span><span className="legend-swatch tab-hold" aria-hidden="true" />On hold</span>
+        </p>
         <p className="muted">Your last 25 encounters, newest first.</p>
         {recent === null ? (
           <p className="muted">Loading…</p>
@@ -298,7 +325,7 @@ export function Home() {
                     terminal={seq.terminal}
                     label={PIPELINE_LABEL[e.pipeline_status] ?? e.pipeline_status}
                   />
-                  <div className="folder-actions" style={{ marginTop: ".6rem" }}>
+                  <div className="folder-actions">
                     {e.note_id ? (
                       // stopPropagation: the row above already navigates
                       // here on click — without this, this nested link's
@@ -333,7 +360,7 @@ export function Home() {
         aria-labelledby="worklist-tab-loose"
         hidden={activeTab !== "loose"}
       >
-        <p className="muted">Recordings not yet linked to a patient (P0-6).</p>
+        <p className="muted">Recordings not yet linked to a patient.</p>
         {loose === null ? (
           <p className="muted">Loading…</p>
         ) : loose.length === 0 ? (
@@ -371,6 +398,10 @@ export function Home() {
                       }
                       setLinking(null);
                       setLoose((prev) => (prev ?? []).filter((x) => x.id !== e.id));
+                      // The row vanishing from "Loose sessions" already
+                      // shows this worked; the toast just names who it was
+                      // linked to, since the row itself never showed a name.
+                      showToast(`Linked to ${p.full_name}.`);
                     }}
                   />
                 )}
@@ -389,7 +420,7 @@ export function Home() {
         hidden={activeTab !== "attention"}
       >
         <p className="muted">
-          Encounters whose pipeline failed after all retries (Phase 1.5). Each one can be retried.
+          Encounters whose processing failed after all automatic retries. Each one can be retried by hand.
         </p>
         {failed === null ? (
           <p className="muted">Loading…</p>
@@ -403,8 +434,13 @@ export function Home() {
                 <div className="folder-head">
                   <span className="folder-id">{e.id.slice(0, 8)}</span>
                   <div className="folder-actions">
+                    {/* Secondary, not primary: every other per-row action in
+                        this same folder-actions slot (Open note, Resume
+                        recording, Link to patient) is `.ghost` — found while
+                        making button styling uniform across the app. */}
                     <button
                       type="button"
+                      className="ghost"
                       disabled={retrying === e.id}
                       onClick={() => void retryPipeline(e.id)}
                     >
@@ -421,11 +457,10 @@ export function Home() {
       <section className="card">
         <h2>How this works</h2>
         <p className="muted">
-          Consent, recording, the offline upload queue, patient identity,
-          note review/edit/sign, and the grounding UI (tap a note line to
-          see and hear where it came from) are all built and wired end to
-          end — starting a consultation above is the one entry point into
-          all of it. Capture runs at mono Opus{" "}
+          Starting a consultation above is the one entry point: consent, recording, patient
+          identity, and note review/edit/sign all follow from there, even if the wifi drops
+          mid-visit. Once a note is drafted, tap any line to see — and hear — exactly where it
+          came from before you sign it. Capture runs at mono Opus{" "}
           {TARGET_BITS_PER_SECOND / 1000} kbps (~{Math.round(estimatedBytesPerMinute() / 1024)} KB/min).
         </p>
       </section>

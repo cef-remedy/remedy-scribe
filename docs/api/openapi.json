@@ -531,6 +531,54 @@
         }
       }
     },
+    "/api/v1/patients/{patient_id}": {
+      "get": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Get Patient",
+        "description": "Resolves a patient id to a name (found by this redesign's completeness\naudit as a gap: NoteReview re-opens an encounter already linked to a\npatient and had no route to ask who that is, so the signing screen \u2014 the\nhighest-stakes screen in the app \u2014 showed a truncated UUID instead of a\nname). Registered after `/search` on purpose: `/{patient_id}` would\notherwise swallow that literal path.\n\nA PHI read like search and prior-visit above, so it is audited the same\nway.",
+        "operationId": "get_patient_api_v1_patients__patient_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/encounters": {
       "post": {
         "tags": [

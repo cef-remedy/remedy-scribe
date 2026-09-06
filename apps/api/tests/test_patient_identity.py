@@ -360,3 +360,74 @@ def test_surname_fragments_find_both_dela_cruz_patients(db, query):
 
     assert "Maria Santos Dela Cruz" in names
     assert "Mario Santos Dela Cruz" in names
+
+
+# --- get-patient-by-id (found by the redesign's completeness audit: --------
+# NoteReview re-opens an already-linked encounter with no way to ask who the
+# patient is) -----------------------------------------------------------
+
+
+def test_get_patient_route_returns_the_name_and_birthdate(db, client):
+    patients = _seed_directory(db)
+    doctor = _doctor(db)
+    patient = patients["Ana Reyes Lim"]
+
+    response = client.get(f"/api/v1/patients/{patient.id}", headers=_auth(doctor))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == patient.id
+    assert body["full_name"] == "Ana Reyes Lim"
+    assert body["birthdate"] == "2001-11-30"
+
+
+def test_get_patient_route_404s_for_an_unknown_id(db, client):
+    doctor = _doctor(db)
+
+    response = client.get("/api/v1/patients/does-not-exist", headers=_auth(doctor))
+
+    assert response.status_code == 404
+
+
+def test_get_patient_route_is_doctor_only(db, client):
+    patients = _seed_directory(db)
+    patient = patients["Ana Reyes Lim"]
+    compliance = Clinician(
+        email="compliance2@example.com", full_name="C O", hashed_password="x", role="compliance"
+    )
+    db.add(compliance)
+    db.commit()
+    db.refresh(compliance)
+
+    response = client.get(f"/api/v1/patients/{patient.id}", headers=_auth(compliance))
+
+    assert response.status_code == 403
+
+
+def test_get_patient_route_is_audited_as_a_phi_read(db, client):
+    from app.models.audit_log import AuditLog
+
+    patients = _seed_directory(db)
+    doctor = _doctor(db)
+    patient = patients["Ana Reyes Lim"]
+
+    client.get(f"/api/v1/patients/{patient.id}", headers=_auth(doctor))
+
+    entries = db.query(AuditLog).filter(AuditLog.action == "patient.read").all()
+    assert len(entries) == 1
+    assert entries[0].actor_clinician_id == doctor.id
+    assert entries[0].entity_id == patient.id
+
+
+def test_get_patient_route_does_not_shadow_search(db, client):
+    """The regression this route could cause if registered in the wrong
+    order: `/patients/{patient_id}` matching the literal `/patients/search`
+    path and swallowing it.
+    """
+    _seed_directory(db)
+    doctor = _doctor(db, email="searcher2@example.com")
+
+    response = client.get("/api/v1/patients/search?q=Maria%20Santos", headers=_auth(doctor))
+
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)

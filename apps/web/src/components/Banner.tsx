@@ -6,7 +6,7 @@
  */
 import type { ReactNode } from "react";
 
-type Tone = "error" | "warn" | "info";
+type Tone = "error" | "warn" | "info" | "success";
 
 export function Banner({
   tone = "info",

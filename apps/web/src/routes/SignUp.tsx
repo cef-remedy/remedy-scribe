@@ -65,7 +65,7 @@ export function SignUp() {
     <main className="auth">
       <form className="card" onSubmit={onSubmit}>
         <h1>Create your account</h1>
-        <p className="muted">For documenting your own consultations at Remedy.</p>
+        <p className="muted">For documenting your own consultations at Remedy Scribe.</p>
 
         <label htmlFor="full-name">Full name</label>
         <input
@@ -113,7 +113,7 @@ export function SignUp() {
           {busy ? "Creating account…" : "Create account"}
         </button>
 
-        <p className="muted" style={{ marginTop: "1rem" }}>
+        <p className="muted auth-switch">
           Already have an account? <Link to="/login">Sign in</Link>.
         </p>
       </form>

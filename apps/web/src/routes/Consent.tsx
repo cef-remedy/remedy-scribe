@@ -19,7 +19,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, OfflineError } from "../api/client";
-import { Banner } from "../components/Banner";
+import { Banner, OfflineBanner } from "../components/Banner";
+import { useOnlineStatus } from "../lib/offline";
 import {
   CONSENT_PURPOSES,
   CONSENT_SCRIPTS,
@@ -33,6 +34,10 @@ type Step = "roster" | "script" | "submitting" | "declined";
 export function Consent() {
   const { encounterId = "" } = useParams();
   const navigate = useNavigate();
+  // Found by `/impeccable critique`: this screen submits a legally required
+  // consent decision, and used to give no advance warning of a dropped
+  // connection — only a failure after the doctor already read the script.
+  const online = useOnlineStatus();
 
   const [step, setStep] = useState<Step>("roster");
   const [extra, setExtra] = useState<string[]>([]);
@@ -102,7 +107,11 @@ export function Consent() {
             Declining recording does not limit anything else — this is an explicit requirement, not a
             courtesy. Carry on with the consultation and write the note the usual way.
           </p>
-          <button type="button" onClick={() => navigate("/", { replace: true })}>
+          {/* Secondary, not primary: every other "Back to worklist" control
+              in the app (this screen's own header, Record.tsx, NoteReview.tsx)
+              is `.ghost` — a navigational exit, not a task the doctor is
+              completing, even when it's the only button on screen. */}
+          <button type="button" className="ghost" onClick={() => navigate("/", { replace: true })}>
             Back to worklist
           </button>
         </section>
@@ -114,8 +123,18 @@ export function Consent() {
     <main className="app">
       <header>
         <h1>Consent to record</h1>
-        <code>{encounterId.slice(0, 8)}</code>
+        <div style={{ display: "flex", alignItems: "center", gap: ".7rem" }}>
+          <code>{encounterId.slice(0, 8)}</code>
+          {/* Safe unconditionally here, unlike Record.tsx's equivalent:
+              nothing is captured on this screen at all (its own module
+              docstring), so there is nothing in progress to lose. */}
+          <button type="button" className="ghost" onClick={() => navigate("/")}>
+            Back to worklist
+          </button>
+        </div>
       </header>
+
+      {!online && <OfflineBanner />}
 
       <Banner tone="warn">
         <span>

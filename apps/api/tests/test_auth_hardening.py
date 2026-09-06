@@ -48,6 +48,20 @@ def test_login_issues_refresh_token(db, client):
     assert tokens["refresh_token"]
 
 
+def test_login_token_carries_the_clinicians_name(db, client):
+    """Found by `/impeccable critique`: no screen ever showed who was signed
+    in on this shared clinic laptop. full_name rides the access token the
+    same way role already does — a display hint the client decodes, never a
+    server-side access-control input.
+    """
+    clinician = _seed_clinician(db)
+    tokens = _login(client, clinician)
+
+    payload = decode_access_token(tokens["access_token"])
+    assert payload is not None
+    assert payload["full_name"] == "Dr. Reyes"
+
+
 # --- refresh: rotation and reuse detection ---------------------------------
 
 
@@ -67,6 +81,9 @@ def test_refresh_issues_new_pair(db, client):
     payload = decode_access_token(new_tokens["access_token"])
     assert payload is not None
     assert payload["sub"] == clinician.id
+    # Refresh mints a brand-new access token, so the name has to be
+    # re-attached here too, not just at the original login.
+    assert payload["full_name"] == clinician.full_name
 
 
 def test_reusing_a_rotated_refresh_token_is_rejected(db, client):

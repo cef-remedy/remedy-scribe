@@ -66,6 +66,23 @@ export function getClinicianRole(): string | null {
   }
 }
 
+/**
+ * Same decode-on-demand approach as `getClinicianRole`, for the same reason:
+ * a display hint the client reads out of a claim already in the token,
+ * never a security boundary. Added so a shared clinic laptop can show whose
+ * account is signed in (`/impeccable critique` found no screen ever did).
+ */
+export function getClinicianName(): string | null {
+  if (!accessToken) return null;
+  try {
+    const payload = accessToken.split(".")[1];
+    const json = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+    return typeof json.full_name === "string" ? json.full_name : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Notified when the session is definitively gone, so the UI can redirect. */
 type SessionEndedHandler = () => void;
 let onSessionEnded: SessionEndedHandler = () => {};

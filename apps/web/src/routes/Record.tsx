@@ -150,6 +150,19 @@ export function Record() {
   }, [stop, encounterId, uploadNow]);
 
   const onWithdraw = useCallback(async () => {
+    // Found by `/impeccable critique`: this is the one truly irreversible
+    // action on this screen — it destroys captured audio with no undo — and
+    // it used to fire on a single tap with less friction than signing a
+    // note gets. window.confirm matches the guard the "Back to worklist"
+    // link above already uses for a much smaller loss (leaving the page).
+    if (
+      !window.confirm(
+        "This stops recording and permanently deletes the captured audio from this laptop. It cannot be undone. Continue?",
+      )
+    ) {
+      return;
+    }
+
     // Order matters and is deliberate: stop capturing first, then destroy the
     // local copy, then tell the server. If the network call fails, the audio
     // is already gone from this laptop — the failure mode leaves *less* data
@@ -222,7 +235,32 @@ export function Record() {
 
       <header>
         <h1>Record consultation</h1>
-        <code>{encounterId.slice(0, 8)}</code>
+        <div style={{ display: "flex", alignItems: "center", gap: ".7rem" }}>
+          <code>{encounterId.slice(0, 8)}</code>
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => {
+              // useRecorder's own unmount cleanup stops an active recording
+              // safely (flushes the last chunk, same as a real Stop tap) —
+              // but doing that from a plain link click, with no warning,
+              // is the click-away browser refresh already warns about via
+              // beforeunload. Ask first, only when there's actually
+              // something to lose.
+              if (
+                isRecording &&
+                !window.confirm(
+                  "Recording is still in progress. Leaving this page stops it now — the audio captured so far is saved and queued for upload. Continue?",
+                )
+              ) {
+                return;
+              }
+              navigate("/");
+            }}
+          >
+            Back to worklist
+          </button>
+        </div>
       </header>
 
       {!online && (
@@ -303,7 +341,7 @@ export function Record() {
             {/* Mid-visit re-consent. The pause already happened; resuming is
                 gated on the ledger entry, not on the doctor's word. */}
             {state.status === "paused" && (
-              <div className="card" style={{ marginTop: "1rem" }}>
+              <div className="card reconsent">
                 <h2>Fresh consent needed</h2>
                 <p className="muted">
                   Recording is paused. P0-1 requires a new ledger entry naming everyone now present

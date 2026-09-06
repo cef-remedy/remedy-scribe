@@ -14,8 +14,13 @@
  * - **It is dismissible and never blocks anything.** A prompt that must be
  *   answered trains people to click a star at random to make it go away,
  *   which is worse than no data because it looks like data.
- * - **One click submits.** The comment box only appears once a rating is
- *   given, so the cheap action stays cheap and the expensive one is opt-in.
+ * - **One click submits, and a different click changes it.** The comment
+ *   box only appears once a rating is given, so the cheap action stays
+ *   cheap and the expensive one is opt-in — but submitting immediately
+ *   used to also *lock* the rating by swapping the whole star row away for
+ *   a terminal "Thanks" card, so a mis-tap had no recourse even though
+ *   `POST /pilot/encounters/{id}/rating` already updates rather than
+ *   duplicates (found by `/impeccable critique`). The stars stay live.
  *
  * ⚠️ The comment box carries a PHI warning, because it is the one field in
  * the pilot instrumentation a doctor could type a patient's name into. It
@@ -65,20 +70,12 @@ export function RatingPrompt({ encounterId, onDone }: Props) {
 
   if (dismissed) return null;
 
-  if (submitted) {
-    return (
-      <section className="card rating">
-        <p className="muted">Thanks — that helps us judge whether this is working.</p>
-      </section>
-    );
-  }
-
   return (
     <section className="card rating">
       <h2>How did that go?</h2>
       <p className="muted">
         One tap, and only if you want to. This is the only part of the pilot we cannot measure
-        without asking you.
+        without asking you. Tap a different star any time to change it.
       </p>
 
       <div className="stars" role="group" aria-label="Rate this consultation">
@@ -91,8 +88,11 @@ export function RatingPrompt({ encounterId, onDone }: Props) {
             aria-pressed={stars === value}
             onClick={() => {
               setStars(value);
+              setSubmitted(false);
               // Submit immediately. The comment below is an optional
-              // follow-up, not a second step this rating waits on.
+              // follow-up, not a second step this rating waits on. Tapping
+              // a different star later just resubmits — the server updates
+              // the same row rather than treating it as a second rating.
               void submit(value, comment);
             }}
           >
@@ -103,6 +103,7 @@ export function RatingPrompt({ encounterId, onDone }: Props) {
 
       {stars !== null && (
         <>
+          {submitted && <p className="muted">Saved — thanks. Tap a different star any time to change it.</p>}
           <label htmlFor="rating-comment">Anything worth saying? (optional)</label>
           <textarea
             id="rating-comment"
@@ -121,7 +122,7 @@ export function RatingPrompt({ encounterId, onDone }: Props) {
       {error && <p className="ground-stale">{error}</p>}
 
       <button type="button" className="ghost" onClick={() => setDismissed(true)}>
-        Not now
+        {submitted ? "Done" : "Not now"}
       </button>
     </section>
   );

@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, require_role
 from app.models.clinician import Clinician
+from app.models.patient import Patient
 from app.schemas.patient import (
     PatientLookupRequest,
     PatientMatchResult,
@@ -149,3 +150,33 @@ def prior_visit(
         plan=note.plan,
         signed_at=note.signed_at,
     )
+
+
+@router.get("/{patient_id}", response_model=PatientOut)
+def get_patient(
+    patient_id: str,
+    db: Session = Depends(get_db),
+    clinician: Clinician = Depends(require_role("doctor")),
+) -> PatientOut:
+    """Resolves a patient id to a name (found by this redesign's completeness
+    audit as a gap: NoteReview re-opens an encounter already linked to a
+    patient and had no route to ask who that is, so the signing screen — the
+    highest-stakes screen in the app — showed a truncated UUID instead of a
+    name). Registered after `/search` on purpose: `/{patient_id}` would
+    otherwise swallow that literal path.
+
+    A PHI read like search and prior-visit above, so it is audited the same
+    way.
+    """
+    patient = db.get(Patient, patient_id)
+    if patient is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Patient not found")
+
+    audit.record(
+        db,
+        actor_clinician_id=clinician.id,
+        action="patient.read",
+        entity_type="patient",
+        entity_id=patient.id,
+    )
+    return PatientOut.model_validate(patient)
