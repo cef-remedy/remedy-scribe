@@ -15,6 +15,7 @@ import {
   type ReactNode,
 } from "react";
 import {
+  getClinicianRole,
   login as apiLogin,
   logout as apiLogout,
   restoreSession,
@@ -26,7 +27,9 @@ type AuthStatus = "checking" | "signed-in" | "signed-out";
 
 type AuthContextValue = {
   status: AuthStatus;
-  signIn: (email: string, password: string, mfaCode: string) => Promise<string | null>;
+  /** A routing hint only — see `getClinicianRole`'s own comment. */
+  role: string | null;
+  signIn: (email: string, password: string, mfaCode?: string) => Promise<string | null>;
   signOut: () => Promise<void>;
 };
 
@@ -37,11 +40,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // valid httpOnly cookie, and flashing the login screen before we have
   // asked the server would be a lie shown to a doctor mid-shift.
   const [status, setStatus] = useState<AuthStatus>("checking");
+  const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     void restoreSession().then((ok) => {
-      if (!cancelled) setStatus(ok ? "signed-in" : "signed-out");
+      if (!cancelled) {
+        setStatus(ok ? "signed-in" : "signed-out");
+        setRole(ok ? getClinicianRole() : null);
+      }
     });
     return () => {
       cancelled = true;
@@ -51,14 +58,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // The client calls this when a refresh has definitively failed, which
     // is the only authoritative "your session is gone" signal.
-    setSessionEndedHandler(() => setStatus("signed-out"));
+    setSessionEndedHandler(() => {
+      setStatus("signed-out");
+      setRole(null);
+    });
     return () => setSessionEndedHandler(() => {});
   }, []);
 
-  const signIn = useCallback(async (email: string, password: string, mfaCode: string) => {
+  const signIn = useCallback(async (email: string, password: string, mfaCode?: string) => {
     const result = await apiLogin(email, password, mfaCode);
     if (result.ok) {
       setStatus("signed-in");
+      setRole(getClinicianRole());
       return null;
     }
     return result.detail;
@@ -68,9 +79,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await apiLogout();
     stopProactiveRefresh();
     setStatus("signed-out");
+    setRole(null);
   }, []);
 
-  const value = useMemo(() => ({ status, signIn, signOut }), [status, signIn, signOut]);
+  const value = useMemo(() => ({ status, role, signIn, signOut }), [status, role, signIn, signOut]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

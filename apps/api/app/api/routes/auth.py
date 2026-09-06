@@ -21,6 +21,8 @@ from app.schemas.clinician import (
     MfaEnrollOut,
     MfaEnrollRequest,
     RefreshRequest,
+    RegisterOut,
+    RegisterRequest,
     RevokeSessionsOut,
     TokenResponse,
 )
@@ -119,6 +121,34 @@ def _read_refresh_token(request: Request, body_token: str | None) -> str:
 
 
 
+@router.post("/register", response_model=RegisterOut, status_code=status.HTTP_201_CREATED)
+def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> RegisterOut:
+    """Self-service account creation — did not exist before the free-tier
+    demo (see RegisterRequest's own docstring for why role is hardcoded
+    rather than accepted from the caller).
+
+    No `mfa_secret` is set here, deliberately: with `require_mfa=True` a
+    self-registered account would need `/mfa/enroll` before it could ever
+    log in, which is a real, already-built path (Login.tsx links to it) —
+    just not one this route forces on a demo where MFA is currently off.
+    """
+    existing = db.query(Clinician).filter(Clinician.email == payload.email).one_or_none()
+    if existing is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "An account with this email already exists.")
+
+    clinician = Clinician(
+        email=payload.email,
+        full_name=payload.full_name,
+        hashed_password=hash_password(payload.password),
+        role="doctor",
+        is_active=True,
+    )
+    db.add(clinician)
+    db.commit()
+    db.refresh(clinician)
+    return RegisterOut(id=clinician.id)
+
+
 @router.post("/login", response_model=TokenResponse)
 def login(
     payload: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)
@@ -126,6 +156,13 @@ def login(
     """P0-8: multi-factor authentication for clinician access — password
     AND a valid TOTP code are both required; either failing alone returns
     the same 401 to avoid leaking which factor was wrong.
+
+    ⚠️ That requirement is currently suspended by `settings.require_mfa`
+    (`app/core/config.py`), a demo-stage toggle: no phone in hand, and
+    self-service accounts (`POST /auth/register`, below) have no
+    enrollment path yet. `require_mfa=True` restores the check above
+    immediately, no migration or re-enrollment needed — nothing about an
+    account's `mfa_secret` changes while the toggle is off.
 
     Phase 0.3: also rate-limited per-IP and locked-out per-email (see
     app/services/auth_rate_limit.py), and now issues a refresh token
@@ -144,13 +181,19 @@ def login(
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, str(exc)) from exc
 
     clinician = db.query(Clinician).filter(Clinician.email == payload.email).one_or_none()
+    require_mfa = get_settings().require_mfa
 
+    mfa_ok = (not require_mfa) or (
+        clinician is not None
+        and clinician.mfa_secret is not None
+        and payload.mfa_code is not None
+        and verify_mfa_code(clinician.mfa_secret, payload.mfa_code)
+    )
     credentials_valid = (
         clinician is not None
         and clinician.is_active
         and verify_password(payload.password, clinician.hashed_password)
-        and clinician.mfa_secret is not None
-        and verify_mfa_code(clinician.mfa_secret, payload.mfa_code)
+        and mfa_ok
     )
     record_login_attempt(db, email=payload.email, ip_address=ip_address, successful=credentials_valid)
 

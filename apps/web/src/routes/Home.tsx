@@ -1,15 +1,25 @@
 /**
- * The signed-in app's home / worklist.
+ * The signed-in app's home — the chart rack.
  *
- * ⚠️ Found live, deploying a demo: this file's own header comment used to
- * claim patient identity, review/sign and the grounding UI were "not built
- * yet" — stale since Phase 2.5+2.6 and Phase 3 shipped (both are real,
- * tested: NoteReview.tsx is 370+ lines wiring `fetchGrounding`, not a
- * stub). Worse, there was no button anywhere on this page that created a
- * new encounter — `Consent.tsx` only ever *reads* `:encounterId` from the
- * URL, never creates one — so the only way into the real consent/record
- * flow was typing a manually-created encounter's URL by hand. Fixed both:
- * "Start a new consultation" below does what a doctor actually does first.
+ * The Patient Folder direction (apps/web/index.html) made this screen a
+ * literal chart rack: every encounter is a folder, its pipeline_status a
+ * colored tab on the folder itself, not a text badge tucked in a corner.
+ *
+ * ⚠️ Found live, deploying a demo, both fixed here:
+ * - This file's own header comment used to claim patient identity (2.5),
+ *   review/sign (2.6), and the grounding UI (Phase 3) were "not built yet" —
+ *   stale since all three shipped; NoteReview.tsx alone is 370+ lines wiring
+ *   real grounding, not a stub.
+ * - There was no button anywhere that created a new encounter.
+ *   `Consent.tsx` only ever reads `:encounterId` from the URL, it never
+ *   creates one. "Start a new consultation" below does what a doctor
+ *   actually does first.
+ *
+ * Two gaps this redesign's own completeness audit found and closes:
+ * - "Needs attention" listed failed encounters with no way to retry them —
+ *   `POST /encounters/{id}/retry` existed and nothing called it.
+ * - `compliance` is a real, seeded, RBAC-enforced role with nowhere to go —
+ *   it landed on this exact doctor worklist. Redirected to `/audit` instead.
  */
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
@@ -22,6 +32,8 @@ import { useQueue } from "../lib/queue/useQueue";
 import { PatientPicker } from "../components/PatientPicker";
 import { linkEncounterToPatient } from "../lib/patients";
 import { estimatedBytesPerMinute, TARGET_BITS_PER_SECOND } from "../lib/audio-config";
+import { FolderTab, StepSequence } from "../components/FolderTab";
+import { encounterTab, sequencePosition, PIPELINE_LABEL, SEQUENCE_LENGTH } from "../lib/status-tab";
 
 type Encounter = {
   id: string;
@@ -33,7 +45,7 @@ type Encounter = {
 };
 
 export function Home() {
-  const { signOut } = useAuth();
+  const { signOut, role } = useAuth();
   const navigate = useNavigate();
   const online = useOnlineStatus();
   const { entries, storage, retry, uploadNow } = useQueue();
@@ -44,31 +56,15 @@ export function Home() {
   const [recent, setRecent] = useState<Encounter[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [retrying, setRetrying] = useState<string | null>(null);
 
-  // The one action every one of these screens assumes already happened:
-  // `Consent.tsx` only ever reads `:encounterId` from the URL, it never
-  // creates one. `crypto.randomUUID()` (browser-native, no dependency)
-  // matches EncounterCreate's own doc comment — generated once per
-  // recording session and replayed on every chunk/retry (P0-2), so this
-  // key is exactly the one that flows through the rest of the queue.
-  async function startConsultation() {
-    setStarting(true);
-    setError(null);
-    try {
-      const res = await api.POST("/api/v1/encounters", {
-        body: { upload_idempotency_key: crypto.randomUUID() },
-      });
-      if (!res.data) {
-        setError("Could not start a new consultation. Try again.");
-        return;
-      }
-      navigate(`/encounters/${res.data.id}/consent`);
-    } catch (e) {
-      setError(e instanceof OfflineError ? "You're offline — reconnect to start a consultation." : "Could not start a new consultation. Try again.");
-    } finally {
-      setStarting(false);
-    }
-  }
+  // The compliance role has real RBAC-enforced routes (GET /audit-logs) but
+  // never had a screen to reach them from — it landed here, on a worklist
+  // meant for a doctor's own consultations. Route it to the surface built
+  // for it instead of pretending it belongs on this one.
+  useEffect(() => {
+    if (role === "compliance") navigate("/audit", { replace: true });
+  }, [role, navigate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -101,6 +97,53 @@ export function Home() {
     };
   }, []);
 
+  // The one action every downstream screen assumes already happened.
+  // `crypto.randomUUID()` (browser-native, no dependency) matches
+  // EncounterCreate's own doc comment — generated once per recording
+  // session and replayed on every chunk/retry (P0-2) — so this key is
+  // exactly the one that then flows through the rest of the queue.
+  async function startConsultation() {
+    setStarting(true);
+    setError(null);
+    try {
+      const res = await api.POST("/api/v1/encounters", {
+        body: { upload_idempotency_key: crypto.randomUUID() },
+      });
+      if (!res.data) {
+        setError("Could not start a new consultation. Try again.");
+        return;
+      }
+      navigate(`/encounters/${res.data.id}/consent`);
+    } catch (e) {
+      setError(
+        e instanceof OfflineError
+          ? "You're offline — reconnect to start a consultation."
+          : "Could not start a new consultation. Try again.",
+      );
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  async function retryPipeline(encounterId: string) {
+    setRetrying(encounterId);
+    setError(null);
+    try {
+      const res = await api.POST("/api/v1/encounters/{encounter_id}/retry", {
+        params: { path: { encounter_id: encounterId } },
+      });
+      if (!res.data) {
+        setError("Could not retry this encounter. Try again.");
+        return;
+      }
+      setFailed((prev) => (prev ?? []).filter((e) => e.id !== encounterId));
+    } catch (e) {
+      setError(e instanceof OfflineError ? "You're offline — reconnect to retry." : "Could not retry this encounter.");
+    } finally {
+      setRetrying(null);
+    }
+  }
+
   return (
     <main className="app">
       <header>
@@ -125,7 +168,7 @@ export function Home() {
 
       <QueueStatus entries={entries} storage={storage} onRetry={retry} onUploadNow={uploadNow} />
 
-      <section className="card">
+      <section>
         <h2>Loose sessions</h2>
         <p className="muted">Recordings not yet linked to a patient (P0-6).</p>
         {loose === null ? (
@@ -135,20 +178,22 @@ export function Home() {
         ) : (
           <ul className="loose">
             {loose.map((e) => (
-              <li key={e.id}>
-                <div className="loose-head">
-                  <code>{e.id.slice(0, 8)}</code>
-                  <span className="muted">{e.pipeline_status}</span>
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={() => {
-                      setLinkError(null);
-                      setLinking(linking === e.id ? null : e.id);
-                    }}
-                  >
-                    {linking === e.id ? "Cancel" : "Link to patient"}
-                  </button>
+              <li key={e.id} className="folder-row">
+                <FolderTab kind="blank" label="Unnamed" />
+                <div className="folder-head">
+                  <span className="folder-id">{e.id.slice(0, 8)}</span>
+                  <div className="folder-actions">
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={() => {
+                        setLinkError(null);
+                        setLinking(linking === e.id ? null : e.id);
+                      }}
+                    >
+                      {linking === e.id ? "Cancel" : "Link to patient"}
+                    </button>
+                  </div>
                 </div>
                 {/* P0-6's one-tap linking action. Recording was never blocked
                     on identity, so this is where identity catches up. */}
@@ -177,7 +222,7 @@ export function Home() {
           only lists were loose sessions and failures, so linking a patient
           removed an encounter from the one tray that showed it. Found by
           walking the onboarding runbook in a browser, not by a test. */}
-      <section className="card">
+      <section>
         <h2>Recent</h2>
         <p className="muted">Your last 25 encounters, newest first.</p>
         {recent === null ? (
@@ -186,29 +231,41 @@ export function Home() {
           <p className="muted">Nothing yet. Start a recording and it will appear here.</p>
         ) : (
           <ul className="loose">
-            {recent.map((e) => (
-              <li key={e.id}>
-                <div className="loose-head">
-                  <code>{e.id.slice(0, 8)}</code>
-                  <span className="muted">{e.pipeline_status}</span>
-                  <span className="candidate-dob">
-                    {new Date(e.created_at).toLocaleDateString()}
-                  </span>
-                  {e.note_id ? (
-                    <Link className="ghost" to={`/notes/${e.note_id}`}>
-                      Open note
-                    </Link>
-                  ) : (
-                    <span className="muted">no note yet</span>
-                  )}
-                </div>
-              </li>
-            ))}
+            {recent.map((e) => {
+              const seq = sequencePosition(e.pipeline_status, Boolean(e.note_id));
+              return (
+                <li key={e.id} className="folder-row">
+                  <FolderTab
+                    kind={encounterTab(e.pipeline_status)}
+                    label={PIPELINE_LABEL[e.pipeline_status] ?? e.pipeline_status}
+                  />
+                  <div className="folder-head">
+                    <span className="folder-id">{e.id.slice(0, 8)}</span>
+                    <span className="folder-date">{new Date(e.created_at).toLocaleDateString()}</span>
+                  </div>
+                  <StepSequence
+                    length={SEQUENCE_LENGTH}
+                    index={seq.index}
+                    terminal={seq.terminal}
+                    label={PIPELINE_LABEL[e.pipeline_status] ?? e.pipeline_status}
+                  />
+                  <div className="folder-actions" style={{ marginTop: ".6rem" }}>
+                    {e.note_id ? (
+                      <Link className="ghost" to={`/notes/${e.note_id}`}>
+                        Open note
+                      </Link>
+                    ) : (
+                      <span className="muted">no note yet</span>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
 
-      <section className="card">
+      <section>
         <h2>Needs attention</h2>
         <p className="muted">
           Encounters whose pipeline failed after all retries (Phase 1.5). Each one can be retried.
@@ -218,10 +275,22 @@ export function Home() {
         ) : failed.length === 0 ? (
           <p className="muted">Nothing failed.</p>
         ) : (
-          <ul>
+          <ul className="loose">
             {failed.map((e) => (
-              <li key={e.id}>
-                <code>{e.id.slice(0, 8)}</code> — {e.pipeline_status}
+              <li key={e.id} className="folder-row">
+                <FolderTab kind="attention" label={PIPELINE_LABEL[e.pipeline_status] ?? e.pipeline_status} />
+                <div className="folder-head">
+                  <span className="folder-id">{e.id.slice(0, 8)}</span>
+                  <div className="folder-actions">
+                    <button
+                      type="button"
+                      disabled={retrying === e.id}
+                      onClick={() => void retryPipeline(e.id)}
+                    >
+                      {retrying === e.id ? "Retrying…" : "Retry"}
+                    </button>
+                  </div>
+                </div>
               </li>
             ))}
           </ul>

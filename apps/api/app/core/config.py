@@ -129,6 +129,17 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_hours: int = 12
 
+    # P0-8 calls for MFA, and that stays the default — this exists to defer
+    # it for the free-tier demo (no phone in hand, self-service accounts
+    # with no enrollment path yet) without deleting the capability. `False`
+    # here means login checks password alone, on *every* account, including
+    # ones that already have `mfa_secret` set — turning it back to `True`
+    # re-enforces MFA immediately, no code change or re-enrollment lost.
+    # Explicitly a demo-stage toggle: real patient data is gated on far more
+    # than this (see docs/runbooks/deploy-free-tier.md §9), so flipping this
+    # alone is never what makes a deployment pilot-ready.
+    require_mfa: bool = True
+
     # Phase 0.3: login rate limiting / account lockout, both computed from
     # app/models/login_attempt.py rows (see app/services/auth_rate_limit.py).
     login_rate_limit_per_ip_per_minute: int = 10

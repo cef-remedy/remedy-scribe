@@ -5,13 +5,55 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Register",
+        "description": "Self-service account creation \u2014 did not exist before the free-tier\ndemo (see RegisterRequest's own docstring for why role is hardcoded\nrather than accepted from the caller).\n\nNo `mfa_secret` is set here, deliberately: with `require_mfa=True` a\nself-registered account would need `/mfa/enroll` before it could ever\nlog in, which is a real, already-built path (Login.tsx links to it) \u2014\njust not one this route forces on a demo where MFA is currently off.",
+        "operationId": "register_api_v1_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "tags": [
           "auth"
         ],
         "summary": "Login",
-        "description": "P0-8: multi-factor authentication for clinician access \u2014 password\nAND a valid TOTP code are both required; either failing alone returns\nthe same 401 to avoid leaking which factor was wrong.\n\nPhase 0.3: also rate-limited per-IP and locked-out per-email (see\napp/services/auth_rate_limit.py), and now issues a refresh token\nalongside the access token (see app/services/refresh_tokens.py) \u2014\nthe fix for \"a doctor gets logged out mid-consultation every 15\nminutes with no way back in short of re-entering a password and MFA\ncode.\"",
+        "description": "P0-8: multi-factor authentication for clinician access \u2014 password\nAND a valid TOTP code are both required; either failing alone returns\nthe same 401 to avoid leaking which factor was wrong.\n\n\u26a0\ufe0f That requirement is currently suspended by `settings.require_mfa`\n(`app/core/config.py`), a demo-stage toggle: no phone in hand, and\nself-service accounts (`POST /auth/register`, below) have no\nenrollment path yet. `require_mfa=True` restores the check above\nimmediately, no migration or re-enrollment needed \u2014 nothing about an\naccount's `mfa_secret` changes while the toggle is off.\n\nPhase 0.3: also rate-limited per-IP and locked-out per-email (see\napp/services/auth_rate_limit.py), and now issues a refresh token\nalongside the access token (see app/services/refresh_tokens.py) \u2014\nthe fix for \"a doctor gets logged out mid-consultation every 15\nminutes with no way back in short of re-entering a password and MFA\ncode.\"",
         "operationId": "login_api_v1_auth_login_post",
         "requestBody": {
           "content": {
@@ -838,6 +880,52 @@
                 "schema": {
                   "$ref": "#/components/schemas/AudioPlaybackOut"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/encounters/{encounter_id}/audio": {
+      "get": {
+        "tags": [
+          "encounters"
+        ],
+        "summary": "Stream Encounter Audio",
+        "description": "Stream audio through the API, for a backend that cannot presign.\n\nExists only because Google Drive has no presigned GET (decision 0040).\nOn the S3 path this route is never reached: the client gets a URL that\npoints straight at object storage, and the audio never touches this\nserver \u2014 which is the property decision 0013 was written to protect and\nwhich this route gives up.\n\nThree things it still has to get right:\n\n* **Range requests are honoured**, because the grounding UI plays one\n  cited passage. Without Range, clicking a line would pull the whole\n  consultation every time.\n* **`Cache-Control: no-store` is set here.** On the S3 path storage\n  guarantees it because it is signed into the URL; here it is this\n  route's job, and forgetting it would leave consultation audio in the\n  browser's HTTP cache.\n* **The same degradation ladder applies.** `playable_audio` runs the\n  identical `_audio_state` check, so a withdrawn recording is refused\n  with the same reason it would be on S3.",
+        "operationId": "stream_encounter_audio_api_v1_encounters__encounter_id__audio_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "encounter_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Encounter Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           },
@@ -2698,15 +2786,21 @@
             "title": "Password"
           },
           "mfa_code": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Mfa Code"
           }
         },
         "type": "object",
         "required": [
           "email",
-          "password",
-          "mfa_code"
+          "password"
         ],
         "title": "LoginRequest"
       },
@@ -3288,6 +3382,44 @@
         "type": "object",
         "title": "RefreshRequest",
         "description": "Phase 0.3: exchanges a still-valid refresh token for a new\naccess/refresh pair. Deliberately takes no Authorization header \u2014\nthe access token this call is meant to replace may already be\nexpired, which is the whole reason to call it.\n\nPhase 2.1: optional, because the browser client (decision 0024) never\nsees the refresh token \u2014 it rides in an httpOnly cookie the route\nreads instead. The field stays for non-browser callers and for the\nPhase 0.3 tests that exercise rotation/reuse-detection directly."
+      },
+      "RegisterOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "RegisterOut"
+      },
+      "RegisterRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password",
+          "full_name"
+        ],
+        "title": "RegisterRequest",
+        "description": "Self-service account creation \u2014 did not exist before the free-tier\ndemo. Deliberately narrow: no role field. Letting a signup form assign\nits own role would mean anyone could grant themselves `admin` or\n`compliance`, both of which carry real RBAC-gated read access\n(app/api/deps.py); the route hardcodes `role=\"doctor\"`, the one role\nthe product's own worklist is built for.\n\nAppropriate for a demo/pre-pilot stage, not a real clinic: nothing here\nverifies the email address or asks for a PRC license, both of which a\nreal pilot would need before treating a self-registered account as a\nlicensed clinician (docs/decisions covers this if it becomes real)."
       },
       "ReviewSampleOut": {
         "properties": {

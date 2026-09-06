@@ -1,10 +1,15 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
-    mfa_code: str
+    # Optional because `settings.require_mfa=False` (demo-stage toggle,
+    # app/core/config.py) skips the check entirely — a client built against
+    # that mode never has a code to send. When MFA is required, an absent
+    # code simply fails verification like any other wrong one; the schema
+    # itself does not enforce a mode it can't see from here.
+    mfa_code: str | None = None
 
 
 class TokenResponse(BaseModel):
@@ -63,6 +68,40 @@ class MfaEnrollConfirmRequest(BaseModel):
 
 class MfaEnrollConfirmOut(BaseModel):
     enrolled: bool
+
+
+class RegisterRequest(BaseModel):
+    """Self-service account creation — did not exist before the free-tier
+    demo. Deliberately narrow: no role field. Letting a signup form assign
+    its own role would mean anyone could grant themselves `admin` or
+    `compliance`, both of which carry real RBAC-gated read access
+    (app/api/deps.py); the route hardcodes `role="doctor"`, the one role
+    the product's own worklist is built for.
+
+    Appropriate for a demo/pre-pilot stage, not a real clinic: nothing here
+    verifies the email address or asks for a PRC license, both of which a
+    real pilot would need before treating a self-registered account as a
+    licensed clinician (docs/decisions covers this if it becomes real).
+    """
+
+    email: EmailStr
+    password: str
+    full_name: str
+
+    @field_validator("password")
+    @classmethod
+    def _password_floor(cls, value: str) -> str:
+        # A public, unauthenticated route hashing whatever it's given — a
+        # floor belongs here even though nothing else in this app has
+        # needed one, since seed/admin-created accounts never went through
+        # a validator like this at all.
+        if len(value) < 8:
+            raise ValueError("Password must be at least 8 characters.")
+        return value
+
+
+class RegisterOut(BaseModel):
+    id: str
 
 
 class ClinicianOut(BaseModel):

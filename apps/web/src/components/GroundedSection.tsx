@@ -170,6 +170,13 @@ export function GroundedSection({
             Source {selected.segmentIds.length === 0 ? "— none cited" : "transcript"}
             {player.playing && <span className="playing-dot" aria-label="playing" />}
           </h3>
+          {/* The chase-light playhead: real playback position through the
+              cited window, not a generic spinner. */}
+          {player.playing && (
+            <div className="playhead-track" aria-hidden="true">
+              <div className="playhead-fill" style={{ width: `${player.progress * 100}%` }} />
+            </div>
+          )}
           {selected.segmentIds.length === 0 ? (
             <p className="ground-stale">
               This line cites no transcript passage. Nothing in the recording was linked to it, so

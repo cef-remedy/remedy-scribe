@@ -48,6 +48,24 @@ export function getAccessToken(): string | null {
   return accessToken;
 }
 
+/**
+ * Reads `role` out of the current access token — a routing hint for the UI
+ * (which worklist to show), never a security boundary; the server enforces
+ * RBAC on every route regardless of what this returns. Decoded on demand
+ * rather than stored, so the token itself stays the only thing that ever
+ * needs care — this just parses public claims already inside it.
+ */
+export function getClinicianRole(): string | null {
+  if (!accessToken) return null;
+  try {
+    const payload = accessToken.split(".")[1];
+    const json = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+    return typeof json.role === "string" ? json.role : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Notified when the session is definitively gone, so the UI can redirect. */
 type SessionEndedHandler = () => void;
 let onSessionEnded: SessionEndedHandler = () => {};
@@ -220,9 +238,15 @@ function describeLoginFailure(status: number, error: unknown): string {
   return "Could not sign in. Please try again.";
 }
 
-export async function login(email: string, password: string, mfaCode: string): Promise<LoginResult> {
+/**
+ * `mfaCode` is optional: `settings.require_mfa` on the API (a demo-stage
+ * toggle, `app/core/config.py`) decides whether it's checked at all, and
+ * this client currently never has a code to send — see Login.tsx's own
+ * header comment for how to restore the field if that toggle flips back.
+ */
+export async function login(email: string, password: string, mfaCode?: string): Promise<LoginResult> {
   const { data, error, response } = await api.POST("/api/v1/auth/login", {
-    body: { email, password, mfa_code: mfaCode },
+    body: { email, password, mfa_code: mfaCode ?? null },
   });
 
   if (error || !data) {
@@ -234,6 +258,31 @@ export async function login(email: string, password: string, mfaCode: string): P
   // just set is the only copy we rely on.
   accessToken = data.access_token;
   scheduleProactiveRefresh();
+  return { ok: true };
+}
+
+export type RegisterResult = { ok: true } | { ok: false; status: number; detail: string };
+
+/**
+ * Self-service account creation (`POST /auth/register`) — did not exist
+ * before the free-tier demo; every account before this was seeded. Always
+ * creates a `doctor` — the schema has no role field to send one, by
+ * design (see the API's `RegisterRequest` docstring).
+ */
+export async function register(email: string, password: string, fullName: string): Promise<RegisterResult> {
+  const { error, response } = await api.POST("/api/v1/auth/register", {
+    body: { email, password, full_name: fullName },
+  });
+
+  if (error) {
+    const detail =
+      response.status === 409
+        ? "An account with this email already exists."
+        : response.status === 422
+          ? "Check the email address and make sure the password is at least 8 characters."
+          : "Could not create the account. Please try again.";
+    return { ok: false, status: response.status, detail };
+  }
   return { ok: true };
 }
 

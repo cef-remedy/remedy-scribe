@@ -4,6 +4,33 @@
  */
 
 export interface paths {
+    "/api/v1/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register
+         * @description Self-service account creation — did not exist before the free-tier
+         *     demo (see RegisterRequest's own docstring for why role is hardcoded
+         *     rather than accepted from the caller).
+         *
+         *     No `mfa_secret` is set here, deliberately: with `require_mfa=True` a
+         *     self-registered account would need `/mfa/enroll` before it could ever
+         *     log in, which is a real, already-built path (Login.tsx links to it) —
+         *     just not one this route forces on a demo where MFA is currently off.
+         */
+        post: operations["register_api_v1_auth_register_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -18,6 +45,13 @@ export interface paths {
          * @description P0-8: multi-factor authentication for clinician access — password
          *     AND a valid TOTP code are both required; either failing alone returns
          *     the same 401 to avoid leaking which factor was wrong.
+         *
+         *     ⚠️ That requirement is currently suspended by `settings.require_mfa`
+         *     (`app/core/config.py`), a demo-stage toggle: no phone in hand, and
+         *     self-service accounts (`POST /auth/register`, below) have no
+         *     enrollment path yet. `require_mfa=True` restores the check above
+         *     immediately, no migration or re-enrollment needed — nothing about an
+         *     account's `mfa_secret` changes while the toggle is off.
          *
          *     Phase 0.3: also rate-limited per-IP and locked-out per-email (see
          *     app/services/auth_rate_limit.py), and now issues a refresh token
@@ -466,6 +500,45 @@ export interface paths {
          *     doctor should understand which state they are in.
          */
         get: operations["read_audio_playback_url_api_v1_encounters__encounter_id__audio_url_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/encounters/{encounter_id}/audio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream Encounter Audio
+         * @description Stream audio through the API, for a backend that cannot presign.
+         *
+         *     Exists only because Google Drive has no presigned GET (decision 0040).
+         *     On the S3 path this route is never reached: the client gets a URL that
+         *     points straight at object storage, and the audio never touches this
+         *     server — which is the property decision 0013 was written to protect and
+         *     which this route gives up.
+         *
+         *     Three things it still has to get right:
+         *
+         *     * **Range requests are honoured**, because the grounding UI plays one
+         *       cited passage. Without Range, clicking a line would pull the whole
+         *       consultation every time.
+         *     * **`Cache-Control: no-store` is set here.** On the S3 path storage
+         *       guarantees it because it is signed into the URL; here it is this
+         *       route's job, and forgetting it would leave consultation audio in the
+         *       browser's HTTP cache.
+         *     * **The same degradation ladder applies.** `playable_audio` runs the
+         *       identical `_audio_state` check, so a withdrawn recording is refused
+         *       with the same reason it would be on S3.
+         */
+        get: operations["stream_encounter_audio_api_v1_encounters__encounter_id__audio_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1244,7 +1317,7 @@ export interface components {
             /** Password */
             password: string;
             /** Mfa Code */
-            mfa_code: string;
+            mfa_code?: string | null;
         };
         /**
          * LogoutRequest
@@ -1530,6 +1603,36 @@ export interface components {
             /** Refresh Token */
             refresh_token?: string | null;
         };
+        /** RegisterOut */
+        RegisterOut: {
+            /** Id */
+            id: string;
+        };
+        /**
+         * RegisterRequest
+         * @description Self-service account creation — did not exist before the free-tier
+         *     demo. Deliberately narrow: no role field. Letting a signup form assign
+         *     its own role would mean anyone could grant themselves `admin` or
+         *     `compliance`, both of which carry real RBAC-gated read access
+         *     (app/api/deps.py); the route hardcodes `role="doctor"`, the one role
+         *     the product's own worklist is built for.
+         *
+         *     Appropriate for a demo/pre-pilot stage, not a real clinic: nothing here
+         *     verifies the email address or asks for a PRC license, both of which a
+         *     real pilot would need before treating a self-registered account as a
+         *     licensed clinician (docs/decisions covers this if it becomes real).
+         */
+        RegisterRequest: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /** Password */
+            password: string;
+            /** Full Name */
+            full_name: string;
+        };
         /**
          * ReviewSampleOut
          * @description Note ids for the weekly unsafe-acceptance review.
@@ -1663,6 +1766,39 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    register_api_v1_auth_register_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegisterOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     login_api_v1_auth_login_post: {
         parameters: {
             query?: never;
@@ -2208,6 +2344,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AudioPlaybackOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_encounter_audio_api_v1_encounters__encounter_id__audio_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

@@ -1,302 +1,498 @@
-/* Minimal, legible, theme-aware. Real design work belongs with the
-   recording and review screens (2.2/2.6), not with a login form. */
+/* ══════════════════════════════════════════════════════════════════════
+   THE PATIENT FOLDER — Remedy Scribe's design system.
+
+   World: the Philippine clinic's own manila-folder chart rack. Kraft-paper
+   ground, ink-brown text, a saturated four-color status-tab family standing
+   in for the color-coded tabs a real filing system uses for at-a-glance
+   triage. Direction contract lives in apps/web/index.html's opening
+   comment — read it before touching tokens or component shape.
+
+   This app is used dozens of times a day, glanced at between patients, not
+   read. Every color decision below answers to that, not to a mood board:
+   state has to read as a tab color before it reads as a word.
+   ══════════════════════════════════════════════════════════════════════ */
+
 :root {
-  --bg: #f5f7f3; --card: #fff; --ink: #16201d; --ink2: #46534e; --ink3: #78857f;
-  --rule: #d8ded4; --accent: #0e5c52; --accent-ink: #f5f7f3;
-  /* A second surface, one step off --card: the prior-visit card and cited
-     transcript passages. Referenced by .prior since 2.6 but never defined,
-     so that card silently rendered with no background until Phase 3. */
-  --card2: #eef2ec;
-  --error: #a2432a; --error-bg: #f7e7e0;
-  --warn: #7a5c14; --warn-bg: #faf0d7;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0e1512; --card: #151e1a; --ink: #e6ede7; --ink2: #a3b0a8; --ink3: #76837b;
-    --rule: #2a362f; --accent: #5cc2ae; --accent-ink: #0e1512;
-    --error: #e89a7c; --error-bg: #33201a;
-    --warn: #d9bd6a; --warn-bg: #2e2612;
-  }
-}
-* { box-sizing: border-box; }
-body {
-  margin: 0; background: var(--bg); color: var(--ink);
-  font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
-h1 { font-size: 1.4rem; margin: 0 0 .25rem; }
-h2 { font-size: 1rem; margin: 0 0 .25rem; }
-.muted { color: var(--ink3); font-size: .9rem; }
-.card {
-  background: var(--card); border: 1px solid var(--rule); border-radius: 10px;
-  padding: 1.1rem 1.25rem; margin-bottom: 1rem;
-}
-.auth { max-width: 26rem; margin: 8vh auto; padding: 0 1rem; }
-.auth label { display: block; font-size: .85rem; color: var(--ink2); margin: .9rem 0 .25rem; }
-.auth input {
-  width: 100%; font: inherit; padding: .55rem .7rem; border-radius: 7px;
-  border: 1px solid var(--rule); background: var(--bg); color: var(--ink);
-}
-.app { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
-.app > header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 1.25rem; }
-button {
-  font: 600 .95rem inherit; padding: .55rem 1.1rem; border-radius: 7px; cursor: pointer;
-  border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink);
-  margin-top: 1.1rem;
-}
-button:disabled { opacity: .55; cursor: not-allowed; }
-button.ghost { background: transparent; color: var(--ink2); border-color: var(--rule); margin: 0; }
-.banner {
-  border-radius: 8px; padding: .7rem .9rem; margin-bottom: 1rem; font-size: .92rem;
-  display: flex; gap: .75rem; align-items: center; justify-content: space-between;
-}
-.banner--error { background: var(--error-bg); color: var(--error); border: 1px solid var(--error); }
-.banner--warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); }
-.banner--info { background: var(--card); color: var(--ink2); border: 1px solid var(--rule); }
-.field-error { color: var(--error); font-size: .88rem; margin: .75rem 0 0; }
-.fatal { max-width: 34rem; margin: 10vh auto; padding: 0 1rem; }
-.fatal pre {
-  background: var(--card); border: 1px solid var(--rule); border-radius: 8px;
-  padding: .75rem; overflow-x: auto; font-size: .82rem;
-}
-ul { margin: .5rem 0 0; padding-left: 1.25rem; }
-li { margin-bottom: .3rem; }
-code {
-  font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .85em;
-  background: var(--bg); padding: .1rem .35rem; border-radius: 4px;
+  /* --- paper: the ground, warm and never stark white --------------- */
+  --paper: #f2ecdd;
+  --paper-raised: #faf7ee;
+  --paper-sunken: #e8e0cc;
+  --ink: #221d17;
+  --ink-2: #5b5142;
+  --ink-3: #8c8271;
+  --rule: #ddd2b8;
+  --rule-strong: #c2b393;
+
+  /* --- the four status tabs: the real design payload ---------------
+     Committed, not pastel — each carries real saturation because it is
+     read at a glance, not decoration. Semantics, reused everywhere a
+     pipeline/queue/note status appears:
+       progress  = the system is working, nothing for the doctor to do yet
+       done      = resolved and good (ready to review, filed, signed)
+       attention = failed — needs the doctor's action now
+       hold      = administrative — blocked, withdrawn, expired          */
+  --tab-progress: #b8531f;
+  --tab-progress-bg: #f7e0cb;
+  --tab-done: #33643a;
+  --tab-done-bg: #dfe8d7;
+  --tab-attention: #a1272f;
+  --tab-attention-bg: #f5d9d7;
+  --tab-hold: #5a4a86;
+  --tab-hold-bg: #e5e0f0;
+
+  --shadow: 0 1px 2px rgba(34, 29, 23, .06), 0 6px 16px -10px rgba(34, 29, 23, .28);
+
+  --f-body: "Public Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
 }
 
-/* --- P0-1 recording indicator ------------------------------------------
-   Sticky and full-width on purpose: a patient in the room must be able to
-   tell they are being recorded at a glance, and the doctor must not be able
-   to scroll it away. This is a legal control, not a status chip. */
+/* System dark: an after-hours desk-lamp mood, considered on its own terms
+   rather than an inverted light theme — but the same tab semantics. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #1b1712;
+    --paper-raised: #241e17;
+    --paper-sunken: #15110d;
+    --ink: #ece3d1;
+    --ink-2: #b2a68d;
+    --ink-3: #877a63;
+    --rule: #392f22;
+    --rule-strong: #4c4030;
+
+    --tab-progress: #e3874c;
+    --tab-progress-bg: #3a2415;
+    --tab-done: #6fae78;
+    --tab-done-bg: #1e2e1e;
+    --tab-attention: #e07b7f;
+    --tab-attention-bg: #3a1c1d;
+    --tab-hold: #a596d6;
+    --tab-hold-bg: #2a2340;
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 6px 16px -10px rgba(0, 0, 0, .6);
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #1b1712;
+  --paper-raised: #241e17;
+  --paper-sunken: #15110d;
+  --ink: #ece3d1;
+  --ink-2: #b2a68d;
+  --ink-3: #877a63;
+  --rule: #392f22;
+  --rule-strong: #4c4030;
+
+  --tab-progress: #e3874c;
+  --tab-progress-bg: #3a2415;
+  --tab-done: #6fae78;
+  --tab-done-bg: #1e2e1e;
+  --tab-attention: #e07b7f;
+  --tab-attention-bg: #3a1c1d;
+  --tab-hold: #a596d6;
+  --tab-hold-bg: #2a2340;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 6px 16px -10px rgba(0, 0, 0, .6);
+}
+
+* { box-sizing: border-box; }
+
+::selection { background: var(--tab-progress); color: var(--paper-raised); }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.55 var(--f-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1 {
+  font-size: 1.5rem; font-weight: 700; margin: 0 0 .3rem; letter-spacing: -.01em;
+  text-wrap: balance;
+}
+h2 { font-size: 1.02rem; font-weight: 700; margin: 0 0 .35rem; }
+h3 { font-size: .85rem; font-weight: 700; margin: 0; }
+p { max-width: 68ch; }
+.muted { color: var(--ink-3); font-size: .9rem; }
+.bad { color: var(--tab-attention); font-weight: 600; }
+.danger { background: transparent; border-color: var(--tab-attention); color: var(--tab-attention); }
+.inl { display: inline-block; }
+
+ul { margin: .5rem 0 0; padding-left: 1.25rem; }
+li { margin-bottom: .3rem; }
+
+code {
+  font-family: var(--f-mono); font-size: .85em; font-variant-numeric: tabular-nums;
+  background: var(--paper-sunken); color: var(--ink-2); padding: .1rem .4rem; border-radius: 4px;
+}
+
+a { color: var(--tab-progress); text-underline-offset: .15em; }
+
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track { background: var(--paper); }
+::-webkit-scrollbar-thumb { background: var(--rule-strong); border-radius: 8px; border: 3px solid var(--paper); }
+
+:focus-visible { outline: 2px solid var(--tab-progress); outline-offset: 2px; }
+
+/* ── Layout ──────────────────────────────────────────────────────────── */
+
+.auth { max-width: 26rem; margin: 8vh auto; padding: 0 1rem; }
+.app { max-width: 46rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+.app > header {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 1.35rem; padding-bottom: .9rem; border-bottom: 2px solid var(--ink);
+}
+.fatal { max-width: 34rem; margin: 10vh auto; padding: 0 1rem; }
+.fatal pre {
+  background: var(--paper-raised); border: 1px solid var(--rule); border-radius: 6px;
+  padding: .75rem; overflow-x: auto; font-size: .82rem; font-family: var(--f-mono);
+}
+
+/* ── Forms ───────────────────────────────────────────────────────────── */
+
+label { display: block; font-size: .85rem; color: var(--ink-2); margin: .9rem 0 .3rem; font-weight: 600; }
+input, select, textarea {
+  width: 100%; font: inherit; padding: .6rem .75rem; border-radius: 6px;
+  border: 1px solid var(--rule-strong); background: var(--paper-sunken); color: var(--ink);
+}
+input:focus-visible, select:focus-visible, textarea:focus-visible { border-color: var(--tab-progress); }
+textarea { line-height: 1.55; resize: vertical; }
+textarea:disabled { opacity: .7; cursor: not-allowed; }
+
+button {
+  font: 700 .92rem var(--f-body); padding: .6rem 1.15rem; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--ink); background: var(--ink); color: var(--paper-raised);
+  margin-top: 1.1rem; letter-spacing: .002em;
+}
+button:hover { background: var(--ink-2); border-color: var(--ink-2); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button.ghost {
+  background: transparent; color: var(--ink-2); border-color: var(--rule-strong); margin: 0;
+}
+button.ghost:hover { border-color: var(--ink); color: var(--ink); background: var(--paper-sunken); }
+
+/* ── Cards: a raised sheet of paper, one clipped corner — the folder's own
+   cut corner, not decoration; every surface in this app sits on one. ──── */
+
+.card {
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 3px 12px 12px 12px;
+  box-shadow: var(--shadow);
+  padding: 1.15rem 1.3rem;
+  margin-bottom: 1.1rem;
+}
+
+/* ── Banners ─────────────────────────────────────────────────────────── */
+
+.banner {
+  border-radius: 6px; padding: .75rem .95rem; margin-bottom: 1.1rem; font-size: .92rem;
+  display: flex; gap: .75rem; align-items: center; justify-content: space-between;
+}
+.banner--error { background: var(--tab-attention-bg); color: var(--tab-attention); border: 1px solid var(--tab-attention); }
+.banner--warn { background: var(--tab-progress-bg); color: var(--tab-progress); border: 1px solid var(--tab-progress); }
+.banner--info { background: var(--paper-raised); color: var(--ink-2); border: 1px solid var(--rule); }
+.field-error { color: var(--tab-attention); font-size: .88rem; margin: .75rem 0 0; }
+
+/* ── Key/value strips (provenance, recording detail, prior visit) ──────── */
+
+.kv { display: grid; grid-template-columns: auto 1fr; gap: .3rem 1.1rem; margin: .6rem 0 0; }
+.kv dt { color: var(--ink-3); font-size: .82rem; }
+.kv dd { margin: 0; font-family: var(--f-mono); font-size: .88rem; font-variant-numeric: tabular-nums; }
+.kv dd.bad { color: var(--tab-attention); font-weight: 600; }
+
+/* ═══ P0-1 recording indicator ═══════════════════════════════════════════
+   Sticky, full-width, impossible to scroll away — a legal control, not a
+   status chip: a patient in the room must be able to tell at a glance. */
+
 .rec-indicator {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: .6rem;
-  margin: 0 -1rem 1rem;
-  padding: .6rem 1rem;
-  background: var(--error-bg);
-  color: var(--error);
-  border-bottom: 2px solid var(--error);
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; gap: .65rem;
+  margin: 0 -1rem 1.1rem; padding: .65rem 1rem;
+  background: var(--tab-attention-bg); color: var(--tab-attention);
+  border-bottom: 3px solid var(--tab-attention);
   font-size: .95rem;
 }
 .rec-dot {
-  width: .7rem;
-  height: .7rem;
-  border-radius: 50%;
-  background: var(--error);
-  animation: rec-pulse 1.6s ease-in-out infinite;
+  width: .75rem; height: .75rem; border-radius: 50%; background: var(--tab-attention);
+  animation: pulse 1.6s ease-in-out infinite;
 }
-/* Respect a reduced-motion preference — but keep the dot visible, since it
-   is the indicator itself and not decoration. */
+.rec-time { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.rec-gap { margin-left: auto; font-weight: 700; font-family: var(--f-mono); }
+.rec-indicator.is-paused {
+  background: var(--tab-progress-bg); color: var(--tab-progress); border-bottom-color: var(--tab-progress);
+}
+.rec-indicator.is-paused .rec-dot { background: var(--tab-progress); animation: none; }
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
 @media (prefers-reduced-motion: reduce) {
-  .rec-dot { animation: none; }
-}
-@keyframes rec-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: .25; }
-}
-.rec-time { font-family: ui-monospace, Menlo, Consolas, monospace; }
-.rec-gap {
-  margin-left: auto;
-  font-weight: 600;
-  font-family: ui-monospace, Menlo, Consolas, monospace;
+  .rec-dot, .playing-dot { animation: none; }
 }
 
-.kv { display: grid; grid-template-columns: auto 1fr; gap: .25rem 1rem; margin: .5rem 0 0; }
-.kv dt { color: var(--ink3); font-size: .85rem; }
-.kv dd { margin: 0; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .9rem; }
-.kv dd.bad { color: var(--error); font-weight: 600; }
+/* ═══ The chart rack — Home's worklist ═══════════════════════════════════
+   Every encounter is a folder: a raised card whose status reads off a
+   genuine tab shape (clip-path trapezoid), never a colored border. ────── */
 
+.folder-row {
+  position: relative;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 2px 10px 10px 10px;
+  box-shadow: var(--shadow);
+  padding: 1.6rem 1.1rem 1rem;
+  margin: 1.3rem 0 .85rem;
+}
+.folder-row:first-child { margin-top: .6rem; }
 
-/* --- consent flow (2.3) ------------------------------------------------- */
+.folder-tab {
+  position: absolute;
+  top: -.95rem;
+  left: 1rem;
+  padding: .3rem .85rem .55rem;
+  clip-path: polygon(8% 0, 92% 0, 100% 100%, 0% 100%);
+  font: 700 .68rem/1 var(--f-body);
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.folder-tab.tab-progress { background: var(--tab-progress); color: var(--paper-raised); }
+.folder-tab.tab-done { background: var(--tab-done); color: var(--paper-raised); }
+.folder-tab.tab-attention { background: var(--tab-attention); color: var(--paper-raised); }
+.folder-tab.tab-hold { background: var(--tab-hold); color: var(--paper-raised); }
+/* An unnamed folder — a loose session waiting for a patient on its tab. */
+.folder-tab.tab-blank {
+  background: var(--paper-sunken); color: var(--ink-3); border: 1px dashed var(--rule-strong);
+}
+
+.folder-head {
+  display: flex; align-items: center; gap: .7rem; flex-wrap: wrap;
+}
+.folder-id { font-family: var(--f-mono); font-size: .82rem; color: var(--ink-3); }
+.folder-date { margin-left: auto; font-size: .82rem; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.folder-actions { display: flex; gap: .5rem; margin-left: auto; }
+.folder-actions .ghost { margin: 0; padding: .3rem .7rem; font-size: .8rem; }
+
+/* Lockable one-way step-sequence for pipeline state (raised into this
+   direction from the roll's declined origami-fold candidate): recording
+   → uploaded → transcribed → generated → signed, each stage a filled or
+   open cell, never a plain status word alone. */
+.step-sequence { display: flex; align-items: center; gap: .3rem; margin: .5rem 0 0; }
+.step-cell {
+  width: .55rem; height: .55rem; border-radius: 50%;
+  background: var(--rule-strong); flex: none;
+}
+.step-cell.is-filled { background: var(--tab-done); }
+.step-cell.is-current { background: var(--tab-progress); box-shadow: 0 0 0 3px var(--tab-progress-bg); }
+.step-cell.is-attention { background: var(--tab-attention); }
+.step-label { font-size: .78rem; color: var(--ink-3); margin-left: .35rem; }
+
+.loose { list-style: none; padding: 0; margin: 0; }
+.loose-head { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; }
+.loose-head .ghost { margin: 0 0 0 auto; padding: .3rem .7rem; font-size: .8rem; }
+
+/* ── consent flow (2.3) ─────────────────────────────────────────────── */
+
 .roster { list-style: none; padding: 0; margin: .75rem 0; }
-.roster li { margin-bottom: .35rem; }
-.roster label { display: flex; align-items: center; gap: .5rem; font-size: .95rem; }
-
-.lang-tabs { display: flex; gap: .5rem; margin: .75rem 0; flex-wrap: wrap; }
-.lang-tab {
-  margin: 0; font-weight: 500; background: transparent; color: var(--ink2);
-  border-color: var(--rule); padding: .4rem .8rem; font-size: .85rem;
+.roster li { margin-bottom: .4rem; }
+.roster label {
+  display: flex; align-items: center; gap: .5rem; font-size: .95rem;
+  font-weight: 400; color: var(--ink); margin: 0;
 }
-.lang-tab.is-active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+.lang-tabs { display: flex; gap: .5rem; margin: .8rem 0; flex-wrap: wrap; }
+.lang-tab {
+  margin: 0; font-weight: 600; background: var(--paper-sunken); color: var(--ink-2);
+  border: 1px solid var(--rule-strong); padding: .45rem .9rem; font-size: .85rem;
+}
+.lang-tab.is-active { background: var(--tab-progress); border-color: var(--tab-progress); color: var(--paper-raised); }
 
 .script {
-  border: 1px solid var(--rule); border-radius: 8px; padding: .85rem 1rem;
-  margin-bottom: .75rem; background: var(--bg);
+  border: 1px solid var(--rule); border-radius: 6px; padding: .9rem 1.05rem;
+  margin-bottom: .8rem; background: var(--paper-sunken);
 }
-/* The version actually being spoken is visually primary; the other stays
-   available for reference without competing for attention. */
-.script--spoken { border-color: var(--accent); background: var(--card); }
-.script h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em;
-             color: var(--ink3); margin: 0 0 .5rem; }
+.script--spoken { border-color: var(--tab-progress); background: var(--tab-progress-bg); }
+.script h3 {
+  font-size: .78rem; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--ink-3); margin: 0 0 .55rem; font-weight: 700;
+}
+.script--spoken h3 { color: var(--tab-progress); }
 .script ol { margin: 0; padding-left: 1.3rem; }
-.script li { margin-bottom: .45rem; line-height: 1.5; }
-.script-ask { font-weight: 600; margin: .75rem 0 0; }
+.script li { margin-bottom: .5rem; line-height: 1.55; }
+.script-ask { font-weight: 700; margin: .8rem 0 0; }
 
-.consent-actions { display: flex; gap: .75rem; flex-wrap: wrap; align-items: center; }
+.consent-actions { display: flex; gap: .8rem; flex-wrap: wrap; align-items: center; }
 .consent-actions .ghost { margin-top: 1.1rem; }
 
-/* Paused state: visually distinct from recording, but still obviously a live
-   session — a paused recorder that looks like no recorder is how someone gets
-   recorded without realising it. */
-.rec-indicator.is-paused { background: var(--warn-bg); color: var(--warn); border-bottom-color: var(--warn); }
-.rec-indicator.is-paused .rec-dot { background: var(--warn); animation: none; }
+/* ── upload queue (2.4) — same tab-shape language as the chart rack ──── */
 
-.danger { background: transparent; border-color: var(--error); color: var(--error); }
-
-/* --- upload queue (2.4) ------------------------------------------------- */
-.queue { list-style: none; padding: 0; margin: .75rem 0; }
+.queue { list-style: none; padding: 0; margin: .8rem 0; }
 .queue-item {
-  border: 1px solid var(--rule); border-radius: 8px;
-  padding: .6rem .8rem; margin-bottom: .5rem; background: var(--bg);
+  position: relative;
+  border: 1px solid var(--rule); border-radius: 2px 8px 8px 8px;
+  padding: 1.15rem .85rem .65rem; margin: 1.05rem 0 .55rem; background: var(--paper-raised);
 }
-/* A failed upload may be the only copy of a consultation, so it is coloured
-   like the problem it is rather than like a neutral list row. */
-.queue-item.is-failed { border-color: var(--error); background: var(--error-bg); }
+.queue-item:first-child { margin-top: .3rem; }
+.queue-item.is-failed { border-color: var(--tab-attention); }
 .queue-head { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
-.queue-head .ghost { margin: 0; padding: .25rem .6rem; font-size: .8rem; }
-.queue-state { font-size: .9rem; font-weight: 600; }
+.queue-head .ghost { margin: 0; padding: .3rem .65rem; font-size: .8rem; }
+.queue-state {
+  font-size: .68rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  padding: .25rem .6rem; border-radius: 3px;
+  background: var(--tab-progress-bg); color: var(--tab-progress);
+}
+.queue-item.is-failed .queue-state { background: var(--tab-attention-bg); color: var(--tab-attention); }
 .queue-meta {
-  display: flex; gap: .9rem; flex-wrap: wrap;
-  font-family: ui-monospace, Menlo, Consolas, monospace;
-  font-size: .78rem; color: var(--ink3); margin-top: .3rem;
+  display: flex; gap: 1rem; flex-wrap: wrap;
+  font-family: var(--f-mono); font-size: .78rem; color: var(--ink-3); margin-top: .4rem;
+  font-variant-numeric: tabular-nums;
 }
-.queue-meta .bad { color: var(--error); font-weight: 600; }
-.queue-error { font-size: .85rem; margin: .4rem 0 0; color: var(--error); }
+.queue-meta .bad { color: var(--tab-attention); font-weight: 600; }
+.queue-error { font-size: .85rem; margin: .5rem 0 0; color: var(--tab-attention); }
 
+/* ── patient picker (2.5) ───────────────────────────────────────────── */
 
-/* --- patient picker (2.5) ----------------------------------------------- */
-.picker label { display: block; font-size: .85rem; color: var(--ink2); margin: .75rem 0 .25rem; }
-.picker input {
-  width: 100%; font: inherit; padding: .55rem .7rem; border-radius: 7px;
-  border: 1px solid var(--rule); background: var(--bg); color: var(--ink);
-}
-.candidates h3 { font-size: .85rem; margin: 1rem 0 .25rem; }
+.picker label { margin: .8rem 0 .3rem; }
+.candidates h3 { font-size: .85rem; margin: 1.1rem 0 .3rem; }
 .candidates ul { list-style: none; padding: 0; margin: .5rem 0 0; }
-.candidates li { margin-bottom: .4rem; }
+.candidates li { margin-bottom: .45rem; }
 .candidate {
-  width: 100%; margin: 0; text-align: left; background: var(--bg); color: var(--ink);
-  border: 1px solid var(--rule); display: flex; gap: .75rem; align-items: baseline;
-  flex-wrap: wrap; font-weight: 400;
+  width: 100%; margin: 0; text-align: left; background: var(--paper-sunken); color: var(--ink);
+  border: 1px solid var(--rule-strong); border-radius: 6px; display: flex; gap: .8rem; align-items: baseline;
+  flex-wrap: wrap; font-weight: 400; padding: .6rem .8rem;
 }
-.candidate:hover { border-color: var(--accent); }
-.candidate-name { font-weight: 600; }
-/* Birthdate is the discriminator between similar names, so it is not
-   demoted to fine print. */
-.candidate-dob { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .85rem; color: var(--ink2); }
+.candidate:hover { border-color: var(--tab-progress); background: var(--paper-raised); }
+.candidate-name { font-weight: 700; }
+.candidate-dob { font-family: var(--f-mono); font-size: .85rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .candidate-tag {
-  margin-left: auto; font-size: .7rem; text-transform: uppercase; letter-spacing: .06em;
-  color: var(--accent);
+  margin-left: auto; font-size: .68rem; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--tab-done); font-weight: 700;
 }
-.picker-create { margin-top: 1rem; }
+.picker-create { margin-top: 1.1rem; }
 
-/* --- note review (2.6) -------------------------------------------------- */
-textarea {
-  width: 100%; font: inherit; line-height: 1.55; padding: .6rem .7rem;
-  border-radius: 7px; border: 1px solid var(--rule);
-  background: var(--bg); color: var(--ink); resize: vertical;
-}
-textarea:disabled { opacity: .75; cursor: not-allowed; }
-.prior { background: var(--card2); }
+/* ── note review (2.6) ──────────────────────────────────────────────── */
+
+.prior { background: var(--paper-sunken); }
 .prior-text { font-family: inherit; white-space: pre-wrap; }
 
-/* The signing ceremony is visually separated from the ordinary "next step"
-   buttons on purpose: it is irreversible and it transfers accountability
-   from the model to the clinician. It should not look like a Save button. */
-.ceremony { border: 2px solid var(--accent); background: var(--card); }
-.ceremony h2 { font-size: 1.1rem; color: var(--accent); }
-.ceremony p { font-size: .95rem; }
-
-.loose { list-style: none; padding: 0; }
-.loose > li { border: 1px solid var(--rule); border-radius: 8px; padding: .6rem .8rem; margin-bottom: .5rem; }
-.loose-head { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; }
-.loose-head .ghost { margin: 0 0 0 auto; padding: .25rem .6rem; font-size: .8rem; }
-
-/* --- grounding UI (Phase 3, P0-7) ---------------------------------------
-   The note reads as prose but every line is a control. That means the
-   affordance has to be discoverable without turning a clinical document into
-   a wall of buttons: no borders, no button chrome, just a hover/selected
-   state and a cursor. A doctor should be able to read the note without
-   noticing the mechanism, and find it the moment they want to check a line. */
-.ground-help { margin: 0 0 .9rem; }
-
-.grounded-text {
-  line-height: 1.65; margin: 0;
-  /* Inline-block children with whitespace between them collapse to single
-     spaces, which is exactly the spacing generation used when it joined the
-     sentences — so the rendered text matches the stored text. */
+/* The signing ceremony: visually separated, deliberately quiet outside the
+   moment itself — the "seal" (a border weight change and a settle-in
+   motion) exists ONLY here, never decorating any other screen, so it
+   stays earned rather than becoming wallpaper. */
+.ceremony {
+  border: 2px solid var(--ink); background: var(--paper-raised);
+  animation: seal-in .4s cubic-bezier(.16, 1, .3, 1);
 }
+.ceremony h2 { font-size: 1.05rem; }
+.ceremony p { font-size: .95rem; }
+@keyframes seal-in {
+  from { opacity: 0; transform: scale(.985); }
+  to { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) { .ceremony { animation: none; } }
+
+/* ── grounding UI (Phase 3, P0-7) ───────────────────────────────────────
+   The note reads as prose but every line is a control — no button chrome,
+   just an underline and a state, so reading the note does not feel like
+   navigating a wall of buttons. */
+
+.ground-help { margin: 0 0 .9rem; }
+.grounded-text { line-height: 1.65; margin: 0; }
 .ground-line {
-  display: inline; margin: 0; padding: .05rem .1rem;
+  display: inline; margin: 0; padding: .05rem .12rem;
   font: inherit; text-align: left; color: var(--ink);
   background: none; border: none; border-radius: 3px;
   cursor: pointer;
-  /* A dotted underline reads as "there is more here" rather than "this is a
-     link that will navigate away". */
-  text-decoration: underline dotted var(--rule);
+  text-decoration: underline dotted var(--rule-strong);
   text-underline-offset: .18em;
 }
-.ground-line:hover { background: var(--warn-bg); text-decoration-color: var(--accent); }
+.ground-line:hover { background: var(--tab-progress-bg); text-decoration-color: var(--tab-progress); }
 .ground-line.is-selected {
-  background: var(--warn-bg);
-  box-shadow: inset 0 -2px 0 var(--accent);
+  background: var(--tab-progress-bg);
+  box-shadow: inset 0 -2px 0 var(--tab-progress);
   text-decoration: none;
 }
-/* A drafted line citing no passage is the line most worth a second look, so
-   it is marked in the note itself rather than only in the panel. */
-.ground-line.is-uncited { text-decoration: underline wavy var(--error); }
-.ground-line:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ground-line.is-uncited { text-decoration: underline wavy var(--tab-attention); }
+.ground-line:focus-visible { outline: 2px solid var(--tab-progress); outline-offset: 1px; }
 
 .ground-stale {
-  margin: .6rem 0 0; font-size: .88rem; color: var(--warn);
-  background: var(--warn-bg); border-radius: 6px; padding: .5rem .65rem;
+  margin: .6rem 0 0; font-size: .88rem; color: var(--tab-progress);
+  background: var(--tab-progress-bg); border-radius: 6px; padding: .55rem .7rem;
 }
 
-.passages { margin-top: .9rem; border-top: 1px solid var(--rule); padding-top: .75rem; }
+.passages { margin-top: .95rem; border-top: 1px solid var(--rule); padding-top: .8rem; }
 .passages h3 {
-  font-size: .8rem; text-transform: uppercase; letter-spacing: .06em;
-  color: var(--ink3); margin: 0 0 .5rem; display: flex; align-items: center; gap: .5rem;
+  font-size: .78rem; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--ink-3); margin: 0 0 .55rem; display: flex; align-items: center; gap: .5rem;
 }
 .passage-list { list-style: none; padding: 0; margin: 0; }
-.passage-list > li { padding: .45rem .6rem; border-radius: 6px; margin-bottom: .35rem; }
-/* Cited and context are visually ranked, not merely labelled: a passage read
-   without its surroundings is easy to misread, but a neighbour is not what
-   the line cited and must not look like evidence. */
-.passage-list > li.is-cited { background: var(--card2); border-left: 3px solid var(--accent); }
-.passage-list > li.is-context { opacity: .62; border-left: 3px solid var(--rule); }
-.passage-head { display: flex; gap: .6rem; align-items: baseline; flex-wrap: wrap; }
-.passage-speaker { font-size: .78rem; font-weight: 600; color: var(--ink2); }
-.passage-time { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .78rem; color: var(--ink3); }
-.passage-tag {
-  font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink3);
+/* Cited vs. context are ranked by fill, not by a colored border-left: a
+   passage read without its surroundings is easy to misread, but a
+   neighbour must not look like evidence the line actually cited. */
+.passage-list > li {
+  padding: .55rem .7rem; border-radius: 6px; margin-bottom: .4rem;
+  background: var(--paper-sunken);
 }
-.passage-text { margin: .2rem 0 0; font-size: .92rem; line-height: 1.5; white-space: pre-wrap; }
+.passage-list > li.is-cited { background: var(--tab-done-bg); }
+.passage-list > li.is-context { opacity: .6; }
+.passage-head { display: flex; gap: .6rem; align-items: baseline; flex-wrap: wrap; }
+.passage-speaker { font-size: .78rem; font-weight: 700; color: var(--ink-2); }
+.passage-time { font-family: var(--f-mono); font-size: .78rem; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.passage-tag { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); font-weight: 700; }
+.passage-text { margin: .25rem 0 0; font-size: .92rem; line-height: 1.5; white-space: pre-wrap; }
 
 .playing-dot {
-  width: .5rem; height: .5rem; border-radius: 50%; background: var(--accent);
+  width: .5rem; height: .5rem; border-radius: 50%; background: var(--tab-progress);
   animation: pulse 1.2s ease-in-out infinite;
 }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
-@media (prefers-reduced-motion: reduce) { .playing-dot { animation: none; } }
 
-/* --- post-encounter rating (Phase 6) ------------------------------------
-   Deliberately quiet. This appears after a doctor has just signed a legal
-   document, so it must read as an aside they may ignore — not as another
-   step in the ceremony they just completed. */
-.rating { background: var(--card2); }
-.rating h2 { font-size: 1rem; }
-.stars { display: flex; gap: .2rem; margin: .5rem 0; }
-.star {
-  background: none; border: none; padding: .1rem .15rem; margin: 0;
-  font-size: 1.6rem; line-height: 1; cursor: pointer;
-  color: var(--rule); transition: color .12s ease;
+/* Chase-light playhead (raised into this direction from the roll's
+   declined drum-machine candidate): a moving highlight tracking real
+   playback position across the cited passage, not a generic scrub bar. */
+.playhead-track {
+  position: relative; height: 4px; border-radius: 2px; background: var(--rule);
+  margin: .5rem 0 0; overflow: hidden;
 }
-.star:hover, .star.is-on { color: var(--warn); }
-.star:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
-.rating label { display: block; font-size: .85rem; color: var(--ink2); margin: .6rem 0 .25rem; }
-.rating .ghost { margin-top: .6rem; padding: .25rem .6rem; font-size: .8rem; }
+.playhead-fill {
+  position: absolute; inset: 0 auto 0 0; width: 0%; background: var(--tab-progress);
+  border-radius: 2px; transition: width .1s linear;
+}
+
+/* ── post-encounter rating (Phase 6) ────────────────────────────────── */
+
+.rating { background: var(--paper-sunken); }
+.rating h2 { font-size: 1rem; }
+.stars { display: flex; gap: .25rem; margin: .5rem 0; }
+.star {
+  background: none; border: none; padding: .1rem .18rem; margin: 0;
+  font-size: 1.7rem; line-height: 1; cursor: pointer;
+  color: var(--rule-strong); transition: color .12s ease;
+}
+.star:hover, .star.is-on { color: var(--tab-progress); }
+.star:focus-visible { outline: 2px solid var(--tab-progress); outline-offset: 2px; border-radius: 4px; }
+.rating label { margin: .6rem 0 .3rem; }
+.rating .ghost { margin-top: .6rem; padding: .3rem .7rem; font-size: .8rem; }
 @media (prefers-reduced-motion: reduce) { .star { transition: none; } }
+
+/* ── compliance / audit (new surface, this redesign) ───────────────── */
+
+.audit-table { width: 100%; border-collapse: collapse; margin-top: .8rem; font-size: .85rem; }
+.audit-table th {
+  text-align: left; font-size: .7rem; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--ink-3); border-bottom: 1px solid var(--rule); padding: .4rem .6rem; font-weight: 700;
+}
+.audit-table td {
+  padding: .5rem .6rem; border-bottom: 1px solid var(--rule);
+  font-family: var(--f-mono); font-size: .82rem;
+}
+.audit-table tr:last-child td { border-bottom: none; }
+
+/* ── MFA enrollment (new surface, this redesign) ───────────────────── */
+
+.mfa-secret {
+  font-family: var(--f-mono); font-size: 1.1rem; letter-spacing: .08em;
+  background: var(--paper-sunken); border: 1px dashed var(--rule-strong); border-radius: 6px;
+  padding: .8rem 1rem; text-align: center; margin: .8rem 0; user-select: all;
+}
+.qr-wrap {
+  display: flex; justify-content: center; padding: 1rem; background: #fff; border-radius: 6px;
+  margin: .8rem 0;
+}

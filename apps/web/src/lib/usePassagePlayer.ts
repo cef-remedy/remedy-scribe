@@ -43,6 +43,10 @@ export type PassagePlayer = {
   playing: boolean;
   /** The segment id currently sounding, if any — used to mark the passage in the UI. */
   playingSegmentId: string | null;
+  /** 0–1 through the current passage window. For the chase-light playhead —
+   *  real position, not a generic indeterminate spinner. 0 when nothing is
+   *  playing. */
+  progress: number;
   error: string | null;
   play: (segmentId: string, startMs: number, endMs: number) => Promise<void>;
   stop: () => void;
@@ -59,15 +63,19 @@ export function usePassagePlayer(encounterId: string | null): PassagePlayer {
 
   const [playing, setPlaying] = useState(false);
   const [playingSegmentId, setPlayingSegmentId] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const url = useRef<{ value: string; expiresAt: number } | null>(null);
+  const startAtMs = useRef<number | null>(null);
   const stopAtMs = useRef<number | null>(null);
 
   const stop = useCallback(() => {
     if (audio) audio.pause();
+    startAtMs.current = null;
     stopAtMs.current = null;
     setPlaying(false);
     setPlayingSegmentId(null);
+    setProgress(0);
   }, [audio]);
 
   useEffect(() => {
@@ -76,7 +84,13 @@ export function usePassagePlayer(encounterId: string | null): PassagePlayer {
     const onTimeUpdate = () => {
       // The window boundary. `timeupdate` fires every ~250ms, which is close
       // enough for a passage and costs nothing; a precise stop would need an
-      // AudioWorklet and buys nothing a doctor would notice.
+      // AudioWorklet and buys nothing a doctor would notice. Progress rides
+      // the same tick — one listener, not a second poller.
+      if (startAtMs.current !== null && stopAtMs.current !== null) {
+        const span = stopAtMs.current - startAtMs.current;
+        const at = audio.currentTime * 1000 - startAtMs.current;
+        setProgress(span > 0 ? Math.min(1, Math.max(0, at / span)) : 0);
+      }
       if (stopAtMs.current !== null && audio.currentTime * 1000 >= stopAtMs.current) stop();
     };
     const onEnded = () => stop();
@@ -120,12 +134,14 @@ export function usePassagePlayer(encounterId: string | null): PassagePlayer {
         audio.src = result.url;
       }
 
+      startAtMs.current = startMs;
       stopAtMs.current = endMs + PLAYBACK_TAIL_MS;
       try {
         audio.currentTime = startMs / 1000;
         await audio.play();
         setPlaying(true);
         setPlayingSegmentId(segmentId);
+        setProgress(0);
       } catch {
         // Autoplay policy, or a seek before metadata loaded. Either way the
         // doctor gets a reason rather than a button that appears to do nothing.
@@ -136,5 +152,5 @@ export function usePassagePlayer(encounterId: string | null): PassagePlayer {
     [audio, encounterId, stop],
   );
 
-  return { playing, playingSegmentId, error, play, stop };
+  return { playing, playingSegmentId, progress, error, play, stop };
 }

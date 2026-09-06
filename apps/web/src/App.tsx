@@ -8,10 +8,13 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./lib/auth";
 import { Login } from "./routes/Login";
+import { SignUp } from "./routes/SignUp";
 import { Home } from "./routes/Home";
 import { Record } from "./routes/Record";
 import { Consent } from "./routes/Consent";
 import { NoteReview } from "./routes/NoteReview";
+import { MfaEnroll } from "./routes/MfaEnroll";
+import { ComplianceAudit } from "./routes/ComplianceAudit";
 
 export function App() {
   const { status } = useAuth();
@@ -32,7 +35,20 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={signedIn ? <Navigate to="/" replace /> : <Login />} />
+      <Route path="/sign-up" element={signedIn ? <Navigate to="/" replace /> : <SignUp />} />
+      {/* Deliberately reachable whether signed in or not — this screen
+          exists specifically for a clinician who cannot log in yet
+          (see MfaEnroll.tsx). Both its routes prove identity themselves
+          with email + password. */}
+      <Route path="/enroll-mfa" element={<MfaEnroll />} />
       <Route path="/" element={signedIn ? <Home /> : <Navigate to="/login" replace />} />
+      {/* compliance/admin only; RBAC is enforced server-side regardless —
+          see Home.tsx's redirect for how a compliance login actually
+          arrives here. */}
+      <Route
+        path="/audit"
+        element={signedIn ? <ComplianceAudit /> : <Navigate to="/login" replace />}
+      />
       <Route
         path="/encounters/:encounterId/consent"
         element={signedIn ? <Consent /> : <Navigate to="/login" replace />}

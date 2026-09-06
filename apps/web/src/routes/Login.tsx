@@ -1,10 +1,16 @@
 /**
- * Login: email + password + authenticator code, all in one step, because
- * that is what the API actually does (`POST /api/v1/auth/login` takes all
- * three and returns the same 401 whichever factor was wrong, so as not to
- * leak which one).
+ * Login: email + password.
+ *
+ * ⚠️ MFA is currently off, deployment-wide — `settings.require_mfa=False`
+ * on the API (`app/core/config.py`), a demo-stage toggle, not a deleted
+ * capability. This form simply never sends `mfa_code` (optional on the
+ * API side too), which is why there is no field for it here at all. If
+ * `require_mfa` is ever turned back on for a real pilot, this form needs
+ * the field restored — `git log` on this file has the version that had
+ * it, including the local-dev auto-fill in `lib/totp.ts`.
  */
 import { useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { FieldError } from "../components/Banner";
 
@@ -12,7 +18,6 @@ export function Login() {
   const { signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mfaCode, setMfaCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -20,7 +25,7 @@ export function Login() {
     event.preventDefault();
     setBusy(true);
     setError(null);
-    const detail = await signIn(email, password, mfaCode);
+    const detail = await signIn(email, password);
     setBusy(false);
     if (detail) setError(detail);
   }
@@ -51,25 +56,15 @@ export function Login() {
           onChange={(e) => setPassword(e.target.value)}
         />
 
-        <label htmlFor="mfa">Authenticator code</label>
-        <input
-          id="mfa"
-          type="text"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          pattern="[0-9]*"
-          maxLength={6}
-          required
-          placeholder="123456"
-          value={mfaCode}
-          onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ""))}
-        />
-
         <FieldError>{error}</FieldError>
 
         <button type="submit" disabled={busy}>
           {busy ? "Signing in…" : "Sign in"}
         </button>
+
+        <p className="muted" style={{ marginTop: "1rem" }}>
+          No account yet? <Link to="/sign-up">Sign up</Link>.
+        </p>
       </form>
     </main>
   );
