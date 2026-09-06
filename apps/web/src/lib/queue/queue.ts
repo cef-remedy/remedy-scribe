@@ -276,7 +276,19 @@ export async function tick(): Promise<QueueTickResult> {
 
       // --- stage 2: wait for the pipeline, not the bytes ---
       const current = await getEntry(entry.id);
-      if (current?.state === "uploaded") {
+      // Also re-checked for a "failed" entry that already has an
+      // objectKey: that failure happened *after* a successful upload, at
+      // the server's pipeline stage — and the doctor's only way to fix
+      // it is the pipeline retry on Home's Needs attention list, a
+      // server-side action this queue's own tick() never otherwise
+      // learns about. Without this, an entry that failed once stayed
+      // stuck showing a stale error forever, even after the doctor fixed
+      // it through that other path. Found live: the encounter had
+      // already reached note_generated server-side while this exact
+      // card still said "needs attention" and offered nothing but a
+      // pointer elsewhere.
+      const pipelineFailureEntry = current?.state === "failed" && current.objectKey !== null;
+      if (current?.state === "uploaded" || pipelineFailureEntry) {
         try {
           const { started, terminalFailure } = await pipelineHasStarted(current.encounterId);
           if (started) {
