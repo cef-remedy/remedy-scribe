@@ -1219,6 +1219,35 @@ export GOOGLE_DRIVE_FOLDER_ID=&lt;from §5A step 7 / §5B step 4&gt;
       this terminal session.
     </p>
 
+    <h3>0. Confirm the worker and Beat are actually running — first, every time</h3>
+
+    <div class="note stop">
+      <span class="note-label">Easy to skip, because nothing else tells you</span>
+      <p>
+        Render's own <code>/health</code> and <code>/ready</code> deliberately
+        exclude the worker and object storage — gating readiness on them would
+        turn a partial outage into a total one — so a healthy <code>/ready</code>
+        response proves nothing about whether anything is listening on the
+        queue. Record a demo without this checked and the recording will show
+        <code>pipeline_status</code> sitting at <code>uploaded</code> forever,
+        with nothing in the UI explaining why.
+      </p>
+    </div>
+
+    <ol class="steps">
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Start (or confirm) the worker and Beat, in your own terminal — §6 steps 5 and 6</p>
+        <p>Not through an AI session's background process: the whole point of "durable" is that these outlive any one conversation, which a background task tied to a chat does not.</p>
+<pre><code># In the worker's terminal, after the export block from §6 step 5:
+.venv\Scripts\python.exe -m celery -A app.tasks.celery_app worker --loglevel=info --pool=solo</code></pre>
+        <p class="expect"><b>You should see</b> <code>celery@&lt;hostname&gt; ready.</code> in the log — not just the command returning, an actual <code>ready</code> line.</p>
+      </div></label></li>
+      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
+        <p class="step-title">Prove it end to end before you start recording, not during</p>
+        <p>Upload something small (record 5 seconds, or reuse §7 step 7's check) and watch the worker log show <code>transcribe_encounter</code> running. If it doesn't move, the recording will not either.</p>
+      </div></label></li>
+    </ol>
+
     <h3>If Netlify isn't ready yet: proxy through Vite, don't touch Render's CORS</h3>
 
     <p>

@@ -628,6 +628,31 @@ Optional, and everything above exists to make this the easy part. Needs
 Stage 2 done and a worker + Beat running somewhere durable — not tied to
 this terminal session.
 
+### 0. Confirm the worker and Beat are actually running — first, every time
+
+⚠️ **Easy to skip, because nothing else tells you.** Render's own
+`/health` and `/ready` deliberately exclude the worker and object storage —
+gating readiness on them would turn a partial outage into a total one — so
+a healthy `/ready` response proves nothing about whether anything is
+listening on the queue. Record a demo without this checked and the
+recording will show `pipeline_status` sitting at `uploaded` forever, with
+nothing in the UI explaining why.
+
+1. [ ] **Start (or confirm) the worker and Beat, in your own terminal —
+       §6 steps 5 and 6.** Not through an AI session's background process:
+       the whole point of "durable" is that these outlive any one
+       conversation, which a background task tied to a chat does not.
+       ```powershell
+       # In the worker's terminal, after the export block from §6 step 5:
+       .venv\Scripts\python.exe -m celery -A app.tasks.celery_app worker --loglevel=info --pool=solo
+       ```
+       → *You should see* `celery@<hostname> ready.` in the log — not just
+       the command returning, an actual `ready` line.
+2. [ ] **Prove it end to end before you start recording**, not during:
+       upload something small (record 5 seconds, or reuse §7 step 7's
+       check) and watch the worker log show `transcribe_encounter` running.
+       If it doesn't move, the recording will not either.
+
 ### If Netlify isn't ready yet: proxy through Vite, don't touch Render's CORS
 
 You can record a real browser demo before §3 exists, by running the web app
