@@ -59,6 +59,45 @@ def _drive_configured(monkeypatch):
     storage_drive.reset_token_cache()
 
 
+# --- the Drive display name -------------------------------------------------
+
+
+def test_a_real_key_gets_a_clean_hyphenated_name():
+    """Real shape, from build_audio_object_key: encounters/{id}/audio/{file}.
+    The old naive "/" -> "__" replace produced
+    "encounters__enc-1__audio__abc.webm" for this same key -- same
+    information, half the noise, requested live after a doctor asked why
+    Drive filenames were so hard to read."""
+    name = storage_drive._drive_name("encounters/enc-1/audio/abc123.webm")
+    assert name == "encounter-enc-1-abc123.webm"
+
+
+def test_a_full_uuid_encounter_id_round_trips_cleanly():
+    key = "encounters/dd209d1b-7501-4512-9825-eb6a20f8f476/audio/c769377d79a84ee7adf8d4d68f6e5b4a.webm"
+    name = storage_drive._drive_name(key)
+    assert name == "encounter-dd209d1b-7501-4512-9825-eb6a20f8f476-c769377d79a84ee7adf8d4d68f6e5b4a.webm"
+    # Still greppable by encounter id, the one property the old scheme's
+    # own docstring called out as load-bearing.
+    assert "dd209d1b-7501-4512-9825-eb6a20f8f476" in name
+
+
+def test_an_unrecognized_key_shape_falls_back_to_the_naive_replace():
+    """Must never raise on a shape it doesn't recognize -- falls back to
+    the old behavior instead, which is reversible either way."""
+    name = storage_drive._drive_name("something/unexpected")
+    assert name == "something__unexpected"
+
+
+def test_two_different_keys_never_collide_on_the_drive_name():
+    """The transform must stay injective for the shapes that matter --
+    two distinct object keys must never resolve to the same Drive
+    filename, or a lookup by name (_find_file_id) could return the
+    wrong file."""
+    a = storage_drive._drive_name("encounters/enc-1/audio/x.webm")
+    b = storage_drive._drive_name("encounters/enc-2/audio/x.webm")
+    assert a != b
+
+
 # --- the 308 translation --------------------------------------------------
 
 
@@ -146,8 +185,9 @@ def test_opening_a_session_returns_the_location_header(monkeypatch):
     # where no human can find it to delete.
     assert captured["json"]["parents"] == ["folder123"]
     # Drive has no folder paths, so the key is flattened into the name —
-    # and must stay greppable by encounter id.
-    assert "encounters__e1__audio" in captured["json"]["name"]
+    # and must stay greppable by encounter id (see _drive_name's own tests
+    # for the exact scheme this flattens into).
+    assert "encounter-e1-" in captured["json"]["name"]
 
 
 def test_a_session_without_a_location_header_is_an_error(monkeypatch):

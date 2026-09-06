@@ -296,10 +296,26 @@ def _auth_headers() -> dict[str, str]:
 
 def _drive_name(key: str) -> str:
     """Drive has no folders-in-a-path concept we want to reproduce, so the
-    key becomes a flat file name with separators replaced. Reversible by
-    inspection, and it keeps every encounter's audio greppable by id in the
-    Drive UI, which matters when a human has to find a file to delete.
+    key becomes a flat file name. Reversible by inspection, and it keeps
+    every encounter's audio greppable by id in the Drive UI, which matters
+    when a human has to find a file to delete.
+
+    Every real key here has the exact shape `build_audio_object_key`
+    produces — `encounters/{encounter_id}/audio/{filename}` — so this
+    reads that structure directly for a name a human can actually scan at
+    a glance in Drive's flat file list: `encounter-{id}-{filename}`, one
+    separator style, the always-"audio", always-"encounters" segments
+    dropped since they say nothing a doctor scrolling a folder of nothing
+    but encounter audio didn't already know. Same information as the
+    naive `encounters__{id}__audio__{filename}` a blind "/" -> "__"
+    replace produced, with half the noise. Falls back to that naive
+    replace for any key that doesn't match — this must never raise on a
+    shape it doesn't recognize, and the fallback stays just as reversible.
     """
+    parts = key.split("/")
+    if len(parts) == 4 and parts[0] == "encounters" and parts[2] == "audio":
+        encounter_id, filename = parts[1], parts[3]
+        return f"encounter-{encounter_id}-{filename}"
     return key.replace("/", "__")
 
 
