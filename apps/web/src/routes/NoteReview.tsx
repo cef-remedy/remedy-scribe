@@ -35,7 +35,7 @@ import { GroundedSection } from "../components/GroundedSection";
 import { useToast } from "../components/Toast";
 import { audioNotice, fetchGrounding, type Grounding } from "../lib/grounding";
 import { useOnlineStatus } from "../lib/offline";
-import { fetchPatient, fetchPriorVisit, type PriorVisit } from "../lib/patients";
+import { fetchPatient, fetchPriorVisit, linkEncounterToPatient, type PriorVisit } from "../lib/patients";
 import { usePassagePlayer } from "../lib/usePassagePlayer";
 
 type Section = "assessment" | "plan" | "subjective" | "objective";
@@ -309,7 +309,29 @@ export function NoteReview() {
               {patient.birthdate && `, born ${patient.birthdate}`}. Filing will confirm this.
             </Banner>
           ) : (
-            <PatientPicker onPicked={setPatient} />
+            <PatientPicker
+              onPicked={async (p) => {
+                // PatientPicker only ever hands back the picked patient — it
+                // has no server call of its own here (unlike Home.tsx's
+                // "loose sessions" tray, which links right in its own
+                // onPicked). Without this, the banner below said "Linked to
+                // <name>… Filing will confirm this" while the encounter's
+                // own patient_id was still null server-side, and every
+                // filing attempt failed with "not linked to a patient yet"
+                // no matter how many times the doctor confirmed it on
+                // screen — confirmed_patient_id only ever checks the
+                // server's link, transition() never sets it. Found live:
+                // exactly that failure, on a fresh recording never opened
+                // from Home's loose-sessions linker first.
+                setError(null);
+                const ok = await linkEncounterToPatient(note.encounter_id, p.id);
+                if (!ok) {
+                  setError("Could not link that patient. Try again.");
+                  return;
+                }
+                setPatient(p);
+              }}
+            />
           )}
         </section>
       )}
