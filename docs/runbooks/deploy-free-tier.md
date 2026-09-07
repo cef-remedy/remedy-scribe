@@ -19,6 +19,10 @@ whole.
 
 ## 0. Decide the Drive setup before anything else
 
+> ✅ **Status: decided — Setup A** (service account + Shared Drive). The
+> account has Shared drives, so this was the available and correct choice.
+> §5 is done to match.
+
 One decision shapes §5 and cannot be fixed later by configuration: **who owns
 the recordings**. Google's own words:
 
@@ -67,7 +71,7 @@ machine is on. Neither is a free-tier limitation and no plan removes them.
 |---|---|---|---|
 | Frontend | **Netlify** | 300 credits/mo (~15 GB) | Engineer's account. Part 3. |
 | API | **Render** web service | 750 instance-hrs/mo, 0.1 CPU / 512 MB | Sleeps after 15 min idle |
-| Worker + Beat | **your own always-on machine** | free | No free host exists. §6. |
+| Worker + Beat | **a purchased always-on VM** | not free — a small VPS | Decided: no free host runs a background worker (Render's, Railway's and Fly's free tiers all rule it out — §6), so this one piece of an otherwise-$0 stack is a small recurring cost. Same shape as the production plan (decision 0036), just smaller. |
 | Postgres | **Neon** | 512 MB, scale-to-zero | Demo-scale only — §9 |
 | Redis | **Upstash** | 500 K commands/mo | ⚠️ Must raise the poll timeout |
 | Audio | **Google Drive** | org pooled, or 15 GB personal | §0 and §5 |
@@ -150,17 +154,36 @@ cannot read the `Range` header off a `308`. Resume flows through our own
 `GET /upload/parts` — server-to-server, no CORS — as it already did on S3.
 A client-side read silently returns nothing.
 
-### Unverified, because it needs real credentials
+### Verified against the real Drive session — not just the stubbed adapter
 
-The adapter is tested against a stubbed Drive. Check these first once §5 is
-done.
+The adapter's own tests stub Drive; these four needed real credentials, which
+now exist. Checked directly against real recordings and a real shared-drive
+session rather than assumed from the tests passing.
 
-- [ ] A browser really can `PUT` to a live session URI.
-- [ ] `Range` works end to end through the playback proxy.
-- [ ] A resumed upload skips the right chunks.
-- [ ] **Deletion really deletes.** Withdraw consent, then look in Drive: the
-      file must be gone, **not in Trash**. This is the one that silently
-      fails if the service account's shared-drive role is too low.
+- [x] **A browser really can `PUT` to a live session URI.** Confirmed by
+      several real recordings this session — captured through the actual
+      browser, uploaded, and reaching `note_generated` end to end.
+- [x] **`Range` works end to end through the playback proxy.** Verified
+      directly against a real recording's real Drive object: a partial
+      request (`bytes=0-99`) returned `206`, exactly 100 bytes, and the
+      correct total size; a full request returned `200` with the whole file.
+- [ ] **A resumed upload skips the right chunks.** Not fully closed — this
+      needs a genuinely interrupted multi-part upload to test end to end, and
+      every real recording so far has fit in one part. What *is* now verified:
+      the exact mechanism a resume depends on (`list_uploaded_parts` correctly
+      reporting what Drive already has) had a real bug — it silently reported
+      "nothing uploaded" for a file Drive had already fully received, which
+      surfaced as a recording stuck looping forever between "uploading" and
+      "waiting to retry." Found and fixed live, confirmed against the actual
+      stuck encounter (self-healed on the very next retry, no manual
+      intervention). The mechanism is now proven correct; a deliberate
+      kill-the-network-mid-upload test would still be the fully conclusive
+      version of this check.
+- [x] **Deletion really deletes.** Verified directly: a real Drive file
+      existed, `delete_object` was called, and it was confirmed gone
+      afterward by *two* independent checks — a name lookup and a direct
+      metadata fetch — and a separate `trashed = true` query confirmed it
+      isn't sitting in Trash either.
 
 ---
 
@@ -228,6 +251,10 @@ line needs editing.**
 ---
 
 ## 4. Accounts and secrets
+
+> ✅ **Status: done.** All five accounts/secrets below exist, and all of them
+> are already set on Render — see §6's status note for the full list of
+> variable names.
 
 > **Where do these go?** Into a scratch file on your machine for now — they
 > are not needed until §6, and each one is needed in **more than one place**.
@@ -315,6 +342,10 @@ From §0: **A** if the account has Shared drives, **B** otherwise. Do one, not
 both.
 
 ### Setup A · Service account + Shared Drive (Stage 2)
+
+> ✅ **Status: done.** All eight steps below are complete, and
+> `GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON` / `GOOGLE_DRIVE_FOLDER_ID` /
+> `STORAGE_BACKEND=drive` are already set on Render.
 
 Roughly ten minutes, and it takes every human out of the loop.
 
@@ -419,6 +450,10 @@ State this to your supervisor rather than absorbing it.
 > `NOTE_GENERATOR_PROVIDER`, `PHI_ENCRYPTION_KEY`, `REDIS_URL`,
 > `REFRESH_COOKIE_SAMESITE`, `REFRESH_COOKIE_SECURE`,
 > `S3_PROVISION_BUCKET_ON_STARTUP`, `S3_SECRET_KEY`, `STORAGE_BACKEND`.
+>
+> Also tried and tested from a local machine against this same deployment —
+> Netlify (§3) isn't done yet, so this is what stands in for §7's checks
+> until it is.
 >
 > The `GOOGLE_DRIVE_*` and `STORAGE_BACKEND` variables being set means this
 > went straight to **Stage 2** — Drive is configured, not just Stage 1's S3

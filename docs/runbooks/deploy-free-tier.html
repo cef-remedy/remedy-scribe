@@ -520,6 +520,14 @@
   <section>
     <div class="sec-head"><span class="sec-num">0</span><h2>Decide the Drive setup before anything else</h2></div>
 
+    <div class="note done">
+      <span class="note-label">✅ Status: decided — Setup A</span>
+      <p>
+        Service account + Shared Drive. The account has Shared drives, so this
+        was the available and correct choice. §5 is done to match.
+      </p>
+    </div>
+
     <p class="lede">
       One decision shapes §5 and cannot be fixed later by configuration: <strong>who
       owns the recordings</strong>. Google's own words:
@@ -591,7 +599,7 @@
         <tbody>
           <tr><td>Frontend</td><td><strong>Netlify</strong></td><td class="num">300 credits/mo (~15 GB)</td><td>Engineer's account. Part 3.</td></tr>
           <tr><td>API</td><td><strong>Render</strong> web service</td><td class="num">750 instance-hrs/mo · 0.1 CPU / 512 MB</td><td>Sleeps after 15 min idle</td></tr>
-          <tr><td>Worker + Beat</td><td><strong>your own always-on machine</strong></td><td class="num">free</td><td>No free host exists. §6.</td></tr>
+          <tr><td>Worker + Beat</td><td><strong>a purchased always-on VM</strong></td><td class="num">not free — a small VPS</td><td>Decided: no free host runs a background worker (Render's, Railway's and Fly's free tiers all rule it out — §6), so this one piece of an otherwise-$0 stack is a small recurring cost. Same shape as the production plan (decision 0036), just smaller.</td></tr>
           <tr><td>Postgres</td><td><strong>Neon</strong></td><td class="num">512 MB, scale-to-zero</td><td>Demo-scale only — §9</td></tr>
           <tr><td>Redis</td><td><strong>Upstash</strong></td><td class="num">500 K commands/mo</td><td>⚠️ Must raise the poll timeout</td></tr>
           <tr><td>Audio</td><td><strong>Google Drive</strong></td><td class="num">org pooled, or 15 GB personal</td><td>§0 and §5</td></tr>
@@ -662,28 +670,41 @@
       </li>
     </ul>
 
-    <h3>Unverified, because it needs real credentials</h3>
+    <h3>Verified against the real Drive session — not just the stubbed adapter</h3>
 
-    <p>The adapter is tested against a stubbed Drive. Check these first once §5 is done.</p>
+    <p>The adapter's own tests stub Drive; these four needed real credentials, which
+    now exist. Checked directly against real recordings and a real shared-drive
+    session rather than assumed from the tests passing.</p>
+
+    <ul class="done-list">
+      <li class="shipped">
+        <span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span>
+        <div class="step-body"><p><strong>A browser really can PUT to a live session URI.</strong> Confirmed by several real recordings this session — captured through the actual browser, uploaded, and reaching <code>note_generated</code> end to end.</p></div>
+      </li>
+      <li class="shipped">
+        <span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span>
+        <div class="step-body"><p><strong><code>Range</code> works end to end through the playback proxy.</strong> Verified directly against a real recording's real Drive object: a partial request (<code>bytes=0-99</code>) returned <code>206</code>, exactly 100 bytes, and the correct total size; a full request returned <code>200</code> with the whole file.</p></div>
+      </li>
+      <li class="shipped">
+        <span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span>
+        <div class="step-body"><p><strong>Deletion really deletes.</strong> Verified directly: a real Drive file existed, <code>delete_object</code> was called, and it was confirmed gone afterward by <em>two</em> independent checks — a name lookup and a direct metadata fetch — and a separate <code>trashed = true</code> query confirmed it isn't sitting in Trash either.</p></div>
+      </li>
+    </ul>
 
     <ol class="steps">
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s2">Stage 2</span>A browser really can PUT to a live session URI</p>
-        <p>The CORS preflight says yes; an actual upload proves it.</p>
-      </div></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s2">Stage 2</span><code>Range</code> works end to end through the playback proxy</p>
-        <p>Click a note line and hear <em>that passage</em>, not the whole consultation.</p>
-      </div></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
         <p class="step-title"><span class="chip s2">Stage 2</span>A resumed upload skips the right chunks</p>
-        <p>Kill the network mid-upload, restore it, confirm the recording completes intact.</p>
-      </div></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s2">Stage 2</span>Deletion really deletes</p>
-        <p>Withdraw consent on a test encounter, then look in Drive. The file must be
-        gone — <strong>not in Trash</strong>. This is the one that silently fails if
-        the service account has the wrong shared-drive role.</p>
+        <p>Not fully closed — this needs a genuinely interrupted multi-part upload to
+        test end to end, and every real recording so far has fit in one part. What
+        <em>is</em> now verified: the exact mechanism a resume depends on
+        (<code>list_uploaded_parts</code> correctly reporting what Drive already has)
+        had a real bug — it silently reported "nothing uploaded" for a file Drive had
+        already fully received, which surfaced as a recording stuck looping forever
+        between "uploading" and "waiting to retry." Found and fixed live, confirmed
+        against the actual stuck encounter (self-healed on the very next retry, no
+        manual intervention). The mechanism is now proven correct; a deliberate
+        kill-the-network-mid-upload test would still be the fully conclusive version
+        of this check.</p>
       </div></label></li>
     </ol>
   </section>
@@ -787,6 +808,14 @@
   <!-- ══ 4 ══ -->
   <section>
     <div class="sec-head"><span class="sec-num">4</span><h2>Accounts and secrets</h2></div>
+
+    <div class="note done">
+      <span class="note-label">✅ Status: done</span>
+      <p>
+        All five accounts/secrets below exist, and all of them are already set
+        on Render — see §6's status note for the full list of variable names.
+      </p>
+    </div>
 
     <div class="note warn">
       <span class="note-label">Where do these go?</span>
@@ -907,6 +936,16 @@ postgresql+psycopg://user:pass@ep-xxx-pooler.region.aws.neon.tech/neondb?sslmode
     </p>
 
     <h3>Setup A · Service account + Shared Drive <span class="chip s2">Stage 2</span></h3>
+
+    <div class="note done">
+      <span class="note-label">✅ Status: done</span>
+      <p>
+        All eight steps below are complete, and
+        <code>GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON</code> /
+        <code>GOOGLE_DRIVE_FOLDER_ID</code> / <code>STORAGE_BACKEND=drive</code>
+        are already set on Render.
+      </p>
+    </div>
 
     <p>
       Roughly ten minutes, and it takes every human out of the loop: nobody owns the
@@ -1046,6 +1085,11 @@ STORAGE_BACKEND=drive</code></pre>
         <code>REFRESH_COOKIE_SECURE</code>,
         <code>S3_PROVISION_BUCKET_ON_STARTUP</code>,
         <code>S3_SECRET_KEY</code>, <code>STORAGE_BACKEND</code>.
+      </p>
+      <p>
+        Also tried and tested from a local machine against this same
+        deployment — Netlify (§3) isn't done yet, so this is what stands in
+        for §7's checks until it is.
       </p>
       <p>
         The <code>GOOGLE_DRIVE_*</code> and <code>STORAGE_BACKEND</code>
