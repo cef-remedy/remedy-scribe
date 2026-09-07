@@ -245,6 +245,15 @@ export function Home() {
         );
       })()}
 
+      {/* Recent is capped at 25 and scoped to this clinician (see the
+          panel's own note below) — there was nowhere to go from here to
+          find an older note, search by patient, or reach one a colleague
+          filed. That's a separate screen, not a fourth tab: it's a
+          clinic-wide search, not another slice of "my own worklist". */}
+      <p className="muted">
+        <Link to="/notes">See all notes →</Link>
+      </p>
+
       {/* Without this there was no way back to a note after filing it: the
           only lists were loose sessions and failures, so linking a patient
           removed an encounter from the one tray that showed it. Found by

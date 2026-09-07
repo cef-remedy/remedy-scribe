@@ -3,6 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from app.models.encounter import EncounterPipelineStatus
 from app.models.note import NoteStatus
 
 Section = Literal["assessment", "plan", "subjective", "objective"]
@@ -23,6 +24,29 @@ class NoteOut(BaseModel):
     signed_at: datetime | None
 
     model_config = {"from_attributes": True}
+
+
+class NoteSearchRow(BaseModel):
+    """One row of `GET /notes/search` -- the "All notes" page.
+
+    Deliberately carries no audio link. `AudioPlaybackOut` (see
+    app/schemas/grounding.py) is minted only when a doctor asks to hear a
+    specific recording, never as part of loading a list or a note --
+    bulk-minting one per row here would both contradict that rule and
+    write an `encounter.audio.playback_url` audit row for every recording
+    on the page, most of which nobody asked to hear.
+    """
+
+    note_id: str
+    encounter_id: str
+    patient_id: str | None
+    #: None when the encounter has no patient linked yet (a "loose" note),
+    #: not merely when the name failed to decrypt.
+    patient_name: str | None
+    note_status: NoteStatus
+    pipeline_status: EncounterPipelineStatus
+    created_at: datetime
+    signed_at: datetime | None
 
 
 class NoteSectionUpdate(BaseModel):

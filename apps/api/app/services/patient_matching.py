@@ -12,6 +12,7 @@ keeps the dependency list in requirements.txt short.
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from datetime import date
 from difflib import SequenceMatcher
 
@@ -179,6 +180,50 @@ def search_patients_by_name(
     # is stable across requests rather than dependent on row order.
     hits.sort(key=lambda h: (h.match_type != "exact", -h.score, h.full_name))
     return hits[:limit]
+
+
+def name_matches(candidate_name: str, query: str) -> bool:
+    """The same prefilter + threshold `search_patients_by_name` scores a
+    row with, exposed as a yes/no predicate for callers that already have a
+    small, bounded set of candidate names decrypted (e.g. the notes search
+    endpoint filtering encounters by patient name) and just need to know
+    which of them plausibly match a typed query -- not a fresh ranked scan
+    of the whole directory.
+    """
+    query_tokens = _tokens(query)
+    candidate_tokens = _tokens(candidate_name)
+    shares_token = bool(query_tokens & candidate_tokens)
+    shares_prefix = any(
+        nt.startswith(qt) or qt.startswith(nt)
+        for qt in query_tokens
+        for nt in candidate_tokens
+        if len(qt) >= 3 and len(nt) >= 3
+    )
+    if not (shares_token or shares_prefix):
+        return False
+    return shares_token or _similarity(candidate_name, query) >= SEARCH_MATCH_THRESHOLD
+
+
+def decrypt_patient_names(db: Session, patient_ids: Collection[str]) -> dict[str, str]:
+    """Decrypts just the given patients' names.
+
+    Same raw-SELECT + column-type-decorator technique as
+    `search_patients_by_name` above, for the same reason: skip ORM
+    hydration for a set of rows most of which are about to be discarded.
+    Used by callers that already know *which* patients they need (a page
+    of search results, a bounded name-match candidate window) rather than
+    needing to rank the whole directory.
+    """
+    ids = [pid for pid in patient_ids if pid]
+    if not ids:
+        return {}
+
+    placeholders = ", ".join(f":id{i}" for i in range(len(ids)))
+    params = {f"id{i}": pid for i, pid in enumerate(ids)}
+    rows = db.execute(text(f"SELECT id, full_name FROM patients WHERE id IN ({placeholders})"), params).all()  # noqa: S608 -- placeholders are bound param names, not interpolated values
+    coltype = _name_column_type()
+    decrypted = ((row[0], coltype.process_result_value(row[1], dialect=None)) for row in rows)
+    return {pid: name for pid, name in decrypted if name is not None}
 
 
 def previous_signed_note(db: Session, patient_id: str, exclude_encounter_id: str | None = None):

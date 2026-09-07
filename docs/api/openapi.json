@@ -1296,6 +1296,146 @@
         }
       }
     },
+    "/api/v1/notes/search": {
+      "get": {
+        "tags": [
+          "notes"
+        ],
+        "summary": "Search Notes",
+        "description": "The \"All notes\" page.\n\nMissing for the same reason `/encounters/recent` was: the only lists\nwere Recent (this clinician's last 25 *encounters*), Loose, and\nFailed -- nothing let a doctor find a note from two weeks ago, search\nby patient, or reach anything a colleague filed. This is the first\nendpoint that lists *notes* rather than encounters, and the first\nthat is genuinely searchable/paginated.\n\nRegistered before `/{note_id}` on purpose -- same route-order\nconstraint `encounters.py` documents: a path parameter registered\nfirst would swallow the literal `/search` segment.",
+        "operationId": "search_notes_api_v1_notes_search_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Typed patient name",
+              "title": "Q"
+            },
+            "description": "Typed patient name"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/NoteStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "date_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive lower bound on the encounter's created_at",
+              "title": "Date From"
+            },
+            "description": "Inclusive lower bound on the encounter's created_at"
+          },
+          {
+            "name": "date_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exclusive upper bound on the encounter's created_at",
+              "title": "Date To"
+            },
+            "description": "Exclusive upper bound on the encounter's created_at"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NoteSearchRow"
+                  },
+                  "title": "Response Search Notes Api V1 Notes Search Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/notes/{note_id}": {
       "get": {
         "tags": [
@@ -3036,6 +3176,76 @@
           "signed_at"
         ],
         "title": "NoteOut"
+      },
+      "NoteSearchRow": {
+        "properties": {
+          "note_id": {
+            "type": "string",
+            "title": "Note Id"
+          },
+          "encounter_id": {
+            "type": "string",
+            "title": "Encounter Id"
+          },
+          "patient_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Patient Id"
+          },
+          "patient_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Patient Name"
+          },
+          "note_status": {
+            "$ref": "#/components/schemas/NoteStatus"
+          },
+          "pipeline_status": {
+            "$ref": "#/components/schemas/EncounterPipelineStatus"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "signed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "note_id",
+          "encounter_id",
+          "patient_id",
+          "patient_name",
+          "note_status",
+          "pipeline_status",
+          "created_at",
+          "signed_at"
+        ],
+        "title": "NoteSearchRow",
+        "description": "One row of `GET /notes/search` -- the \"All notes\" page.\n\nDeliberately carries no audio link. `AudioPlaybackOut` (see\napp/schemas/grounding.py) is minted only when a doctor asks to hear a\nspecific recording, never as part of loading a list or a note --\nbulk-minting one per row here would both contradict that rule and\nwrite an `encounter.audio.playback_url` audit row for every recording\non the page, most of which nobody asked to hear."
       },
       "NoteSectionUpdate": {
         "properties": {

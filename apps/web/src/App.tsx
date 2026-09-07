@@ -15,6 +15,7 @@ import { Consent } from "./routes/Consent";
 import { NoteReview } from "./routes/NoteReview";
 import { MfaEnroll } from "./routes/MfaEnroll";
 import { ComplianceAudit } from "./routes/ComplianceAudit";
+import { AllNotes } from "./routes/AllNotes";
 
 export function App() {
   const { status } = useAuth();
@@ -57,6 +58,11 @@ export function App() {
         path="/encounters/:encounterId/record"
         element={signedIn ? <Record /> : <Navigate to="/login" replace />}
       />
+      {/* Registered before /notes/:noteId is irrelevant to React Router's own
+          ranking (a static segment always outranks a dynamic one regardless
+          of order), but it mirrors the backend's own route-order convention
+          and reads the same way here. */}
+      <Route path="/notes" element={signedIn ? <AllNotes /> : <Navigate to="/login" replace />} />
       <Route
         path="/notes/:noteId"
         element={signedIn ? <NoteReview /> : <Navigate to="/login" replace />}

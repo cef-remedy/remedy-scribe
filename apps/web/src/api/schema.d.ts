@@ -708,6 +708,37 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notes/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Notes
+         * @description The "All notes" page.
+         *
+         *     Missing for the same reason `/encounters/recent` was: the only lists
+         *     were Recent (this clinician's last 25 *encounters*), Loose, and
+         *     Failed -- nothing let a doctor find a note from two weeks ago, search
+         *     by patient, or reach anything a colleague filed. This is the first
+         *     endpoint that lists *notes* rather than encounters, and the first
+         *     that is genuinely searchable/paginated.
+         *
+         *     Registered before `/{note_id}` on purpose -- same route-order
+         *     constraint `encounters.py` documents: a path parameter registered
+         *     first would swallow the literal `/search` segment.
+         */
+        get: operations["search_notes_api_v1_notes_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/notes/{note_id}": {
         parameters: {
             query?: never;
@@ -1419,6 +1450,36 @@ export interface components {
             signed_by_clinician_id: string | null;
             /** Signed Prc License Number */
             signed_prc_license_number: string | null;
+            /** Signed At */
+            signed_at: string | null;
+        };
+        /**
+         * NoteSearchRow
+         * @description One row of `GET /notes/search` -- the "All notes" page.
+         *
+         *     Deliberately carries no audio link. `AudioPlaybackOut` (see
+         *     app/schemas/grounding.py) is minted only when a doctor asks to hear a
+         *     specific recording, never as part of loading a list or a note --
+         *     bulk-minting one per row here would both contradict that rule and
+         *     write an `encounter.audio.playback_url` audit row for every recording
+         *     on the page, most of which nobody asked to hear.
+         */
+        NoteSearchRow: {
+            /** Note Id */
+            note_id: string;
+            /** Encounter Id */
+            encounter_id: string;
+            /** Patient Id */
+            patient_id: string | null;
+            /** Patient Name */
+            patient_name: string | null;
+            note_status: components["schemas"]["NoteStatus"];
+            pipeline_status: components["schemas"]["EncounterPipelineStatus"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
             /** Signed At */
             signed_at: string | null;
         };
@@ -2627,6 +2688,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConsentStateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_notes_api_v1_notes_search_get: {
+        parameters: {
+            query?: {
+                /** @description Typed patient name */
+                q?: string | null;
+                status?: components["schemas"]["NoteStatus"] | null;
+                /** @description Inclusive lower bound on the encounter's created_at */
+                date_from?: string | null;
+                /** @description Exclusive upper bound on the encounter's created_at */
+                date_to?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteSearchRow"][];
                 };
             };
             /** @description Validation Error */

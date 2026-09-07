@@ -1,11 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_clinician, get_db, require_role
 from app.models.clinician import Clinician
-from app.models.note import Note
+from app.models.encounter import Encounter
+from app.models.note import Note, NoteStatus
 from app.schemas.grounding import GroundingOut
-from app.schemas.note import NoteOut, NoteSectionUpdate, NoteTransitionRequest
+from app.schemas.note import NoteOut, NoteSearchRow, NoteSectionUpdate, NoteTransitionRequest
 from app.services import audit
 from app.services.grounding import resolve_grounding
 from app.services.note_lifecycle import (
@@ -14,8 +17,20 @@ from app.services.note_lifecycle import (
     SigningRequiresLicenseError,
     transition,
 )
+from app.services.patient_matching import decrypt_patient_names, name_matches
 
 router = APIRouter(prefix="/notes", tags=["notes"])
+
+# A bounded window, not the whole table: `q` cannot be pushed down into SQL
+# (Patient.full_name is encrypted, non-deterministic ciphertext -- see
+# patient_matching.py's own heads-up on this), so a name search decrypts
+# candidates in Python instead. Scanning the entire history to answer one
+# search would get slower every week the clinic operates; this caps it at
+# the most recent MAX_NAME_SCAN notes, same tradeoff decision 0029 already
+# accepted for patient-name search.
+MAX_NAME_SCAN = 1000
+DEFAULT_SEARCH_PAGE_SIZE = 50
+MAX_SEARCH_PAGE_SIZE = 200
 
 
 def _get_note_or_404(db: Session, note_id: str) -> Note:
@@ -23,6 +38,101 @@ def _get_note_or_404(db: Session, note_id: str) -> Note:
     if note is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Note not found")
     return note
+
+
+@router.get("/search", response_model=list[NoteSearchRow])
+def search_notes(
+    response: Response,
+    q: str | None = Query(None, min_length=1, max_length=200, description="Typed patient name"),
+    status_filter: NoteStatus | None = Query(None, alias="status"),
+    date_from: datetime | None = Query(None, description="Inclusive lower bound on the encounter's created_at"),
+    date_to: datetime | None = Query(None, description="Exclusive upper bound on the encounter's created_at"),
+    limit: int = Query(DEFAULT_SEARCH_PAGE_SIZE, ge=1, le=MAX_SEARCH_PAGE_SIZE),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    # RBAC (decision 0004): the same read scope as GET /{note_id} below --
+    # a browsable history of notes is a read like any other, open to any
+    # authenticated clinician for continuity of care, not scoped to only
+    # the doctor who recorded each one (unlike /encounters/recent, which
+    # is deliberately "my own worklist").
+    clinician: Clinician = Depends(get_current_clinician),
+) -> list[NoteSearchRow]:
+    """The "All notes" page.
+
+    Missing for the same reason `/encounters/recent` was: the only lists
+    were Recent (this clinician's last 25 *encounters*), Loose, and
+    Failed -- nothing let a doctor find a note from two weeks ago, search
+    by patient, or reach anything a colleague filed. This is the first
+    endpoint that lists *notes* rather than encounters, and the first
+    that is genuinely searchable/paginated.
+
+    Registered before `/{note_id}` on purpose -- same route-order
+    constraint `encounters.py` documents: a path parameter registered
+    first would swallow the literal `/search` segment.
+    """
+    query = (
+        db.query(Note, Encounter)
+        .join(Encounter, Note.encounter_id == Encounter.id)
+        .order_by(Encounter.created_at.desc(), Note.id.desc())
+    )
+    if status_filter is not None:
+        query = query.filter(Note.status == status_filter)
+    if date_from is not None:
+        query = query.filter(Encounter.created_at >= date_from)
+    if date_to is not None:
+        query = query.filter(Encounter.created_at < date_to)
+
+    if q:
+        # Cannot filter this in SQL -- decrypt a bounded candidate window
+        # and match in Python, same approach patient_matching.search_
+        # patients_by_name uses and for the same reason.
+        candidates = query.limit(MAX_NAME_SCAN).all()
+        candidate_patient_ids = {enc.patient_id for _, enc in candidates if enc.patient_id is not None}
+        names = decrypt_patient_names(db, candidate_patient_ids)
+        matched_ids = {pid for pid, name in names.items() if name and name_matches(name, q)}
+        filtered = [(note, enc) for note, enc in candidates if enc.patient_id in matched_ids]
+        total = len(filtered)
+        page = filtered[offset : offset + limit]
+    else:
+        total = query.count()
+        page = [(note, enc) for note, enc in query.limit(limit).offset(offset).all()]
+        page_patient_ids = {enc.patient_id for _, enc in page if enc.patient_id is not None}
+        names = decrypt_patient_names(db, page_patient_ids)
+
+    # Same pagination-over-headers shape as GET /audit-logs: the body stays
+    # a bare array so nothing generated against it breaks if pagination is
+    # added to more endpoints later.
+    response.headers["X-Total-Count"] = str(total)
+    response.headers["X-Limit"] = str(limit)
+    response.headers["X-Offset"] = str(offset)
+
+    # A list read is still a read (Phase 4.2) -- same reasoning as
+    # /encounters/recent and /loose: entity_id is "*" because there is no
+    # single subject, and the typed query itself is deliberately not
+    # recorded, since a patient-name search term is PHI (the same rule
+    # patient.search follows for its own query string).
+    audit.record(
+        db,
+        actor_clinician_id=clinician.id,
+        action="note.search",
+        entity_type="note",
+        entity_id="*",
+        diff={"has_query": bool(q), "status": status_filter.value if status_filter else None, "result_count": total},
+    )
+
+    return [
+        NoteSearchRow(
+            note_id=note.id,
+            encounter_id=enc.id,
+            patient_id=enc.patient_id,
+            patient_name=names.get(enc.patient_id) if enc.patient_id else None,
+            note_status=note.status,
+            pipeline_status=enc.pipeline_status,
+            created_at=enc.created_at,
+            signed_at=note.signed_at,
+        )
+        for note, enc in page
+    ]
 
 
 @router.get("/{note_id}", response_model=NoteOut)

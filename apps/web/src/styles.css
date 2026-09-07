@@ -351,9 +351,17 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   display: flex; align-items: center; gap: .7rem; flex-wrap: wrap;
 }
 .folder-id { font-family: var(--f-mono); font-size: .82rem; color: var(--ink-3); }
+/* Unlike folder-id (a UUID slice, secondary metadata), a patient's name is
+   the primary thing a doctor scans the All-notes list for — full weight,
+   not muted, not monospace. */
+.folder-patient { font-size: .95rem; font-weight: 600; color: var(--ink); }
 .folder-date { margin-left: auto; font-size: .82rem; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .folder-actions { display: flex; gap: .5rem; margin-left: auto; }
 .folder-actions .ghost { margin: 0; padding: .3rem .7rem; font-size: .8rem; }
+/* AudioLinkButton's own wrapper: keeps the button and its error message
+   (shown only after a failed mint) on one line rather than stacking. */
+.audio-link { display: inline-flex; align-items: center; gap: .4rem; }
+.audio-link .bad { font-size: .8rem; font-weight: 600; }
 
 /* Lockable one-way step-sequence for pipeline state (raised into this
    direction from the roll's declined origami-fold candidate): recording
