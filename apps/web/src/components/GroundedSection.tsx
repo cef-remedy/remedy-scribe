@@ -64,6 +64,15 @@ export function GroundedSection({
   const selected = lines.find((l) => l.key === selectedKey) ?? null;
   const passages = selected && grounding ? passagesForLine(grounding, selected.segmentIds) : [];
 
+  // The hint is placeholder guidance ("what belongs here"), not permanent
+  // chrome — real content speaks for itself and outranks it, on a draft, a
+  // filed note, or a signed one alike. Left showing unconditionally, an
+  // empty or thin section read as if the hint *was* the clinical content,
+  // exactly where a doctor would be scanning a filed note's Assessment
+  // first. Suppressed sections already carry their own explanation of why
+  // they're blank; stacking this on top of that would just repeat it.
+  const showHint = text.trim() === "" && !section?.suppressed;
+
   const onLineClick = (key: string, segmentIds: string[]) => {
     if (key !== selectedKey) {
       // First tap: highlight the source. Nothing is played yet.
@@ -81,7 +90,7 @@ export function GroundedSection({
   return (
     <section className="card">
       <h2>{label}</h2>
-      <p className="muted">{hint}</p>
+      {showHint && <p className="muted">{hint}</p>}
 
       {showEditor ? (
         <>
