@@ -450,18 +450,6 @@
   .chip.you { color: var(--ink-3); }
   .chip.eng { color: var(--stage2); }
 
-  .stage-key {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1.1rem;
-    margin: 1.1rem 0 0;
-    padding: .85rem 1rem;
-    background: var(--surface-2);
-    border: 1px solid var(--rule);
-    font-size: .88rem;
-  }
-  .stage-key div { display: flex; gap: .5rem; align-items: baseline; }
-
   /* ── The hand-over slab ───────────────────────────────────────── */
 
   .handover { margin-top: 3.25rem; border: 2px solid var(--stage2); background: var(--surface); }
@@ -495,15 +483,20 @@
     <p class="eyebrow">Remedy Scribe · Runbook · docs/runbooks/deploy-free-tier.md</p>
     <h1>Free-Tier Deploy Runbook</h1>
     <p class="standfirst">
-      Netlify, Render, Neon, Upstash and Google Drive — a working demo you drive
-      with <em>your own voice</em>, on services that cost nothing recurring. Every
-      part is a numbered step with something you can check afterwards. Not a
-      patient pilot; §9 says why, and it is not negotiable by configuration.
+      Getting this live for real use — Netlify, Render, Neon, Upstash and
+      Google Drive — not a rehearsal. Not a patient pilot; §8 says why, and
+      it is not negotiable by configuration.
     </p>
     <ul class="audiences">
-      <li><b>You</b><span>Own the checklist: accounts, Drive, Render, Neon, migrations, the worker.</span></li>
+      <li><b>You</b><span>Own the checklist: Render, the worker VM, Drive, accounts.</span></li>
       <li><b>The engineer with the Netlify account</b><span>Needs Part 3 only. It is written to be handed over whole.</span></li>
     </ul>
+    <p class="lede" style="margin-top:1rem">
+      Everything except Part 3 is already decided and mostly done. This
+      version says what's actually configured, not what to choose — the
+      original decision points are in git history if a future environment
+      needs them again.
+    </p>
     <div class="meter">
       <div class="meter-track"><div class="meter-fill" id="fill"></div></div>
       <div class="meter-read" id="read"><b>0</b> / 0 done</div>
@@ -511,83 +504,31 @@
     </div>
   </header>
 
-  <div class="stage-key">
-    <div><span class="chip s1">Stage 1</span> <span>Works with no Google account in existence.</span></div>
-    <div><span class="chip s2">Stage 2</span> <span>Waits for Drive credentials.</span></div>
-  </div>
-
   <!-- ══ 0 ══ -->
   <section>
-    <div class="sec-head"><span class="sec-num">0</span><h2>Decide the Drive setup before anything else</h2></div>
+    <div class="sec-head"><span class="sec-num">0</span><h2>Google Drive setup</h2></div>
 
     <div class="note done">
-      <span class="note-label">✅ Status: decided — Setup A</span>
+      <span class="note-label">✅ Decided and done: Setup A</span>
       <p>
-        Service account + Shared Drive. The account has Shared drives, so this
-        was the available and correct choice. §5 is done to match.
+        Service account + Shared Drive. The account has Shared drives, so
+        this was the available and correct choice — the recordings are
+        owned by the organisation, not a named employee, and nobody can
+        revoke the grant by leaving or losing their password. §5 has the
+        configured state.
       </p>
     </div>
 
-    <p class="lede">
-      One decision shapes §5 and cannot be fixed later by configuration: <strong>who
-      owns the recordings</strong>. Google's own words:
+    <h3>⚠️ True regardless of setup, and true on every paid tier too</h3>
+    <p>
+      Drive has <strong>no presigned GET</strong>, so audio playback is
+      proxied through the API rather than served straight from storage — PHI
+      bytes cross the application server on the way out. And Drive has
+      <strong>no lifecycle rules</strong>, so expired audio is deleted only
+      by the Celery purge, which runs only while the worker VM is up.
+      Neither is a free-tier limitation and no plan removes them — worth
+      knowing before anyone assumes upgrading Google Workspace fixes it.
     </p>
-
-    <blockquote>
-      Service accounts don't have storage quota and can't own files. Instead, they
-      must upload files and folders into shared drives, or use OAuth 2.0 to upload
-      items on behalf of a human user.
-      <cite>Google Drive API docs</cite>
-    </blockquote>
-
-    <p>So there are two workable setups, and they are not equally good.</p>
-
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th></th><th>A · Service account + Shared Drive</th><th>B · A person's OAuth grant</th></tr></thead>
-        <tbody>
-          <tr><td>Needs</td><td>Workspace with Shared Drives</td><td>any Google account</td></tr>
-          <tr><td>Who owns the recordings</td><td><strong>the organisation</strong></td><td>a named employee (unless they upload into a shared drive)</td></tr>
-          <tr><td>If that person leaves</td><td class="no">nothing happens</td><td class="yes">audio leaves with them</td></tr>
-          <tr><td>Storage pool</td><td>org pooled quota (2 TB+ on Business Standard)</td><td>their personal 15 GB, <strong>shared with Gmail</strong></td></tr>
-          <tr><td>Can it break by itself?</td><td class="no">no human can revoke it</td><td class="yes">they can revoke the grant</td></tr>
-          <tr><td>Setup effort</td><td>~10 min, §5A</td><td>~10 min, §5B</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="note done">
-      <span class="note-label">How to tell which you have, in five seconds</span>
-      <p>
-        Open Drive and look at the left sidebar. <strong>If "Shared drives" is
-        there</strong> — with a "Create a shared drive" button — the account is on
-        Business Standard or above, and <strong>Setup A is available. Use it.</strong>
-        Business Starter has no Shared drives at all, so its absence means Setup B.
-      </p>
-    </div>
-
-    <div class="note stop">
-      <span class="note-label">Unchanged by either setup, and by every paid tier</span>
-      <p>
-        Drive has <strong>no presigned GET</strong>, so audio playback is proxied
-        through the API rather than served straight from storage — PHI bytes cross
-        the application server on the way out. And Drive has <strong>no lifecycle
-        rules</strong>, so expired audio is deleted only by the Celery purge, which
-        runs only while your always-on machine is on. Neither is a free-tier
-        limitation and no plan removes them.
-      </p>
-    </div>
-
-    <div class="note">
-      <span class="note-label">Worth raising once, then dropping</span>
-      <p>
-        <strong>Cloudflare R2 is S3-compatible</strong>: four environment variables,
-        <em>zero</em> code, 10 GB free with free egress, uploads <em>and</em>
-        downloads stay direct, and <code>Cache-Control: no-store</code> survives.
-        Drive cost about two days of adapter work. Same $0. If the answer is still
-        Drive, this runbook works.
-      </p>
-    </div>
   </section>
 
   <!-- ══ 1 ══ -->
@@ -595,14 +536,14 @@
     <div class="sec-head"><span class="sec-num">1</span><h2>The stack</h2></div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Piece</th><th>Service</th><th>Free tier</th><th>Notes</th></tr></thead>
+        <thead><tr><th>Piece</th><th>Service</th><th>Cost</th><th>Notes</th></tr></thead>
         <tbody>
-          <tr><td>Frontend</td><td><strong>Netlify</strong></td><td class="num">300 credits/mo (~15 GB)</td><td>Engineer's account. Part 3.</td></tr>
-          <tr><td>API</td><td><strong>Render</strong> web service</td><td class="num">750 instance-hrs/mo · 0.1 CPU / 512 MB</td><td>Sleeps after 15 min idle</td></tr>
-          <tr><td>Worker + Beat</td><td><strong>a purchased always-on VM</strong></td><td class="num">not free — a small VPS</td><td>Decided: no free host runs a background worker (Render's, Railway's and Fly's free tiers all rule it out — §6), so this one piece of an otherwise-$0 stack is a small recurring cost. Same shape as the production plan (decision 0036), just smaller.</td></tr>
-          <tr><td>Postgres</td><td><strong>Neon</strong></td><td class="num">512 MB, scale-to-zero</td><td>Demo-scale only — §9</td></tr>
-          <tr><td>Redis</td><td><strong>Upstash</strong></td><td class="num">500 K commands/mo</td><td>⚠️ Must raise the poll timeout</td></tr>
-          <tr><td>Audio</td><td><strong>Google Drive</strong></td><td class="num">org pooled, or 15 GB personal</td><td>§0 and §5</td></tr>
+          <tr><td>Frontend</td><td><strong>Netlify</strong></td><td class="num">300 credits/mo free (~15 GB)</td><td>Engineer's account. Part 3.</td></tr>
+          <tr><td>API</td><td><strong>Render</strong> web service</td><td class="num">750 instance-hrs/mo free · 0.1 CPU / 512 MB</td><td>Sleeps after 15 min idle</td></tr>
+          <tr><td>Worker + Beat</td><td><strong>a purchased always-on VM</strong></td><td class="num">not free — a small VPS</td><td>No free host runs a background worker (Render's, Railway's and Fly's free tiers all rule it out). Same shape as the production plan (decision 0036), just smaller. §6.</td></tr>
+          <tr><td>Postgres</td><td><strong>Neon</strong></td><td class="num">512 MB free, scale-to-zero</td><td>Demo-scale only — §8</td></tr>
+          <tr><td>Redis</td><td><strong>Upstash</strong></td><td class="num">500 K commands/mo free</td><td>⚠️ Must raise the poll timeout</td></tr>
+          <tr><td>Audio</td><td><strong>Google Drive</strong></td><td class="num">org pooled</td><td>§0 and §5</td></tr>
           <tr><td>ASR + notes</td><td><strong>Groq</strong></td><td class="num">free tier</td><td>Cannot carry a full consult</td></tr>
         </tbody>
       </table>
@@ -611,100 +552,38 @@
 
   <!-- ══ 2 ══ -->
   <section>
-    <div class="sec-head"><span class="sec-num">2</span><h2>Code status — done, except what needs real credentials</h2></div>
+    <div class="sec-head"><span class="sec-num">2</span><h2>Code and Drive integration status</h2></div>
 
     <div class="note done">
-      <span class="note-label">Merged</span>
+      <span class="note-label">✅ Verified against the real, running setup</span>
       <p>
-        Nothing in this runbook is waiting on code. <code>STORAGE_BACKEND=drive</code>
-        selects the Drive backend; <code>s3</code> — still the default — is untouched,
-        so Stage 1 runs on an unconfigured default and works.
+        Code is not blocking anything here. <code>STORAGE_BACKEND=drive</code>
+        is what selects the Drive backend on Render, already set (§6). The
+        Drive adapter's real behaviour — a browser uploading straight to a
+        live session URI, <code>Range</code> through the playback proxy, and
+        deletion actually deleting rather than trashing — has been verified
+        directly against the real, running Drive setup, not just against the
+        adapter's own stubbed tests.
       </p>
     </div>
 
-    <h3>Which steps actually need Drive</h3>
-
-    <p>
-      Most of this runbook does not touch storage. Do Stage 1 first and you get a
-      working, checkable app before any Google credential exists.
-    </p>
-
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Step</th><th>Needs Drive?</th></tr></thead>
-        <tbody>
-          <tr><td>Netlify build, rewrite, SPA fallback (§3)</td><td class="no">No</td></tr>
-          <tr><td>Accounts, Neon, Upstash, Groq (§4)</td><td class="no">No</td></tr>
-          <tr><td>Render deploy, migrations, seed, worker (§6)</td><td class="no">No</td></tr>
-          <tr><td>Login, worklist, patient search, note review (§7)</td><td class="no">No</td></tr>
-          <tr><td>Grounding <em>highlights</em> — the transcript half</td><td class="no">No</td></tr>
-          <tr><td><strong>Recording → upload → transcription</strong></td><td class="yes">Yes</td></tr>
-          <tr><td><strong>Audio playback in grounding</strong></td><td class="yes">Yes</td></tr>
-          <tr><td><strong>Retention purge of audio</strong></td><td class="yes">Yes</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <h3>What shipped</h3>
-
-    <ul class="done-list">
-      <li class="shipped">
-        <span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span>
-        <div class="step-body"><p><strong>Drive storage adapter</strong> behind a dispatcher — <code>storage_drive.py</code>, selected by <code>STORAGE_BACKEND</code>, with the S3 code moved verbatim to <code>storage_s3.py</code>. No call site changed.</p></div>
-      </li>
-      <li class="shipped">
-        <span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span>
-        <div class="step-body"><p><strong>Both auth grants</strong> — a service account (JWT bearer, preferred when set) and a human refresh token. Setup A and Setup B are a configuration choice, not a code change.</p></div>
-      </li>
-      <li class="shipped">
-        <span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span>
-        <div class="step-body"><p><strong>Proxied playback</strong> — <code>GET /encounters/{id}/audio</code>, used automatically when the backend cannot presign. Honours <code>Range</code>, sets <code>Cache-Control: no-store</code>, and runs the same audio-state check, so a withdrawn recording is refused identically on either backend.</p></div>
-      </li>
-      <li class="shipped">
-        <span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span>
-        <div class="step-body"><p><strong>Shared-drive visibility</strong> — every Drive call opts in, including the file lookup that needs <em>two</em> flags. Without them Drive answers <code>200</code> with an empty list, so a shared drive reads as empty: playback would report every recording missing, and a consent withdrawal would report success having deleted nothing.</p></div>
-      </li>
-      <li class="shipped">
-        <span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span>
-        <div class="step-body"><p><strong>Client sends <code>Content-Range</code> and accepts <code>308</code></strong>, chunking to the size the server reports rather than assuming S3's 5 MiB floor. <code>308 Resume Incomplete</code> is not <code>response.ok</code>, so without this every multi-part Drive upload failed at the first chunk.</p></div>
-      </li>
-    </ul>
-
-    <h3>Verified against the real Drive session — not just the stubbed adapter</h3>
-
-    <p>The adapter's own tests stub Drive; these four needed real credentials, which
-    now exist. Checked directly against real recordings and a real shared-drive
-    session rather than assumed from the tests passing.</p>
-
-    <ul class="done-list">
-      <li class="shipped">
-        <span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span>
-        <div class="step-body"><p><strong>A browser really can PUT to a live session URI.</strong> Confirmed by several real recordings this session — captured through the actual browser, uploaded, and reaching <code>note_generated</code> end to end.</p></div>
-      </li>
-      <li class="shipped">
-        <span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span>
-        <div class="step-body"><p><strong><code>Range</code> works end to end through the playback proxy.</strong> Verified directly against a real recording's real Drive object: a partial request (<code>bytes=0-99</code>) returned <code>206</code>, exactly 100 bytes, and the correct total size; a full request returned <code>200</code> with the whole file.</p></div>
-      </li>
-      <li class="shipped">
-        <span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span>
-        <div class="step-body"><p><strong>Deletion really deletes.</strong> Verified directly: a real Drive file existed, <code>delete_object</code> was called, and it was confirmed gone afterward by <em>two</em> independent checks — a name lookup and a direct metadata fetch — and a separate <code>trashed = true</code> query confirmed it isn't sitting in Trash either.</p></div>
-      </li>
-    </ul>
+    <p>One item is still open, honestly:</p>
 
     <ol class="steps">
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s2">Stage 2</span>A resumed upload skips the right chunks</p>
-        <p>Not fully closed — this needs a genuinely interrupted multi-part upload to
-        test end to end, and every real recording so far has fit in one part. What
-        <em>is</em> now verified: the exact mechanism a resume depends on
-        (<code>list_uploaded_parts</code> correctly reporting what Drive already has)
-        had a real bug — it silently reported "nothing uploaded" for a file Drive had
-        already fully received, which surfaced as a recording stuck looping forever
-        between "uploading" and "waiting to retry." Found and fixed live, confirmed
-        against the actual stuck encounter (self-healed on the very next retry, no
-        manual intervention). The mechanism is now proven correct; a deliberate
-        kill-the-network-mid-upload test would still be the fully conclusive version
-        of this check.</p>
+        <p class="step-title">A resumed upload skips the right chunks</p>
+        <p>Not fully closed — this needs a genuinely interrupted multi-part
+        upload to test end to end, and every real recording so far has fit in
+        one part. What <em>is</em> verified: the exact mechanism a resume
+        depends on (<code>list_uploaded_parts</code> correctly reporting what
+        Drive already has) had a real bug — it silently reported "nothing
+        uploaded" for a file Drive had already fully received, which surfaced
+        as a recording stuck looping forever between "uploading" and "waiting
+        to retry." Found and fixed live, confirmed against the actual stuck
+        encounter (self-healed on the very next retry, no manual
+        intervention). The mechanism is now proven correct; a deliberate
+        kill-the-network-mid-upload test would still be the fully conclusive
+        version of this check.</p>
       </div></label></li>
     </ol>
   </section>
@@ -726,13 +605,9 @@
       <div class="note done">
         <span class="note-label">In case you notice it elsewhere in this repo</span>
         <p>
-          The Celery worker and Beat scheduler run on "your own always-on machine" —
-          that's a constraint of <strong>this free-tier demo specifically</strong> (no
-          free host runs a background worker), not the long-term plan. Production
-          already has a real answer, decided and specified: one small, cheap
-          always-on VM running the whole stack under Docker Compose (decision 0036)
-          — no spare company laptop needed, ever. None of that is part of what
-          you're deploying here.
+          The Celery worker and Beat scheduler run on a purchased always-on
+          VM (§1, §6) — not a free tier, and not a spare laptop. None of that
+          is part of what you're deploying here.
         </p>
       </div>
 
@@ -812,84 +687,32 @@
     <div class="note done">
       <span class="note-label">✅ Status: done</span>
       <p>
-        All five accounts/secrets below exist, and all of them are already set
-        on Render — see §6's status note for the full list of variable names.
+        Neon, Upstash, Groq, the PHI encryption key and the JWT secret all
+        exist, and all of them are already set on Render — see §6's status
+        note for the full list of variable names.
       </p>
     </div>
-
-    <div class="note warn">
-      <span class="note-label">Where do these go?</span>
-      <p>
-        Into a scratch file on your machine for now — nothing here is needed until
-        §6, and each value is needed in <strong>more than one place</strong>. The
-        table at the end of this section says where each one ends up.
-      </p>
-      <p>
-        ⚠️ <strong>Not into <code>apps/api/.env</code>.</strong> That file is for
-        local development. Render never reads it, and this repo already had one
-        baked into a Docker image once — a <code>.dockerignore</code> blocks that
-        now, but the file still has no part in this deployment.
-      </p>
-    </div>
-
-    <ol class="steps">
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Create the Neon project</p>
-        <span class="where">neon.tech → New project</span>
-        <p>Copy the <strong>pooled</strong> connection string, then edit it twice — change the scheme to <code>postgresql+psycopg://</code> and append <code>?sslmode=require</code>.</p>
-<pre><code># what Neon gives you
-postgresql://user:pass@ep-xxx-pooler.region.aws.neon.tech/neondb
-
-# what you store
-postgresql+psycopg://user:pass@ep-xxx-pooler.region.aws.neon.tech/neondb?sslmode=require</code></pre>
-        <p class="expect bad"><b>The scheme rewrite is not cosmetic</b> SQLAlchemy reads <code>postgresql://</code> as "use psycopg2", which is not installed — this app runs psycopg 3. Skip it and the API dies at boot with <code>ModuleNotFoundError: No module named 'psycopg2'</code>, which names nothing about Neon or the connection string.</p>
-        <p class="expect"><b>You should see</b> <code>-pooler</code> in the host. Without it you have the direct endpoint, which has far fewer connections available.</p>
-      </div></label></li>
-
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Create the Upstash Redis database</p>
-        <span class="where">upstash.com → Redis → Create database</span>
-        <p>Copy the <strong><code>rediss://</code> TCP</strong> URL.</p>
-        <p class="expect bad"><b>Not this</b> the REST URL. Celery needs blocking <code>BRPOP</code>, which Upstash explicitly does not support over REST — and the failure is a worker that connects and never receives a job.</p>
-        <p class="expect"><b>You should see</b> two s'es — <code>rediss://</code>, not <code>redis://</code>. Upstash is TLS-only.</p>
-      </div></label></li>
-
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Get a Groq API key</p>
-        <span class="where">console.groq.com → API Keys</span>
-      </div></label></li>
-
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Generate the PHI encryption key</p>
-<pre><code>python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"</code></pre>
-        <p class="expect bad"><b>Back this up first</b> Lose it and every note, name and transcript is unrecoverable. There is no reset, and no support path.</p>
-      </div></label></li>
-
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Generate a JWT secret</p>
-<pre><code>python -c "import secrets; print(secrets.token_urlsafe(48))"</code></pre>
-        <p>Different from the PHI key. This one can be rotated freely — it only logs people out.</p>
-      </div></label></li>
-    </ol>
 
     <h3>Where each value ends up</h3>
 
     <p>
-      Nothing from this section is typed once. The worker runs on a different
-      machine from the API and takes its configuration from its own shell, so most
-      values are needed in two or three places.
+      Nothing from §4 is typed once. The worker runs on a different machine
+      from the API and gets its configuration from its own shell, so most
+      values are needed in two places — and <code>PHI_ENCRYPTION_KEY</code>
+      <strong>must be byte-identical</strong> in both, or the API writes
+      notes the worker cannot read.
     </p>
 
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Value</th><th>Render env (§6.2)</th><th>Your machine (§6.3–6.4)</th><th>Worker machine (§6.5)</th></tr></thead>
+        <thead><tr><th>Value</th><th>Render env (§6)</th><th>Worker VM (§6)</th></tr></thead>
         <tbody>
-          <tr><td><code>DATABASE_URL</code> (Neon)</td><td>yes</td><td>yes — migrations + seed</td><td>yes</td></tr>
-          <tr><td><code>REDIS_URL</code> (Upstash)</td><td>yes</td><td class="no">—</td><td>yes</td></tr>
-          <tr><td><code>GROQ_API_KEY</code></td><td>yes</td><td class="no">—</td><td>yes</td></tr>
-          <tr><td><code>PHI_ENCRYPTION_KEY</code></td><td>yes</td><td class="no">—</td><td><strong>yes — the same value</strong></td></tr>
-          <tr><td><code>JWT_SECRET</code></td><td>yes</td><td class="no">—</td><td class="no">—</td></tr>
-          <tr><td>Drive variables (§5)</td><td>yes</td><td class="no">—</td><td>yes</td></tr>
+          <tr><td><code>DATABASE_URL</code> (Neon)</td><td>yes</td><td>yes</td></tr>
+          <tr><td><code>REDIS_URL</code> (Upstash)</td><td>yes</td><td>yes</td></tr>
+          <tr><td><code>GROQ_API_KEY</code></td><td>yes</td><td>yes</td></tr>
+          <tr><td><code>PHI_ENCRYPTION_KEY</code></td><td>yes</td><td><strong>yes — the same value</strong></td></tr>
+          <tr><td><code>JWT_SECRET</code></td><td>yes</td><td class="no">—</td></tr>
+          <tr><td>Drive variables (§5)</td><td>yes</td><td>yes</td></tr>
         </tbody>
       </table>
     </div>
@@ -898,170 +721,81 @@ postgresql+psycopg://user:pass@ep-xxx-pooler.region.aws.neon.tech/neondb?sslmode
       <span class="note-label">The one that must match exactly</span>
       <p>
         <code>PHI_ENCRYPTION_KEY</code> has to be <strong>byte-identical</strong> on
-        Render and on the worker machine. They are different processes reading the
+        Render and on the worker VM. They are different processes reading the
         same encrypted columns: if they differ, the API writes notes the worker
         cannot read, and the failure surfaces as decryption errors deep in the
         pipeline rather than as anything mentioning keys.
       </p>
     </div>
 
-    <h3>Deploy in two stages, and not the other way round</h3>
-
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Stage</th><th>Do</th><th>Then verify</th></tr></thead>
-        <tbody>
-          <tr><td><span class="chip s1">Stage 1</span></td><td>Deploy with <code>STORAGE_BACKEND</code> unset (defaults to <code>s3</code>) and no S3 configured.</td><td>All of §3, all of §6, and §7's first six checks.</td></tr>
-          <tr><td><span class="chip s2">Stage 2</span></td><td>Do §5, then set <code>STORAGE_BACKEND=drive</code> and redeploy.</td><td>The recording loop, and §2's unverified list.</td></tr>
-        </tbody>
-      </table>
+    <div class="note warn">
+      <span class="note-label">Not on this list, and never will be</span>
+      <p>
+        <code>apps/api/.env</code> is the local-development file. Render
+        reads its own environment-variable settings, and the worker VM reads
+        whatever is exported in its own shell (or set in whatever process
+        manager runs it there).
+      </p>
     </div>
 
-    <div class="note warn">
-      <span class="note-label">Why the order matters</span>
+    <div class="note">
+      <span class="note-label">The two-stage order — history now, not a live decision</span>
       <p>
-        Doing both at once makes a Drive problem and a Netlify problem
-        indistinguishable on the first deploy — they produce similarly vague
-        symptoms, and you end up debugging two unknowns against each other.
+        Getting Stage 1 (no Drive) fully working before turning on Stage 2
+        (Drive) is worth remembering for any <em>future</em> fresh
+        environment: doing both at once makes a Drive problem and a Netlify
+        problem indistinguishable on the first deploy, since they produce
+        similarly vague symptoms.
       </p>
     </div>
   </section>
 
   <!-- ══ 5 ══ -->
   <section>
-    <div class="sec-head"><span class="sec-num">5</span><h2>Google Drive — pick Setup A or Setup B</h2></div>
-    <p class="lede">
-      From §0: <strong>A</strong> if the account has Shared drives, <strong>B</strong>
-      otherwise. Do one, not both.
-    </p>
-
-    <h3>Setup A · Service account + Shared Drive <span class="chip s2">Stage 2</span></h3>
+    <div class="sec-head"><span class="sec-num">5</span><h2>Google Drive — Setup A, configured</h2></div>
 
     <div class="note done">
       <span class="note-label">✅ Status: done</span>
       <p>
-        All eight steps below are complete, and
+        Service account + Shared Drive, matching §0's decision.
         <code>GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON</code> /
         <code>GOOGLE_DRIVE_FOLDER_ID</code> / <code>STORAGE_BACKEND=drive</code>
-        are already set on Render.
+        are already set on Render (§6).
       </p>
     </div>
 
     <p>
-      Roughly ten minutes, and it takes every human out of the loop: nobody owns the
-      recordings personally, and nobody can revoke the grant.
+      Two facts worth keeping even though the setup itself is done — both are
+      the kind of trap that fails silently rather than loudly:
     </p>
 
-    <ol class="steps">
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Create or pick a Google Cloud project</p>
-        <span class="where">console.cloud.google.com → project picker → New Project</span>
-        <p>Name it something a stranger would recognise a year from now, e.g. <code>remedy-scribe</code>.</p>
-      </div></label></li>
-
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Enable the Google Drive API</p>
-        <span class="where">APIs &amp; Services → Library → search "Google Drive API" → Enable</span>
-        <p class="expect"><b>You should see</b> the Drive API listed under "Enabled APIs &amp; services".</p>
-      </div></label></li>
-
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Create the service account</p>
-        <span class="where">IAM &amp; Admin → Service Accounts → Create service account</span>
-        <p>Name it <code>remedy-scribe-storage</code>. <strong>Skip the "Grant this service account access to project" step entirely</strong> — it needs no IAM role. Its access to Drive comes from shared-drive membership in step 6, not from IAM, and adding project roles here grants nothing useful while widening the blast radius if the key leaks.</p>
-        <p class="expect"><b>You should see</b> an address like <code>remedy-scribe-storage@remedy-scribe.iam.gserviceaccount.com</code>. Copy it — step 6 needs it.</p>
-      </div></label></li>
-
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Create a JSON key for it</p>
-        <span class="where">The service account → Keys → Add key → Create new key → JSON</span>
-        <p>A <code>.json</code> file downloads. <strong>This is a private key and Google keeps no copy</strong> — treat it exactly like the PHI key.</p>
-        <p class="expect"><b>You should see</b> a file containing <code>"client_email"</code> and <code>"private_key"</code>.</p>
-      </div></label></li>
-
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Create the Shared Drive</p>
-        <span class="where">Drive → Shared drives → Create a shared drive</span>
-        <p>Name it e.g. <code>Remedy Scribe</code>. This is the thing that will <em>own</em> the recordings.</p>
-      </div></label></li>
-
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Add the service account as a member — as <strong>Content manager</strong></p>
-        <span class="where">The shared drive → Manage members → paste the address from step 3</span>
-        <p>
-          ⚠️ <strong>The role matters and the wrong one fails silently in the worst
-          direction.</strong> A <em>Contributor</em> can upload but cannot delete, so
-          recording would work perfectly while consent withdrawal and the retention
-          purge quietly failed to remove anything. Content manager can delete. If a
-          deletion still returns 403, raise it to <em>Manager</em>.
-        </p>
-        <p class="expect"><b>You should see</b> the service account listed as a member. It never signs in and never appears "active" — that is normal.</p>
-      </div></label></li>
-
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Make a folder inside the shared drive and copy its id</p>
-        <p>Create e.g. <code>audio</code>, open it, and take the id from the URL:</p>
-<pre><code>https://drive.google.com/drive/folders/1AbC...XyZ
-                                        ^^^^^^^^^^ this part</code></pre>
-        <p class="expect bad"><b>Not the drive root</b> Use a folder <em>inside</em> the shared drive. A service account has no "My Drive" of its own, so an unset folder id has nowhere to write.</p>
-      </div></label></li>
-
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Set two environment variables on Render</p>
-<pre><code>GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON=&lt;the entire contents of the .json file&gt;
-GOOGLE_DRIVE_FOLDER_ID=1AbC...XyZ
-STORAGE_BACKEND=drive</code></pre>
-        <p>Paste the JSON whole, newlines and all — Render accepts multi-line values, and keeping it as issued means nobody has to pick fields out of it by hand. Leave the three <code>GOOGLE_DRIVE_CLIENT_*</code> / <code>_REFRESH_TOKEN</code> variables unset; if both are present the service account wins, but there is no reason to keep a human's grant lying around.</p>
-      </div></label></li>
-
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Delete the downloaded <code>.json</code> from your laptop</p>
-        <p>Once Render has it, the copy in Downloads is only a way to lose it. If you need it again, make a new key and delete the old one.</p>
-      </div></label></li>
-    </ol>
-
-    <h3>Setup B · A person's OAuth grant <span class="chip s2">Stage 2</span></h3>
-
     <div class="note stop">
-      <span class="note-label">Governance, not a technical detail</span>
+      <span class="note-label">The Shared Drive membership role matters</span>
       <p>
-        The recordings will live in one employee's Google account and be
-        <strong>owned by them</strong>. If they leave, hit their quota, or revoke
-        access, the audio goes with them — and Gmail shares the same 15 GB, so
-        filling Drive with audio also stops that person receiving email. State this
-        to your supervisor rather than absorbing it.
+        The service account needs <code>Content manager</code>, not
+        <code>Contributor</code>. A Contributor can upload but <strong>cannot
+        delete</strong>, so recording works perfectly while consent
+        withdrawal and the retention purge quietly remove nothing. If a
+        deletion ever starts returning 403, that role is the first thing to
+        check — raise it to <code>Manager</code> if <code>Content
+        manager</code> isn't enough.
       </p>
     </div>
 
-    <ol class="steps">
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Create a Cloud project and enable the Drive API</p>
-        <span class="where">console.cloud.google.com</span>
-        <p>Same as Setup A steps 1–2.</p>
-      </div></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Create an OAuth client</p>
-        <span class="where">APIs &amp; Services → Credentials → Create credentials → OAuth client ID → Web application</span>
-        <p>Note the client id and client secret.</p>
-      </div></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Complete the consent flow once, as the person whose Drive holds the audio</p>
-        <p>Request the scope <code>https://www.googleapis.com/auth/drive</code> and keep the <strong>refresh token</strong>.</p>
-        <p class="expect bad"><b>No helper script exists for this yet</b> It is the one step in this runbook without one. Ask if you want it built.</p>
-      </div></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Create a folder and copy its id</p>
-        <p>If the account <em>does</em> have shared drives, put the folder in one anyway — the files are then owned by the organisation even though a person authorised the app. It costs nothing and removes the worst of the problem above.</p>
-      </div></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Set four environment variables on Render</p>
-<pre><code>GOOGLE_DRIVE_CLIENT_ID=…
-GOOGLE_DRIVE_CLIENT_SECRET=…
-GOOGLE_DRIVE_REFRESH_TOKEN=…
-GOOGLE_DRIVE_FOLDER_ID=…
-STORAGE_BACKEND=drive</code></pre>
-      </div></label></li>
-    </ol>
+    <div class="note stop">
+      <span class="note-label">The audio folder must be inside the Shared Drive</span>
+      <p>
+        Not the account root. A service account has no "My Drive" of its
+        own — an unset or wrong folder id has nowhere to write.
+      </p>
+    </div>
+
+    <p class="lede">
+      The full click-by-click setup steps (creating the Cloud project, the
+      service account, the JSON key, the Shared Drive itself) are in git
+      history for this file if a second environment ever needs them from
+      scratch.
+    </p>
   </section>
 
   <!-- ══ 6 ══ -->
@@ -1091,368 +825,192 @@ STORAGE_BACKEND=drive</code></pre>
         deployment — Netlify (§3) isn't done yet, so this is what stands in
         for §7's checks until it is.
       </p>
+    </div>
+
+    <div class="note warn">
+      <span class="note-label"><code>S3_SECRET_KEY</code> needs a real value anyway</span>
       <p>
-        The <code>GOOGLE_DRIVE_*</code> and <code>STORAGE_BACKEND</code>
-        variables being set means this went straight to <strong>Stage 2</strong>
-        — Drive is configured, not just Stage 1's S3 default. What's below is
-        still worth reading (the <em>why</em> behind each value, and what a
-        wrong one looks like), but the account/variable creation steps
-        themselves are done.
+        Even though Drive, not S3, is the storage backend. Its default
+        (<code>remedy-dev-secret</code>, in <code>.env.example</code>) is a
+        fingerprinted published secret, and the boot guard checks it
+        <strong>unconditionally</strong> — it has no way to know the field is
+        unused. Any non-default string clears it:
+      </p>
+<pre><code>python -c "import secrets; print(secrets.token_urlsafe(32))"</code></pre>
+    </div>
+
+    <div class="note warn">
+      <span class="note-label"><code>CORS_ALLOW_ORIGINS</code> needs the real Netlify URL once §3 exists</span>
+      <p>
+        The guard only refuses <code>localhost</code>/<code>127.0.0.1</code>,
+        so a placeholder on the reserved <code>.example</code> TLD (the
+        convention <code>scripts/seed_staging.py</code> uses) is fine to sit
+        there in the meantime — but a browser-based login is silently
+        rejected by CORS, with nothing useful in the API log, until the real
+        domain replaces it.
       </p>
     </div>
 
-    <ol class="steps">
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Create the Render web service</p>
-        <span class="where">render.com → New → Web Service</span>
-        <p>Render's source picker offers three options — pick <strong>Git Provider</strong>, connect GitHub, and select this repo.</p>
-        <p class="expect bad"><b>Not "Public Git Repository"</b> that mode has no auto-redeploy on push and no easy branch switch later, even for a public repo.</p>
-        <p class="expect bad"><b>Not "Existing Image"</b> that expects an already-built image sitting in a registry. You have a <code>Dockerfile</code>, not a built image.</p>
-        <p>
-          This repo's Dockerfile lives at <code>apps/api/Dockerfile</code>, not the
-          repo root, so on the form that follows:
-        </p>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Field</th><th>Value</th><th>Why</th></tr></thead>
-            <tbody>
-              <tr><td>Language / Runtime</td><td><strong>Docker</strong></td><td>Left on auto-detect, Render tries a native Python buildpack instead and silently skips the Dockerfile — no non-root user, none of Phase 5.1's hardening.</td></tr>
-              <tr><td>Root Directory</td><td><code>apps/api</code></td><td>Becomes the build context. Wrong, and the build fails immediately looking for a Dockerfile at the repo root.</td></tr>
-              <tr><td>Dockerfile Path</td><td><code>./Dockerfile</code></td><td>Relative to Root Directory above, so this resolves to <code>apps/api/Dockerfile</code>.</td></tr>
-              <tr><td>Branch</td><td><code>main</code></td><td></td></tr>
-              <tr><td>Instance Type</td><td><strong>Free</strong></td><td>The 0.1 CPU / 512 MB tier this runbook assumes.</td></tr>
-              <tr><td>Health Check Path</td><td><code>/health</code></td><td>Render polls this to judge a deploy healthy. Blank means it only checks that <em>some</em> port opened, not that the app booted.</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <p>The image honours <code>$PORT</code> itself, so no start-command override is needed. Don't click <strong>Create Web Service</strong> yet — the environment variables in the next step go on this same form, further down.</p>
-      </div></label></li>
-
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Set the environment variables</p>
-<pre><code>ENVIRONMENT=production
-DATABASE_URL=postgresql+psycopg://…neon…?sslmode=require
-REDIS_URL=rediss://…upstash…:6379
-PHI_ENCRYPTION_KEY=&lt;from §4 step 4 — NOT the one in .env.example&gt;
-JWT_SECRET=&lt;from §4 step 5&gt;
-REFRESH_COOKIE_SECURE=true            # the guard refuses false in production
-REFRESH_COOKIE_SAMESITE=lax           # 'lax' works *because* of the Netlify rewrite
-CORS_ALLOW_ORIGINS=https://&lt;site&gt;.netlify.app   # no localhost — the guard refuses it
-GROQ_API_KEY=…
-NOTE_GENERATOR_PROVIDER=groq
-S3_SECRET_KEY=&lt;a random string — see below&gt;
-S3_PROVISION_BUCKET_ON_STARTUP=false
-AUDIO_RETENTION_DAYS=90
-
-# Stage 2 only — leave all of these unset for Stage 1.
-# STORAGE_BACKEND=drive
-# …plus whichever set §5 told you to use</code></pre>
-        <p class="expect"><b>If it refuses to boot</b> that is the guard working. It prints <em>every</em> problem at once rather than one per restart — read the full bullet list, not just its first line.</p>
-        <p class="expect bad"><b><code>S3_SECRET_KEY</code> needs a real value even though Stage 1 doesn't use S3.</b> Its default (<code>remedy-dev-secret</code>, in <code>.env.example</code>) is a fingerprinted published secret, and the boot guard checks it <strong>unconditionally</strong> — it has no way to know the field is unused. Any non-default string clears it:
-<pre><code>python -c "import secrets; print(secrets.token_urlsafe(32))"</code></pre>
-        </p>
-        <p class="expect bad"><b>If your boss wants the API running before Netlify exists</b> (skipping §3 for now), you don't yet have a real value for <code>CORS_ALLOW_ORIGINS</code> — but the guard only checks that it <em>isn't</em> <code>localhost</code>/<code>127.0.0.1</code>, not that it's your final domain. Use a clearly-fake placeholder on the reserved <code>.example</code> TLD, the same convention <code>scripts/seed_staging.py</code> uses:
-<pre><code>CORS_ALLOW_ORIGINS=https://remedy-scribe.example</code></pre>
-        This is safe because nothing you can check before §3 exists needs real CORS — hitting <code>/health</code> directly is a top-level navigation, not a CORS-governed request. <strong>Come back and set the real value once §3 gives you a Netlify URL</strong>, or a browser-based login will be silently rejected by CORS with nothing useful in the API log.
-        </p>
-      </div></label></li>
-
-      <div class="note warn">
-        <span class="note-label">PowerShell first, then bash — not interchangeable</span>
-        <p>
-          PowerShell has no <code>VAR=value command</code> prefix syntax — it is a
-          parser error there, not an env-var assignment. And a bare <code>&amp;</code>
-          in an unquoted value is PowerShell's own command separator, which Neon's
-          connection strings routinely contain (<code>&amp;channel_binding=require</code>).
-          Always <strong>double-quote the whole value</strong> in PowerShell.
-        </p>
-      </div>
-
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Run the migrations yourself — never on boot</p>
-        <span class="where">Your machine, pointed at Neon</span>
-        <span class="shell-label">PowerShell</span>
+    <h3>Migrations and seeding — reference, since these are one-time/rare</h3>
+    <span class="shell-label">PowerShell</span>
 <pre><code>cd apps/api
 $env:DATABASE_URL = "&lt;neon-url&gt;"
 .venv\Scripts\python.exe -m alembic upgrade head</code></pre>
-        <span class="shell-label">bash / macOS / Linux</span>
+    <span class="shell-label">bash / macOS / Linux</span>
 <pre><code>cd apps/api
 DATABASE_URL="&lt;neon-url&gt;" .venv/Scripts/python -m alembic upgrade head</code></pre>
-        <p>Deliberate: three processes share this image, and migrating on boot means three of them racing for the same lock.</p>
-        <p class="expect"><b>You should see</b> Alembic running each revision, ending at <code>head</code>.</p>
-      </div></label></li>
-
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Seed a demo account, with <code>--no-audio</code> for Stage 1</p>
-        <span class="shell-label">PowerShell</span>
+    <p>
+      Deliberate: three processes share this image, and migrating on boot
+      means three racing for the same lock — always run this by hand, never
+      as part of Render's own boot.
+    </p>
+    <p>
+      Seeding (only needed again for a fresh environment, or a fresh demo
+      account) needs <code>ENVIRONMENT=staging</code> — not
+      <code>production</code> — or the script refuses to run against
+      anything that looks real:
+    </p>
 <pre><code>$env:REMEDY_ALLOW_SYNTHETIC_SEED = "1"
 $env:ENVIRONMENT = "staging"
 $env:DATABASE_URL = "&lt;neon-url&gt;"
-.venv\Scripts\python.exe scripts\seed_staging.py --yes --no-audio</code></pre>
-        <span class="shell-label">bash / macOS / Linux</span>
-<pre><code>REMEDY_ALLOW_SYNTHETIC_SEED=1 ENVIRONMENT=staging DATABASE_URL="&lt;neon-url&gt;" \
-  .venv/Scripts/python scripts/seed_staging.py --yes --no-audio</code></pre>
-        <p>⚠️ <code>ENVIRONMENT</code> must <strong>not</strong> be <code>production</code> here — the seed refuses to run against anything that looks real. Set Render to <code>production</code> <em>after</em> this.</p>
-        <p class="expect bad"><b><code>--no-audio</code> is required at Stage 1, not optional.</b> The seed normally uploads real audio bytes to object storage — exactly the thing Stage 1 has none of configured yet. Omit it and the script tries to reach a local MinIO container that has no reason to be running here, and dies with <code>EndpointConnectionError: Could not connect to the endpoint URL</code>. <code>--no-audio</code> seeds every encounter as never-recorded instead; the retention-expired and consent-withdrawn scenarios are unaffected, since they never needed an object either.</p>
-        <p><strong>Once Stage 2 is done</strong> (Drive credentials in place), re-run the seed <em>without</em> <code>--no-audio</code> for a seeded note with a real playable recording — see §7 step 6.</p>
-        <p class="expect"><b>You should see</b> working credentials printed, including a live TOTP code.</p>
-      </div></label></li>
+.venv\Scripts\python.exe scripts\seed_staging.py --yes</code></pre>
 
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Start the Celery worker on an always-on machine</p>
-        <span class="where">A clinic PC, a spare laptop — anything that stays on</span>
-        <p>There is no free hosted option: Render's background workers and cron jobs are paid-only, Railway's free credit is consumed in hours, and Fly retired its free tier. The worker needs <strong>no inbound network</strong>, only outbound access to Neon, Upstash, Drive and Groq.</p>
-        <p class="expect bad"><b>At Stage 2, this shell needs the Drive variables too</b>, matching whichever setup Render is running (§5A or §5B) — not just <code>DATABASE_URL</code>/<code>REDIS_URL</code>/<code>GROQ_API_KEY</code>/<code>PHI_ENCRYPTION_KEY</code>. The worker reads its <strong>own</strong> environment, entirely separate from Render's. Miss this and the worker connects fine, picks up the first queued upload, and then fails downloading the audio — with the error naming <code>localhost:9002</code> or wherever <em>this machine's own</em> local <code>.env</code> happens to point, not Drive, and not anything that looks like a missing variable. Found live: a worker started with only the four Stage-1 variables silently fell back to the S3 defaults for everything else.</p>
-        <span class="shell-label">PowerShell</span>
-<pre><code>cd apps/api
-$env:DATABASE_URL = "&lt;neon-url&gt;"
-$env:REDIS_URL = "&lt;upstash-url&gt;"
-$env:GROQ_API_KEY = "&lt;your key&gt;"
-$env:PHI_ENCRYPTION_KEY = "&lt;the same key as Render&gt;"
-$env:STORAGE_BACKEND = "drive"
-$env:GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON = "&lt;Setup A: paste the whole JSON&gt;"
-$env:GOOGLE_DRIVE_FOLDER_ID = "&lt;from §5A step 7 / §5B step 4&gt;"
-# Setup B instead of A: set GOOGLE_DRIVE_CLIENT_ID / _SECRET / _REFRESH_TOKEN here too.
+    <h3>The worker and Beat, on the purchased VM</h3>
+    <p>
+      The worker needs <strong>no inbound network</strong>, only outbound
+      access to Neon, Upstash, Drive and Groq.
+    </p>
 
-.venv\Scripts\python.exe -m celery -A app.tasks.celery_app worker --loglevel=info --pool=solo</code></pre>
-        <span class="shell-label">bash / macOS / Linux</span>
+    <div class="note stop">
+      <span class="note-label">The worker reads its own environment, entirely separate from Render's</span>
+      <p>
+        It needs every one of §4's values <em>and</em> the Drive variables
+        from §5 — miss one and the worker connects fine, picks up the first
+        queued upload, and then fails downloading the audio with an error
+        naming whatever this machine's own local fallback happens to be, not
+        Drive, and not anything that looks like a missing variable. Found
+        live once already: a worker started with only the core variables
+        silently fell back to defaults for everything else.
+      </p>
+    </div>
+
+    <span class="shell-label">On the VM, in the worker's own shell</span>
 <pre><code>cd apps/api
 export DATABASE_URL="&lt;neon-url&gt;" REDIS_URL="&lt;upstash-url&gt;" GROQ_API_KEY=…
 export PHI_ENCRYPTION_KEY=&lt;the same key as Render&gt;
 export STORAGE_BACKEND=drive
-export GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON='&lt;Setup A: paste the whole JSON&gt;'
-export GOOGLE_DRIVE_FOLDER_ID=&lt;from §5A step 7 / §5B step 4&gt;
-# Setup B instead of A: export GOOGLE_DRIVE_CLIENT_ID / _SECRET / _REFRESH_TOKEN here too.
+export GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON='&lt;paste the whole JSON&gt;'
+export GOOGLE_DRIVE_FOLDER_ID=&lt;from §5&gt;
 
-.venv/Scripts/python -m celery -A app.tasks.celery_app worker --loglevel=info --pool=solo</code></pre>
-        <p class="expect bad"><b>This command used to also carry <code>--broker-transport-options '{"socket_timeout": 60, "brpop_timeout": 30}'</code>. That flag has never existed on <code>celery worker</code></b> — found live, deploying against Upstash: <code>Error: No such option '--broker-transport-options'</code>. The setting it was trying to pass is real and still needed, but it's an application-config value, not a CLI flag, so it now lives in <code>app/tasks/celery_app.py</code> (<code>BROKER_TRANSPORT_OPTIONS</code>) where it actually reaches the client Kombu builds. Nothing to add to this command — it's already covered once you're on a version of the code with that fix.</p>
-        <p>⚠️ <strong>The setting itself is not optional, wherever it lives.</strong> Celery's default ~1-second blocking read produces about <strong>2,592,000 commands a month against Upstash's 500,000 — 5× over, with the worker completely idle.</strong> At 30 seconds it is about 86,000.</p>
-      </div></label></li>
+.venv/bin/python -m celery -A app.tasks.celery_app worker --loglevel=info --pool=solo</code></pre>
 
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Start Beat — exactly one, ever</p>
-        <p>Same shell session as the worker step, so its env vars are already set.</p>
-        <span class="shell-label">PowerShell</span>
-<pre><code>.venv\Scripts\python.exe -m celery -A app.tasks.celery_app beat --loglevel=info</code></pre>
-        <span class="shell-label">bash / macOS / Linux</span>
-<pre><code>.venv/Scripts/python -m celery -A app.tasks.celery_app beat --loglevel=info</code></pre>
-        <p class="expect bad"><b>Never two</b> Two Beat processes double-fire the retention purge, and <strong>that purge deletes patient data</strong>. Before restarting it, confirm the old one is actually dead.</p>
-      </div></label></li>
+    <div class="note warn">
+      <span class="note-label">Celery's Redis poll timeout is not optional against Upstash</span>
+      <p>
+        Its default ~1-second blocking read produces about <strong>2,592,000
+        commands a month against Upstash's 500,000 — 5× over, with the
+        worker completely idle.</strong> This is already set in
+        <code>app/tasks/celery_app.py</code>
+        (<code>BROKER_TRANSPORT_OPTIONS</code>), not passed as a CLI flag —
+        nothing to add here as long as the deployed code includes that fix.
+        Confirm periodically: the Upstash dashboard's command count should
+        grow by dozens an hour, not thousands.
+      </p>
+    </div>
 
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s1">Stage 1</span><span class="chip you">You</span>Check the Upstash counter an hour later</p>
-        <span class="where">Upstash dashboard → your database → usage</span>
-        <p class="expect"><b>You should see</b> the command count growing slowly — dozens, not thousands. Thousands means step 5's transport options did not take.</p>
-      </div></label></li>
-    </ol>
+    <p>Beat, same shell (env vars already set):</p>
+<pre><code>.venv/bin/python -m celery -A app.tasks.celery_app beat --loglevel=info</code></pre>
+
+    <div class="note stop">
+      <span class="note-label">Exactly one Beat process, ever</span>
+      <p>
+        Two double-fire the retention purge, and <strong>that purge deletes
+        patient data</strong>. Before restarting it, confirm the old one is
+        actually dead — on the VM, that means checking for a leftover
+        process, not just launching a new one.
+      </p>
+    </div>
+
+    <p class="lede">
+      On the VM, both processes should run under something that restarts
+      them on crash or reboot (a <code>systemd</code> service,
+      <code>pm2</code>, or equivalent) rather than a bare terminal session —
+      a VM that reboots for a routine host maintenance window should not need
+      someone to notice and relaunch these by hand.
+    </p>
   </section>
 
   <!-- ══ 7 ══ -->
   <section>
     <div class="sec-head"><span class="sec-num">7</span><h2>Verify, in this order</h2></div>
-    <p class="lede">Each one isolates a different failure. Going in order means the first thing that breaks tells you where the problem is.</p>
+    <p class="lede">Each one isolates a different failure — the first thing that breaks tells you where the problem is.</p>
 
     <ol class="steps">
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s1">Stage 1</span>The API is alive</p>
+        <p class="step-title">The API is alive</p>
         <p><code>https://&lt;render&gt;.onrender.com/health</code></p>
         <p class="expect"><b>You should see</b> <code>{"status":"ok"}</code></p>
       </div></label></li>
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s1">Stage 1</span>Its dependencies are reachable</p>
+        <p class="step-title">Its dependencies are reachable</p>
         <p><code>https://&lt;render&gt;.onrender.com/ready</code></p>
         <p class="expect"><b>You should see</b> <code>{"status":"ready"}</code> with both <code>database</code> and <code>redis</code> <code>ok</code>. A 503 <em>names</em> which one is down.</p>
       </div></label></li>
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s1">Stage 1</span>The Netlify rewrite reaches the API</p>
+        <p class="step-title">The Netlify rewrite reaches the API</p>
         <p><code>https://&lt;site&gt;.netlify.app/api/v1/../health</code></p>
         <p class="expect"><b>You should see</b> the same JSON. A timeout here means the pinger isn't running and Render was asleep.</p>
       </div></label></li>
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s1">Stage 1</span>Log in with the seeded credentials</p>
-        <p>On the Netlify URL, using the TOTP code from §6 step 4.</p>
+        <p class="step-title">Log in with the seeded credentials</p>
+        <p>On the Netlify URL, using the TOTP code from the seed step.</p>
       </div></label></li>
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s1">Stage 1</span>Reload the page while logged in</p>
+        <p class="step-title">Reload the page while logged in</p>
         <p class="expect"><b>You should stay</b> logged in. Being thrown back to the login screen means the session cookie is not surviving — the rewrite isn't in front of <code>/api/*</code>, or <code>VITE_API_BASE_URL</code> was overridden in the Netlify UI.</p>
       </div></label></li>
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s1">Stage 1</span>Open a seeded note and click a line</p>
+        <p class="step-title">Open a seeded note and click a line</p>
         <p class="expect"><b>You should see</b> the transcript passage that line cites. This is the whole grounding mechanism working, and it needs no audio.</p>
       </div></label></li>
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s2">Stage 2</span>Record 20 seconds and watch the worker log</p>
+        <p class="step-title">Record 20 seconds and watch the worker log</p>
         <p class="expect"><b>You should see</b> <code>transcribe_encounter</code> then <code>generate_note</code>, and the file appear in the Drive folder.</p>
       </div></label></li>
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s2">Stage 2</span>Play a cited passage</p>
+        <p class="step-title">Play a cited passage</p>
         <p class="expect"><b>You should hear</b> that moment only — playback stops at the end of the citation, not the end of the consultation.</p>
       </div></label></li>
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title"><span class="chip s2">Stage 2</span>Withdraw consent, then look in Drive</p>
-        <p class="expect bad"><b>The file must be gone</b> — and <strong>not sitting in Trash</strong>. If it is still there, the service account's shared-drive role is too low; go back to §5A step 6.</p>
+        <p class="step-title">Withdraw consent, then look in Drive</p>
+        <p class="expect bad"><b>The file must be gone</b> — and <strong>not sitting in Trash</strong>. If it is still there, the service account's shared-drive role is too low; go back to §5.</p>
       </div></label></li>
     </ol>
+
+    <div class="note">
+      <span class="note-label">Trying it locally, before Netlify exists</span>
+      <p>
+        Run the frontend on your own machine with its dev server proxying
+        <code>/api/*</code> to the real Render backend — the same
+        same-origin trick <code>netlify.toml</code> performs in production,
+        just local. Set <code>VITE_API_BASE_URL=/</code> in
+        <code>apps/web/.env</code>, then run
+        <code>RENDER_DEV_PROXY_TARGET=https://&lt;render-service&gt;.onrender.com npm run dev</code>
+        from <code>apps/web</code>, and open <code>http://localhost:5173</code>
+        — checks 4–9 above all work the same way.
+      </p>
+      <p>
+        Don't add <code>localhost</code> to Render's
+        <code>CORS_ALLOW_ORIGINS</code> to make this work instead — the
+        production boot guard refuses any <code>localhost</code> origin on
+        purpose, and will refuse to boot at all if it's there.
+      </p>
+    </div>
   </section>
 
   <!-- ══ 8 ══ -->
   <section>
-    <div class="sec-head"><span class="sec-num">8</span><h2>Record a demo for your supervisor</h2></div>
-    <p class="lede">
-      Optional, and everything above exists to make this the easy part. Needs
-      Stage 2 done and a worker + Beat running somewhere durable — not tied to
-      this terminal session.
-    </p>
-
-    <h3>0. Confirm the worker and Beat are actually running — first, every time</h3>
-
-    <div class="note stop">
-      <span class="note-label">Easy to skip, because nothing else tells you</span>
-      <p>
-        Render's own <code>/health</code> and <code>/ready</code> deliberately
-        exclude the worker and object storage — gating readiness on them would
-        turn a partial outage into a total one — so a healthy <code>/ready</code>
-        response proves nothing about whether anything is listening on the
-        queue. Record a demo without this checked and the recording will show
-        <code>pipeline_status</code> sitting at <code>uploaded</code> forever,
-        with nothing in the UI explaining why.
-      </p>
-    </div>
-
-    <ol class="steps">
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Start (or confirm) the worker and Beat, in your own terminal — §6 steps 5 and 6</p>
-        <p>Not through an AI session's background process: the whole point of "durable" is that these outlive any one conversation, which a background task tied to a chat does not.</p>
-<pre><code># In the worker's terminal, after the export block from §6 step 5:
-.venv\Scripts\python.exe -m celery -A app.tasks.celery_app worker --loglevel=info --pool=solo</code></pre>
-        <p class="expect"><b>You should see</b> <code>celery@&lt;hostname&gt; ready.</code> in the log — not just the command returning, an actual <code>ready</code> line.</p>
-      </div></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Prove it end to end before you start recording, not during</p>
-        <p>Upload something small (record 5 seconds, or reuse §7 step 7's check) and watch the worker log show <code>transcribe_encounter</code> running. If it doesn't move, the recording will not either.</p>
-      </div></label></li>
-    </ol>
-
-    <h3>If Netlify isn't ready yet: proxy through Vite, don't touch Render's CORS</h3>
-
-    <p>
-      You can record a real browser demo before §3 exists, by running the web
-      app on your own machine with its dev server <strong>proxying</strong>
-      <code>/api/*</code> to the real Render backend server-side. This is the
-      same same-origin trick the real Netlify rewrite (<code>netlify.toml</code>)
-      performs in production, just running locally instead of on Netlify's edge.
-    </p>
-
-    <div class="note stop">
-      <span class="note-label">The tempting alternative does not work, and it is not a bug</span>
-      <p>
-        Adding <code>http://localhost:5173</code> to Render's
-        <code>CORS_ALLOW_ORIGINS</code> hits the production boot guard doing
-        exactly its job: it refuses to start with <em>any</em>
-        <code>localhost</code>/<code>127.0.0.1</code> origin in that list,
-        because it cannot tell a deliberate temporary addition from someone
-        deploying a dev <code>.env</code> by accident. If you already tried
-        this and Render is refusing to boot, revert
-        <code>CORS_ALLOW_ORIGINS</code> to just
-        <code>https://remedy-scribe.example</code> and redeploy before
-        continuing.
-      </p>
-    </div>
-
-    <ol class="steps">
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Set <code>VITE_API_BASE_URL=/</code></p>
-        <span class="where">In <code>apps/web/.env</code> — your local one, already gitignored</span>
-        <p>Not the Render URL. <code>/</code> is what makes the client call relative paths against <code>localhost:5173</code>, which is what the proxy below actually intercepts; pointing it straight at Render skips the proxy and lands back on the cross-origin problem this section exists to avoid.</p>
-      </div></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Run the dev server with the proxy target set</p>
-        <span class="shell-label">PowerShell</span>
-<pre><code>cd apps/web
-$env:RENDER_DEV_PROXY_TARGET = "https://&lt;render-service&gt;.onrender.com"
-npm run dev</code></pre>
-        <span class="shell-label">bash / macOS / Linux</span>
-<pre><code>cd apps/web
-RENDER_DEV_PROXY_TARGET="https://&lt;render-service&gt;.onrender.com" npm run dev</code></pre>
-        <p>Deliberately <strong>not</strong> <code>VITE_</code>-prefixed — that would let it leak into the built bundle; this one is read only by <code>vite.config.ts</code> in Node, never shipped to the browser.</p>
-      </div></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Open <code>http://localhost:5173</code></p>
-        <p>Requests to <code>/api/*</code> now leave your machine for Render server-side; the browser only ever talks to <code>localhost:5173</code>, so no CORS preflight happens at all.</p>
-      </div></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Log in normally</p>
-        <p class="expect"><b>Nothing to avoid here</b> Because this is genuinely same-origin from the browser's point of view — unlike pointing <code>VITE_API_BASE_URL</code> straight at Render — the refresh cookie behaves exactly as it does in production: session resume, page reload, all of it.</p>
-      </div></label></li>
-    </ol>
-
-    <div class="note done">
-      <span class="note-label">If §3 is already live</span>
-      <p>Skip all four steps above and open the real Netlify site instead — nothing else in this section changes.</p>
-    </div>
-
-    <h3>Before you hit record</h3>
-
-    <ol class="steps">
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Start your screen recorder</p>
-        <p><code>Win + Alt + R</code> (Xbox Game Bar) is built into Windows and saves to <code>Videos\Captures</code>; OBS Studio is worth it instead if you want to trim or edit before sending.</p>
-      </div></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Close or minimize anything showing a live secret</p>
-        <p>A terminal with <code>$env:DATABASE_URL</code>, <code>PHI_ENCRYPTION_KEY</code>, or the Groq key visible; the credentials file; browser DevTools' Network tab, which shows the bearer token in plain text.</p>
-      </div></label></li>
-    </ol>
-
-    <h3>The walkthrough itself</h3>
-
-    <ol class="steps">
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Log in with the seeded doctor credentials</p>
-      </div></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Start a new encounter and walk through consent</p>
-      </div></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Record a short, real consultation</p>
-        <p class="expect bad"><b>Use a real microphone and real speech</b> Synthetic silence or garbage bytes will upload and reach Drive just fine, then get correctly rejected by Groq with a 400 — proving the pipeline plumbing works without producing anything worth showing a supervisor.</p>
-      </div></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Stop, let it upload, and wait for the pipeline to advance</p>
-        <p class="expect"><b>You should see</b> <code>uploaded</code> → <code>transcribed</code> → <code>note_generated</code>. Refresh the worklist if it doesn't update on its own.</p>
-      </div></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Open the generated note and walk through the APSO sections</p>
-      </div></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Click a line to see the transcript passage it cites, then click again to hear it</p>
-        <p>The trust mechanism this whole system exists to provide.</p>
-      </div></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Sign the note</p>
-      </div></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Stop the recording</p>
-      </div></label></li>
-    </ol>
-
-    <h3>After</h3>
-
-    <ol class="steps">
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Revert the temporary CORS entry on Render, if you used the local stand-in above</p>
-        <p class="expect bad"><b>Don't leave <code>localhost</code></b> in a production CORS list.</p>
-      </div></label></li>
-      <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
-        <p class="step-title">Caption the recording plainly</p>
-        <p>Seeded synthetic data, a demo deployment, not a place real patients have ever been recorded (§9).</p>
-      </div></label></li>
-    </ol>
-  </section>
-
-  <!-- ══ 9 ══ -->
-  <section>
-    <div class="sec-head"><span class="sec-num">9</span><h2>What this deployment cannot do</h2></div>
+    <div class="sec-head"><span class="sec-num">8</span><h2>What this deployment cannot do</h2></div>
     <p class="lede">State these plainly to anyone who asks what they are looking at.</p>
 
     <ul class="cannot">
@@ -1461,7 +1019,7 @@ RENDER_DEV_PROXY_TARGET="https://&lt;render-service&gt;.onrender.com" npm run de
       <li><b>Groq's free tier cannot carry a full consultation.</b> ~8,000 tokens/min against a 10–20k-token transcript sent in one call. Short recordings work.</li>
       <li><b>First request after idle is slow or fails.</b> Render sleeps at 15 min; Neon scales to zero at 5. The pinger fixes the API, not Neon's cold start.</li>
       <li><b>Playback proxies PHI through the API</b>, which the S3 path was built to avoid, on a 0.1 CPU / 512 MB instance.</li>
-      <li><b>Retention has no storage-layer backstop.</b> Drive has no lifecycle rules, so only the Celery purge deletes expired audio — and it runs only while your always-on machine is on.</li>
+      <li><b>Retention has no storage-layer backstop.</b> Drive has no lifecycle rules, so only the Celery purge deletes expired audio — and it runs only while the worker VM is up.</li>
       <li><b>Nothing is alerting.</b> The alert rules exist; delivery needs a Sentry account nobody has created. If the worker dies at 2&nbsp;a.m., nobody is told.</li>
     </ul>
   </section>
@@ -1471,7 +1029,10 @@ RENDER_DEV_PROXY_TARGET="https://&lt;render-service&gt;.onrender.com" npm run de
     page mirrors it. Platform figures were verified against official documentation on
     2026-09-01 — free tiers change often, so re-check anything load-bearing. The
     app-side numbers (audio sizing, the Redis command budget, the transcript volume)
-    are measured from this codebase. Ticks are kept in this browser only.
+    are measured from this codebase. Ticks are kept in this browser only. The
+    original decision-support content (Setup A vs. B, the full account-creation
+    walkthroughs, the demo-recording script) was trimmed once those decisions were
+    made and executed — it remains in this file's git history.
   </footer>
 
 </main>
@@ -1479,7 +1040,7 @@ RENDER_DEV_PROXY_TARGET="https://&lt;render-service&gt;.onrender.com" npm run de
 <script>
   (function () {
     "use strict";
-    const KEY = "remedy-deploy-free-tier-v2";
+    const KEY = "remedy-deploy-free-tier-v3";
     const boxes = Array.from(document.querySelectorAll('.task input[type="checkbox"]'));
     const fill = document.getElementById("fill");
     const read = document.getElementById("read");
