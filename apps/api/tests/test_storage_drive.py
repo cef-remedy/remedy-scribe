@@ -143,35 +143,44 @@ def test_a_308_with_no_range_header_means_nothing_stored_yet(monkeypatch):
 def test_a_completed_upload_reports_every_part(monkeypatch):
     """A 200 means the whole file landed — a resuming client is catching up
     on an upload that already finished, and must skip everything.
+
+    The payload shape here is the *real* one, captured live against the
+    actual Drive API: `kind, id, name, mimeType, teamDriveId, driveId` — no
+    `size`, because this endpoint's default field set never includes it. A
+    prior version of this function read `size` from this exact response to
+    floor/ceiling-divide into a part count, which silently evaluated to 0
+    every time (`{}.get("size", 0)` on a body with no such key), so a file
+    Drive had already finished receiving kept reporting "nothing uploaded
+    yet" forever. Found live: a real recording looping between "uploading"
+    and "waiting to retry" with its bytes already sitting in Drive the
+    entire time. A test built around a mocked payload that *did* include
+    `size` passed the whole time and never caught it — this is why the
+    fixture below is the real shape, not a convenient one.
     """
     monkeypatch.setattr(
         storage_drive.httpx,
         "put",
-        lambda *a, **kw: _Resp(200, payload={"size": str(4 * MIN_PART_SIZE_BYTES)}),
+        lambda *a, **kw: _Resp(
+            200,
+            payload={
+                "kind": "drive#file",
+                "id": "1ObSuMfTjPnxIRo17jMDgyQrCFC4O1Cy7",
+                "name": "encounter-e1-x.webm",
+                "mimeType": "audio/webm",
+                "teamDriveId": "0AE6CuSS_4eH9Uk9PVA",
+                "driveId": "0AE6CuSS_4eH9Uk9PVA",
+            },
+        ),
     )
 
     parts = storage_drive.list_uploaded_parts("k", "https://session")
 
-    assert [p["part_number"] for p in parts] == [1, 2, 3, 4]
-
-
-def test_a_completed_upload_smaller_than_one_part_still_reports_done(monkeypatch):
-    """Regression: a whole recording under MIN_PART_SIZE_BYTES (any
-    consult short enough that Drive's 256 KiB floor never triggers) used to
-    floor to zero parts done even though the 200 says the file is complete.
-    A resuming client then re-PUT to a session Drive had already retired —
-    which fails, forever, since the same false negative recurs on every
-    retry. Found live: a real 58 KB recording stuck for a day.
-    """
-    monkeypatch.setattr(
-        storage_drive.httpx,
-        "put",
-        lambda *a, **kw: _Resp(200, payload={"size": "59841"}),
-    )
-
-    parts = storage_drive.list_uploaded_parts("k", "https://session")
-
-    assert [p["part_number"] for p in parts] == [1]
+    # Any part number a real plan could ever ask about must be covered —
+    # `uploader.ts`'s loop only checks membership for its own plan's part
+    # numbers, never the exact list length, so over-covering is harmless
+    # and under-covering is the entire bug this guards against.
+    reported = {p["part_number"] for p in parts}
+    assert {1, 2, 3, 4}.issubset(reported)
 
 
 def test_an_expired_session_reports_no_parts_rather_than_raising(monkeypatch):

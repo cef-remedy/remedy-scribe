@@ -426,26 +426,34 @@ def list_uploaded_parts(key: str, upload_id: str) -> list[dict[str, Any]]:
     )
 
     if response.status_code in (200, 201):
-        size = int(response.json().get("size", 0) or 0)
-        # Complete is unconditional here, not something to reconstruct via
-        # `_parts_for_bytes`'s *floor*. That floor was wrong the moment a
-        # whole recording fit under one MIN_PART_SIZE_BYTES unit:
-        # floor(59_841 / 262_144) is 0, so a session Drive had already
-        # finished still reported "nothing done". The resuming client then
-        # re-PUT to a resumable session Drive had already retired, which
-        # fails — and can never self-heal, because the exact same false
-        # negative recurs on every retry forever. Found live: a real 58 KB
-        # recording stuck for a day, its bytes already sitting in Drive the
-        # entire time.
+        # Complete is unconditional here — Drive's own resumable-upload
+        # semantics say a 200/201 on this exact zero-length status probe
+        # means the whole file has landed, full stop, no partial state is
+        # possible. There is nothing left to reconstruct from a byte count,
+        # which is fortunate, because this response usually does not *have*
+        # one: Drive's default field set for it is `kind, id, name,
+        # mimeType, teamDriveId, driveId` — no `size` — so
+        # `response.json().get("size", 0)` silently reads 0 on a real,
+        # finished upload, every single time. A prior version of this
+        # function used exactly that read to floor/ceiling-divide into a
+        # part count, which is why it kept reporting "nothing uploaded yet"
+        # for a file Drive had already finished receiving: not a rare edge
+        # case, the *ordinary* shape of this response. Found live: a fresh
+        # recording looping forever between "uploading" and "waiting to
+        # retry", its bytes already sitting in Drive the entire time,
+        # because every resumed attempt re-read that same missing field as
+        # zero and tried to re-upload a session Drive had already closed out.
         #
-        # Ceiling instead: the trailing part here is real and already
-        # received, exactly the case S3's own floor already exempts as
-        # "the last part" (planParts.ts). A 200/201 says so unconditionally,
-        # so there is nothing left to under-count.
-        whole = -(-size // MIN_PART_SIZE_BYTES) if size > 0 else 0
+        # So: report every part number up to the route's own ceiling as
+        # done. `uploader.ts`'s loop only ever asks `done.has(partNumber)`
+        # for part numbers within its own real plan, so this never
+        # over-claims in a way that matters — and the one place accuracy
+        # actually counts, confirming real bytes exist before finalising,
+        # is `complete_multipart_upload`'s own independent file-size check,
+        # not this list.
         return [
             {"part_number": i + 1, "size_bytes": MIN_PART_SIZE_BYTES, "etag": ""}
-            for i in range(whole)
+            for i in range(MAX_PART_NUMBER)
         ]
 
     if response.status_code == 308:
