@@ -38,32 +38,51 @@ export class PermanentUploadError extends Error {
 }
 
 /**
- * Groups a session's chunks into part-sized batches.
+ * Cuts a recording into parts on **exact byte boundaries**.
  *
- * Pure and exported so it can be tested without a network or a database —
- * the arithmetic here is exactly the sort that looks obviously right and is
- * off by one part.
+ * Every part but the last is exactly `partSize`. That is not tidiness — it
+ * is the contract `storage_drive.py` documents and depends on ("every part
+ * but the last is exactly `MIN_PART_SIZE_BYTES`, which the client
+ * guarantees"): Drive persists a resumable upload in 256 KiB increments and
+ * reports progress as a *byte offset*, which its adapter floor-divides back
+ * into part numbers. A part that is not an exact multiple desynchronises the
+ * two, permanently.
+ *
+ * This used to group whole recorder chunks until their running total first
+ * *reached* the minimum. S3 only requires "at least", so that was correct
+ * there and silently wrong on Drive: real ~5s Opus chunks are ~17 KB and
+ * never sum to exactly 256 KiB, so part 1 overshot the boundary by part of a
+ * chunk, Drive kept only the aligned prefix and answered 308, and part 2 then
+ * announced a `Content-Range` starting at a byte Drive had never reached.
+ * Found live: a 1:35 consultation stuck on "Part 2 upload failed (HTTP 503)"
+ * through all 8 attempts — deterministic, not flaky, because every retry
+ * re-derived the same wrong offset from the same ragged plan while
+ * `/upload/parts` kept correctly reporting the aligned 262,144 bytes Drive
+ * actually held.
+ *
+ * Slicing bytes rather than grouping chunks is what lets a part end mid-chunk,
+ * which is unavoidable once the boundary is fixed.
+ *
+ * Pure and exported so the arithmetic can be tested without a network — it is
+ * exactly the sort that looks obviously right and is off by one part.
  */
 export function planParts(
-  chunkSizes: number[],
-  minPartSize = MIN_PART_SIZE_BYTES,
-): { chunkIndices: number[]; bytes: number }[] {
-  const parts: { chunkIndices: number[]; bytes: number }[] = [];
-  let current: number[] = [];
-  let bytes = 0;
+  totalBytes: number,
+  partSize = MIN_PART_SIZE_BYTES,
+): { start: number; end: number; bytes: number }[] {
+  if (totalBytes <= 0) return [];
 
-  for (let i = 0; i < chunkSizes.length; i++) {
-    current.push(i);
-    bytes += chunkSizes[i];
-    if (bytes >= minPartSize) {
-      parts.push({ chunkIndices: current, bytes });
-      current = [];
-      bytes = 0;
-    }
+  const parts: { start: number; end: number; bytes: number }[] = [];
+  let start = 0;
+  // `>` rather than `>=`: a remainder of exactly `partSize` is the final
+  // part, not a full part trailed by an empty one that storage would reject.
+  while (totalBytes - start > partSize) {
+    parts.push({ start, end: start + partSize, bytes: partSize });
+    start += partSize;
   }
-  // The remainder becomes the final part. S3 exempts only the LAST part from
-  // the minimum, which is why it is appended rather than merged backwards.
-  if (current.length > 0) parts.push({ chunkIndices: current, bytes });
+  // The last part carries the remainder. Both backends exempt only this one
+  // from the size rule — S3's 5 MiB floor and Drive's 256 KiB multiple alike.
+  parts.push({ start, end: totalBytes, bytes: totalBytes - start });
   return parts;
 }
 
@@ -128,10 +147,13 @@ export async function uploadSession(
   // parts, Google Drive wants multiples of 256 KiB (decision 0040). Reading
   // it rather than assuming S3's floor is what lets the backend change
   // without touching this file.
-  const plan = planParts(
-    plaintextChunks.map((b) => b.byteLength),
-    init.data.min_part_size_bytes || MIN_PART_SIZE_BYTES,
-  );
+  const plan = planParts(bytesTotal, init.data.min_part_size_bytes || MIN_PART_SIZE_BYTES);
+
+  // One Blob over the whole recording, sliced on the plan's exact boundaries.
+  // `Blob.slice` is a view, not a copy, so this costs nothing beyond the
+  // chunks already in memory — and it is what allows a part to end mid-chunk,
+  // which fixed-size parts require and chunk-grouping could never do.
+  const audio = new Blob(plaintextChunks, { type: mimeType });
 
   // --- what already landed? S3 is the source of truth (decision 0013) ---
   const existing = await api.GET("/api/v1/encounters/{encounter_id}/upload/parts", {
@@ -163,10 +185,7 @@ export async function uploadSession(
       throw new Error(`Could not get an upload URL for part ${partNumber}.`);
     }
 
-    const body = new Blob(
-      plan[index].chunkIndices.map((i) => plaintextChunks[i]),
-      { type: mimeType },
-    );
+    const body = audio.slice(plan[index].start, plan[index].end, mimeType);
 
     // Straight to S3, not through our API — the presigned URL exists so the
     // audio never routes through the application server (decision 0013).
@@ -174,10 +193,10 @@ export async function uploadSession(
     // header or cookies, since S3 rejects requests with an unexpected auth
     // header alongside a presigned signature.
     // Byte offsets for this part, which a resumable backend needs and S3
-    // ignores. Computed from the plan rather than tracked separately so the
-    // two cannot drift.
-    const partStart = plan.slice(0, index).reduce((sum, p) => sum + p.bytes, 0);
-    const partEnd = partStart + partBytes - 1;
+    // ignores. Read straight off the plan — the same numbers the body was
+    // sliced with, so the header and the bytes cannot disagree.
+    const partStart = plan[index].start;
+    const partEnd = plan[index].end - 1;
 
     let response: Response;
     try {

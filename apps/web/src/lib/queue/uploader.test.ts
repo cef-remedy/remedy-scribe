@@ -167,6 +167,32 @@ describe("uploadSession", () => {
     ]);
   });
 
+  it("cuts parts on exact byte boundaries, not on chunk boundaries", async () => {
+    // The live failure this guards. Real recorder chunks are ~17 KB of Opus
+    // and never sum to exactly 256 KiB, so grouping whole chunks overshot
+    // Drive's boundary. Drive persists in 256 KiB increments: it kept only
+    // the aligned prefix, answered 308, and every later part then announced
+    // an offset Drive had never reached — "Part 2 upload failed (HTTP 503)",
+    // identically, through all 8 attempts.
+    //
+    // Every other multi-part fixture here uses 128 KiB chunks, which divide
+    // 256 KiB evenly and so can never produce the ragged part this catches.
+    // The fixture was rounder than reality, which is why the suite was green
+    // while no consultation over ~a minute could upload at all.
+    vi.mocked(readSessionChunks).mockResolvedValue(chunks(19, 17_192));
+    stubApi(256 * 1024);
+    stubFetch(308);
+
+    await uploadSession(SESSION, ENCOUNTER);
+
+    const total = 19 * 17_192; // 326,648 — a 1:35 consult
+    const ranges = fetchCalls.map((c) => (c.init.headers as Record<string, string>)["Content-Range"]);
+    expect(ranges).toEqual([
+      `bytes 0-262143/${total}`,
+      `bytes 262144-${total - 1}/${total}`,
+    ]);
+  });
+
   it("skips parts the server already holds, and still reports them as uploaded", async () => {
     vi.mocked(readSessionChunks).mockResolvedValue(chunks(8, 128 * 1024));
     stubApi(256 * 1024);

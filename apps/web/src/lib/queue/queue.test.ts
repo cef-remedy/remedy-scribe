@@ -56,61 +56,75 @@ beforeEach(wipe);
 
 describe("planParts", () => {
   const CHUNK = 20 * 1024; // ~5s of mono Opus 32 kbps
+  const DRIVE_PART = 256 * 1024; // what `/upload/init` reports on the Drive backend
 
   it("puts a short consult in a single part", () => {
     // 10 chunks ≈ 50s ≈ 200 KB, far under the 5 MB minimum. S3 exempts only
     // the LAST part from that minimum, so one part is legal and correct.
-    const parts = planParts(Array(10).fill(CHUNK));
-    expect(parts).toHaveLength(1);
-    expect(parts[0].chunkIndices).toHaveLength(10);
+    const parts = planParts(10 * CHUNK);
+    expect(parts).toEqual([{ start: 0, end: 10 * CHUNK, bytes: 10 * CHUNK }]);
   });
 
   it("splits once past the 5 MB minimum", () => {
     // 5 MB at 20 KB/chunk is 256 chunks ≈ 21 minutes. 300 chunks should be
     // one full part plus a remainder.
-    const parts = planParts(Array(300).fill(CHUNK));
+    const parts = planParts(300 * CHUNK);
     expect(parts).toHaveLength(2);
-    expect(parts[0].bytes).toBeGreaterThanOrEqual(MIN_PART_SIZE_BYTES);
+    expect(parts[0].bytes).toBe(MIN_PART_SIZE_BYTES);
     // The final part is allowed to be under the minimum, and is here.
     expect(parts[1].bytes).toBeLessThan(MIN_PART_SIZE_BYTES);
   });
 
-  it("gives every part except the last at least the minimum", () => {
-    const parts = planParts(Array(800).fill(CHUNK));
+  it("makes every part except the last EXACTLY the part size", () => {
+    // Not merely "at least". Drive persists a resumable upload in 256 KiB
+    // increments and reports a byte offset that `storage_drive.py`'s
+    // list_uploaded_parts floor-divides back into part numbers — so a part
+    // that only *exceeds* the minimum desyncs the client's offsets from
+    // Drive's for good. That was the 8-attempt "Part 2 upload failed
+    // (HTTP 503)" loop.
+    const parts = planParts(800 * CHUNK, DRIVE_PART);
     expect(parts.length).toBeGreaterThan(2);
     for (const part of parts.slice(0, -1)) {
-      // This is the property S3 actually enforces. Violating it fails the
-      // upload at the vendor, which is the worst place to find out.
-      expect(part.bytes).toBeGreaterThanOrEqual(MIN_PART_SIZE_BYTES);
+      expect(part.bytes).toBe(DRIVE_PART);
+      expect(part.start % DRIVE_PART).toBe(0);
     }
   });
 
-  it("assigns every chunk to exactly one part, in order", () => {
-    const sizes = Array(500).fill(CHUNK);
-    const parts = planParts(sizes);
-    const flat = parts.flatMap((p) => p.chunkIndices);
+  it("covers every byte exactly once, with no gap and no overlap", () => {
+    // A gap is a silent hole in the consultation; an overlap corrupts the
+    // audio stream. Deliberately not a round multiple of the part size.
+    const total = 500 * CHUNK + 1234;
+    const parts = planParts(total, DRIVE_PART);
 
-    // No chunk dropped and none duplicated: a dropped chunk is a silent hole
-    // in the consultation, a duplicated one corrupts the audio stream.
-    expect(flat).toHaveLength(sizes.length);
-    expect(flat).toEqual(sizes.map((_, i) => i));
+    expect(parts[0].start).toBe(0);
+    expect(parts[parts.length - 1].end).toBe(total);
+    for (let i = 1; i < parts.length; i++) {
+      expect(parts[i].start).toBe(parts[i - 1].end);
+    }
+    expect(parts.reduce((n, p) => n + p.bytes, 0)).toBe(total);
   });
 
-  it("handles a single chunk", () => {
-    const parts = planParts([CHUNK]);
-    expect(parts).toHaveLength(1);
-    expect(parts[0].chunkIndices).toEqual([0]);
+  it("aligns a real ragged recording to the Drive boundary", () => {
+    // The exact shape of the live failure: a 1:35 consult, ~19 chunks of
+    // ~17 KB, is 319 KB — just over one 256 KiB part. Grouping whole chunks
+    // made part 1 overshoot to ~275 KB, Drive stored only the aligned
+    // 262,144, and every retry re-sent part 2 from a byte Drive never had.
+    const parts = planParts(326_656, DRIVE_PART);
+    expect(parts).toEqual([
+      { start: 0, end: 262_144, bytes: 262_144 },
+      { start: 262_144, end: 326_656, bytes: 64_512 },
+    ]);
   });
 
-  it("returns nothing for no chunks rather than an empty part", () => {
-    // An empty part would be sent to S3 and rejected.
-    expect(planParts([])).toEqual([]);
+  it("returns nothing for an empty recording rather than an empty part", () => {
+    // An empty part would be sent to storage and rejected.
+    expect(planParts(0)).toEqual([]);
   });
 
-  it("splits a chunk stream that lands exactly on the boundary", () => {
-    const parts = planParts([MIN_PART_SIZE_BYTES]);
-    // Exactly the minimum closes the part; with nothing following, that one
-    // part is also the last, so there is no orphaned empty remainder.
+  it("keeps a recording of exactly one part size as a single part", () => {
+    const parts = planParts(MIN_PART_SIZE_BYTES);
+    // Exactly the minimum is the last part, so there is no orphaned empty
+    // remainder behind it.
     expect(parts).toHaveLength(1);
     expect(parts[0].bytes).toBe(MIN_PART_SIZE_BYTES);
   });
