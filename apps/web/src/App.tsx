@@ -16,6 +16,7 @@ import { NoteReview } from "./routes/NoteReview";
 import { MfaEnroll } from "./routes/MfaEnroll";
 import { ComplianceAudit } from "./routes/ComplianceAudit";
 import { AllNotes } from "./routes/AllNotes";
+import { EncounterDetail } from "./routes/EncounterDetail";
 
 export function App() {
   const { status } = useAuth();
@@ -57,6 +58,15 @@ export function App() {
       <Route
         path="/encounters/:encounterId/record"
         element={signedIn ? <Record /> : <Navigate to="/login" replace />}
+      />
+      {/* The catch-all worklist destination: every status without a more
+          specific page (blocked-on-consent, failed, mid-pipeline, unlinked)
+          lands here. React Router ranks routes by specificity regardless of
+          declaration order, unlike the backend's, so this one segment
+          shorter than the two above is not at risk of shadowing them. */}
+      <Route
+        path="/encounters/:encounterId"
+        element={signedIn ? <EncounterDetail /> : <Navigate to="/login" replace />}
       />
       {/* Registered before /notes/:noteId is irrelevant to React Router's own
           ranking (a static segment always outranks a dynamic one regardless

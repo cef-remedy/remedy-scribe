@@ -21,7 +21,7 @@
  * - `compliance` is a real, seeded, RBAC-enforced role with nowhere to go —
  *   it landed on this exact doctor worklist. Redirected to `/audit` instead.
  */
-import { useEffect, useState, type KeyboardEvent } from "react";
+import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { api, OfflineError } from "../api/client";
 import { useAuth } from "../lib/auth";
@@ -44,6 +44,50 @@ type Encounter = {
    *  review screen (Phase 2.6). */
   note_id?: string | null;
 };
+
+/**
+ * Every folder-row's click destination, across all three tabs
+ * (`/impeccable`: "make all encounter cards clickable regardless of their
+ * status ... show their page based on the current status").
+ *
+ * A note or an active recording already have the right page — routing
+ * those through EncounterDetail.tsx first would cost a click on the two
+ * most common cases. Everything else (blocked-on-consent, failed,
+ * mid-pipeline, an unlinked loose session) had no destination at all before
+ * this; EncounterDetail is the one page all of those land on, adapting its
+ * action to whichever status it's given rather than needing one page each.
+ */
+function destinationFor(e: Encounter): string {
+  if (e.note_id) return `/notes/${e.note_id}`;
+  if (e.pipeline_status === "recording") return `/encounters/${e.id}/record`;
+  return `/encounters/${e.id}`;
+}
+
+/**
+ * The clickable-row wrapper every tab now shares. Previously written inline,
+ * once, only for "Recent" — now needed identically in all three, which is
+ * exactly the "one-off implementation -> shared pattern" case rather than a
+ * third copy of the same click/keydown/role/tabIndex wiring.
+ */
+function FolderRow({ to, children }: { to: string; children: ReactNode }) {
+  const navigate = useNavigate();
+  return (
+    <li
+      className="folder-row is-clickable"
+      role="link"
+      tabIndex={0}
+      onClick={() => navigate(to)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          navigate(to);
+        }
+      }}
+    >
+      {children}
+    </li>
+  );
+}
 
 export function Home() {
   const { signOut, role, name } = useAuth();
@@ -196,6 +240,29 @@ export function Home() {
 
       <QueueStatus entries={entries} storage={storage} onRetry={retry} onUploadNow={uploadNow} />
 
+      {/* Recent is capped at 25 and scoped to this clinician (see the
+          panel's own note below) — there was nowhere to go from here to
+          find an older note, search by patient, or reach one a colleague
+          filed. That's a separate screen, not a fourth tab: it's a
+          clinic-wide search, not another slice of "my own worklist".
+          Styled as a real `.ghost` action, not `.muted` body text
+          (`/impeccable critique`) — this is a first-class capability, and
+          every other call-to-action on this screen already wears the
+          app's button vocabulary rather than plain paragraph styling.
+          Placed *above* the tab rack, not wedged between it and the panel
+          below (`/impeccable critique`, round 2): `.rack-tabs`/`.rack-panel`
+          are deliberately flush against each other (the panel's own
+          square top-left corner reads as "attached to the active tab
+          above it") — squeezing content into that 0-margin gap broke the
+          folder illusion and left this row with no breathing room on
+          either side. */}
+      <div className="loose-head">
+        <span className="muted">Looking for something older, or a colleague's note?</span>
+        <Link className="ghost" to="/notes">
+          All notes
+        </Link>
+      </div>
+
       {(() => {
         const tabs: { key: "recent" | "loose" | "attention"; label: string; count: number | null }[] = [
           { key: "recent", label: "Recent", count: recent?.length ?? null },
@@ -245,15 +312,6 @@ export function Home() {
         );
       })()}
 
-      {/* Recent is capped at 25 and scoped to this clinician (see the
-          panel's own note below) — there was nowhere to go from here to
-          find an older note, search by patient, or reach one a colleague
-          filed. That's a separate screen, not a fourth tab: it's a
-          clinic-wide search, not another slice of "my own worklist". */}
-      <p className="muted">
-        <Link to="/notes">See all notes →</Link>
-      </p>
-
       {/* Without this there was no way back to a note after filing it: the
           only lists were loose sessions and failures, so linking a patient
           removed an encounter from the one tray that showed it. Found by
@@ -288,38 +346,9 @@ export function Home() {
           <ul className="loose">
             {recent.map((e) => {
               const seq = sequencePosition(e.pipeline_status, Boolean(e.note_id));
-              // A note exists -> open it. No note yet, but this encounter is
-              // still at the very first pipeline stage -> nothing has left
-              // this laptop yet, so it's resumable, not just viewable: back
-              // into Record.tsx, which re-checks the consent gate itself on
-              // mount and needs nothing carried over from this click. Every
-              // later stage (uploaded/transcribed/generating) is mid-flight
-              // on the server with no screen to land on, so those stay
-              // un-clickable rather than linking somewhere that looks like
-              // progress but shows nothing.
-              const dest = e.note_id
-                ? `/notes/${e.note_id}`
-                : e.pipeline_status === "recording"
-                  ? `/encounters/${e.id}/record`
-                  : null;
+              const dest = destinationFor(e);
               return (
-                <li
-                  key={e.id}
-                  className={dest ? "folder-row is-clickable" : "folder-row"}
-                  role={dest ? "link" : undefined}
-                  tabIndex={dest ? 0 : undefined}
-                  onClick={dest ? () => navigate(dest) : undefined}
-                  onKeyDown={
-                    dest
-                      ? (event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            navigate(dest);
-                          }
-                        }
-                      : undefined
-                  }
-                >
+                <FolderRow key={e.id} to={dest}>
                   <FolderTab
                     kind={encounterTab(e.pipeline_status)}
                     label={PIPELINE_LABEL[e.pipeline_status] ?? e.pipeline_status}
@@ -336,10 +365,11 @@ export function Home() {
                   />
                   <div className="folder-actions">
                     {e.note_id ? (
-                      // stopPropagation: the row above already navigates
-                      // here on click — without this, this nested link's
-                      // own click bubbles up and fires that navigation too
-                      // (harmless, same destination, but pointless).
+                      // stopPropagation: the row above already navigates to
+                      // the same place on click — without this, this nested
+                      // link's own click bubbles up and fires that
+                      // navigation too (harmless, same destination, but
+                      // pointless).
                       <Link className="ghost" to={`/notes/${e.note_id}`} onClick={(ev) => ev.stopPropagation()}>
                         Open note
                       </Link>
@@ -352,10 +382,17 @@ export function Home() {
                         Resume recording
                       </Link>
                     ) : (
-                      <span className="muted">no note yet</span>
+                      // Found by `/impeccable`: this used to be a dead end —
+                      // no note yet and no shortcut, so a failed or
+                      // mid-pipeline row here had literally no action. The
+                      // row itself is clickable now (destinationFor sends it
+                      // to EncounterDetail), this just names what's there.
+                      <span className="muted">
+                        {PIPELINE_LABEL[e.pipeline_status] ?? "no note yet"}
+                      </span>
                     )}
                   </div>
-                </li>
+                </FolderRow>
               );
             })}
           </ul>
@@ -377,7 +414,7 @@ export function Home() {
         ) : (
           <ul className="loose">
             {loose.map((e) => (
-              <li key={e.id} className="folder-row">
+              <FolderRow key={e.id} to={destinationFor(e)}>
                 <FolderTab kind="blank" label="Unnamed" />
                 <div className="folder-head">
                   <span className="folder-id">{e.id.slice(0, 8)}</span>
@@ -385,7 +422,12 @@ export function Home() {
                     <button
                       type="button"
                       className="ghost"
-                      onClick={() => {
+                      onClick={(ev) => {
+                        // stopPropagation: this toggles an inline picker in
+                        // place, it doesn't navigate — without this, every
+                        // click here would also fire the row's own
+                        // navigation to EncounterDetail underneath it.
+                        ev.stopPropagation();
                         setLinkError(null);
                         setLinking(linking === e.id ? null : e.id);
                       }}
@@ -395,26 +437,31 @@ export function Home() {
                   </div>
                 </div>
                 {/* P0-6's one-tap linking action. Recording was never blocked
-                    on identity, so this is where identity catches up. */}
+                    on identity, so this is where identity catches up.
+                    stopPropagation on the wrapper: every click inside the
+                    picker (typing, picking a candidate) must not also
+                    navigate the row underneath it. */}
                 {linking === e.id && (
-                  <PatientPicker
-                    autoLinkExact={false}
-                    onPicked={async (p) => {
-                      const ok = await linkEncounterToPatient(e.id, p.id);
-                      if (!ok) {
-                        setLinkError("Could not link that patient. Try again.");
-                        return;
-                      }
-                      setLinking(null);
-                      setLoose((prev) => (prev ?? []).filter((x) => x.id !== e.id));
-                      // The row vanishing from "Loose sessions" already
-                      // shows this worked; the toast just names who it was
-                      // linked to, since the row itself never showed a name.
-                      showToast(`Linked to ${p.full_name}.`);
-                    }}
-                  />
+                  <div onClick={(ev) => ev.stopPropagation()}>
+                    <PatientPicker
+                      autoLinkExact={false}
+                      onPicked={async (p) => {
+                        const ok = await linkEncounterToPatient(e.id, p.id);
+                        if (!ok) {
+                          setLinkError("Could not link that patient. Try again.");
+                          return;
+                        }
+                        setLinking(null);
+                        setLoose((prev) => (prev ?? []).filter((x) => x.id !== e.id));
+                        // The row vanishing from "Loose sessions" already
+                        // shows this worked; the toast just names who it was
+                        // linked to, since the row itself never showed a name.
+                        showToast(`Linked to ${p.full_name}.`);
+                      }}
+                    />
+                  </div>
                 )}
-              </li>
+              </FolderRow>
             ))}
           </ul>
         )}
@@ -438,7 +485,7 @@ export function Home() {
         ) : (
           <ul className="loose">
             {failed.map((e) => (
-              <li key={e.id} className="folder-row">
+              <FolderRow key={e.id} to={destinationFor(e)}>
                 <FolderTab kind="attention" label={PIPELINE_LABEL[e.pipeline_status] ?? e.pipeline_status} />
                 <div className="folder-head">
                   <span className="folder-id">{e.id.slice(0, 8)}</span>
@@ -446,18 +493,24 @@ export function Home() {
                     {/* Secondary, not primary: every other per-row action in
                         this same folder-actions slot (Open note, Resume
                         recording, Link to patient) is `.ghost` — found while
-                        making button styling uniform across the app. */}
+                        making button styling uniform across the app.
+                        stopPropagation: this retries in place, it doesn't
+                        navigate — without it, every click here would also
+                        fire the row's own navigation to EncounterDetail. */}
                     <button
                       type="button"
                       className="ghost"
                       disabled={retrying === e.id}
-                      onClick={() => void retryPipeline(e.id)}
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        void retryPipeline(e.id);
+                      }}
                     >
                       {retrying === e.id ? "Retrying…" : "Retry"}
                     </button>
                   </div>
                 </div>
-              </li>
+              </FolderRow>
             ))}
           </ul>
         )}

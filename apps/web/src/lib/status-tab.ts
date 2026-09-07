@@ -33,8 +33,17 @@ export function noteTab(noteStatus: string): TabKind {
     case "filed":
     case "authenticated":
       return "done";
+    // "generated" falls through to here — and belongs on the same color as
+    // the rest, not on its own. A freshly generated note is the exact same
+    // real-world moment encounterTab() above already calls "done" (pipeline_
+    // status "note_generated"): the AI has finished, nothing is pending on
+    // the system, and it's the doctor's turn. Coloring it "progress" here
+    // would put it back on Home's "still working, nothing to do yet" color
+    // for the identical fact — the one thing FolderTab.tsx's own docs say
+    // this shared vocabulary exists to prevent (`/impeccable critique`,
+    // found on the first new screen built after AllNotes.tsx shipped).
     default:
-      return "progress"; // generated: drafted, waiting on the doctor
+      return "done";
   }
 }
 

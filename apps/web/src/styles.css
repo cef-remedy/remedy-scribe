@@ -174,6 +174,40 @@ input[type="checkbox"], input[type="radio"] {
 input:focus-visible, select:focus-visible, textarea:focus-visible { border-color: var(--tab-progress); }
 textarea { line-height: 1.55; resize: vertical; }
 textarea:disabled { opacity: .7; cursor: not-allowed; }
+/* A native <select>'s own OS-drawn chrome (the dropdown arrow, and space
+   around it) doesn't fully respect the padding/border box above the way
+   <input> does — at least on Chromium/Windows it still renders a few px
+   taller than a text input right beside it with otherwise identical CSS
+   (`/impeccable critique`, Search row heights). `appearance: none` hands
+   the whole box back to this stylesheet instead of the browser; the arrow
+   is redrawn as a background SVG so removing the native one doesn't
+   remove the affordance that this control opens a dropdown. */
+select {
+  appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  padding-right: 2.3rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%238c8271' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right .85rem center;
+}
+
+/* Rows of short fields (AllNotes.tsx's search form, `/impeccable
+   critique`) — the default `label{display:block}` + `input{width:100%}`
+   above stacks every field full-width, which is right for a long text
+   value but wastes a whole row on a name, a 5-option status, or a date.
+   `.field` opts a label/input pair into a row instead of overriding the
+   defaults themselves, so every other form in the app keeps stacking.
+   `.search-form` stacks the rows themselves — kept as two explicit rows
+   (name+status, then from+to+search) rather than one wrapping flex line,
+   so From/To can't split across a wrap point and read as two unrelated
+   dates instead of one range. */
+.search-form { display: flex; flex-direction: column; gap: .85rem; }
+.search-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .75rem .9rem; }
+.search-row .field { flex: 1 1 10rem; min-width: 8rem; }
+/* Patient name is the field a doctor actually types into; Status is a
+   5-option pick. Weighted 2:1 rather than splitting the row evenly. */
+.search-row .field.field-wide { flex: 2 1 16rem; }
+.search-row .field label { margin-top: 0; }
+.search-row button { margin-top: 0; align-self: flex-end; }
 
 .password-field { position: relative; }
 .password-field input { padding-right: 2.5rem; }
@@ -201,8 +235,22 @@ textarea:disabled { opacity: .7; cursor: not-allowed; }
    withdrew consent," "stop and delete." Always paired with `.ghost`, never
    used alone, so it only ever changes the color of an already-secondary-
    shaped control rather than inventing a fourth shape. */
+/* line-height: 1.55rem (an absolute length, not a bare ratio) on both
+   button and .ghost below — `/impeccable critique` (Search row heights).
+   Buttons carry a smaller, bold label font than inputs/selects (.92rem vs
+   the inherited 1rem body text), and a bare `font:` shorthand resets
+   line-height to the browser's own 'normal' for that smaller size — with
+   identical padding/border on every control, that was the entire gap
+   between a button's box and an input's: buttons rendered visibly
+   shorter next to their own row's inputs. A ratio (`line-height: 1.55`)
+   wouldn't fix it — it would recompute against the button's own smaller
+   font-size instead of matching the input's absolute line box. A `rem`
+   length always resolves against the root font-size, so it lands on the
+   same 1.55rem line box regardless of which control's own font-size
+   produced it. */
 button {
-  font: 700 .92rem var(--f-body); padding: .6rem 1.15rem; border-radius: 6px; cursor: pointer;
+  font: 700 .92rem var(--f-body); line-height: 1.55rem; padding: .6rem 1.15rem;
+  border-radius: 6px; cursor: pointer;
   border: 1px solid var(--ink); background: var(--ink); color: var(--paper-raised);
   margin-top: 1.1rem; letter-spacing: .002em;
 }
@@ -210,7 +258,7 @@ button:hover { background: var(--ink-2); border-color: var(--ink-2); }
 button:disabled { opacity: .5; cursor: not-allowed; }
 
 .ghost {
-  display: inline-block; font: 700 .92rem var(--f-body); padding: .6rem 1.15rem;
+  display: inline-block; font: 700 .92rem var(--f-body); line-height: 1.55rem; padding: .6rem 1.15rem;
   border-radius: 6px; cursor: pointer; letter-spacing: .002em; text-decoration: none;
   background: transparent; color: var(--ink-2); border: 1px solid var(--rule-strong); margin: 0;
 }
@@ -302,9 +350,21 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   border-radius: 2px 10px 10px 10px;
   box-shadow: var(--shadow);
   padding: 1.6rem 1.1rem 1rem;
-  margin: 1.3rem 0 .85rem;
+  /* 2rem, not 1.3rem: the next row's own .folder-tab pokes .95rem above
+     its row (position: absolute; top: -.95rem, below), so the two used to
+     leave only ~.35rem of daylight between one card's bottom edge and the
+     next card's tab — reads as touching in a dense list (AllNotes' Results,
+     or Home's Recent tab with rows back to back). 2rem restores a real
+     ~1rem gap once that overlap is accounted for. */
+  margin: 2rem 0 .85rem;
 }
 .folder-row:first-child { margin-top: .6rem; }
+/* A single status card outside a list (EncounterDetail's header card) —
+   the same folder-tab clearance `.folder-row` gives every list row, without
+   the list-only hover state or inter-row margin that don't apply to one
+   lone card. Two classes for specificity: this must win over `.card`'s own
+   padding-top without `!important`. */
+.card.status-card { position: relative; padding-top: 1.6rem; }
 /* A row that leads somewhere (an existing note, or a recording still at
    its first stage and so resumable) reads as clickable, not just as a
    card that happens to contain a link — real cursor, a lift on hover, a
@@ -382,7 +442,23 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .step-label { font-size: .78rem; color: var(--ink-3); margin-left: .35rem; }
 
 .loose { list-style: none; padding: 0; margin: 0; }
-.loose-head { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; }
+/* Recent alone can hold up to 25 folder-rows — unbounded, that pushes the
+   tab rack itself (and everything below the panel) far down the page on
+   every visit. Capped and scrollable instead: the tabs, legend, and caption
+   stay put, only the rows scroll. overscroll-behavior stops a scroll that
+   reaches the bottom of the list from continuing on to scroll the page
+   underneath it, which reads as the list "letting go" mid-scroll. */
+/* padding-top, not just the row's own margin: `overflow-y: auto` puts
+   `.loose` in its own formatting context, so a child's top margin no
+   longer collapses past it the way it did in normal flow — without this,
+   the first row's folder-tab (absolutely positioned .95rem above its own
+   row) loses part of that offset to the scroll container's clip edge. */
+.rack-panel .loose { max-height: 60vh; overflow-y: auto; overscroll-behavior: contain; padding: 1rem .3rem 0 0; }
+/* margin-bottom matches .rack-tabs's own top margin below it (adjacent
+   margins collapse to the larger one, so this doesn't double up) — makes
+   the gap correct on its own rather than depending on whichever element
+   happens to sit next to it. */
+.loose-head { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; margin: 0 0 1.3rem; }
 .loose-head .ghost { margin: 0 0 0 auto; padding: .3rem .7rem; font-size: .8rem; }
 
 /* Loose / Recent / Needs-attention navigation — the same folder-tab
@@ -548,9 +624,16 @@ button:disabled { opacity: .5; cursor: not-allowed; }
    navigating a wall of buttons. */
 
 .ground-help { margin: 0 0 .9rem; }
-.grounded-text { line-height: 1.65; margin: 0; }
+/* Each line is its own bullet, not a run of sentences sharing a paragraph —
+   the point is to make the section's separate claims separable at a glance,
+   which prose line-wrapping alone doesn't give you. */
+.grounded-text {
+  line-height: 1.65; margin: 0; padding-left: 1.15rem;
+  display: flex; flex-direction: column; gap: .3rem;
+}
+.grounded-text > li { display: list-item; }
 .ground-line {
-  display: inline; margin: 0; padding: .05rem .12rem;
+  display: block; width: 100%; margin: 0; padding: .05rem .12rem;
   font: inherit; text-align: left; color: var(--ink);
   background: none; border: none; border-radius: 3px;
   cursor: pointer;

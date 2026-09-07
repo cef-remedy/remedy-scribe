@@ -117,32 +117,33 @@ export function GroundedSection({
         </>
       ) : (
         <>
-          <p className="grounded-text" data-testid={`grounded-${sectionKey}`}>
+          <ul className="grounded-text" data-testid={`grounded-${sectionKey}`}>
             {lines.map((line) => (
-              <button
-                key={line.key}
-                type="button"
-                className={[
-                  "ground-line",
-                  line.key === selectedKey ? "is-selected" : "",
-                  line.segmentIds.length === 0 ? "is-uncited" : "",
-                ]
-                  .join(" ")
-                  .trim()}
-                aria-pressed={line.key === selectedKey}
-                onClick={() => onLineClick(line.key, line.segmentIds)}
-                title={
-                  line.segmentIds.length === 0
-                    ? "This line cites no transcript passage"
-                    : line.key === selectedKey
-                      ? "Click again to hear this passage"
-                      : "Click to see where this came from"
-                }
-              >
-                {line.text}
-              </button>
+              <li key={line.key}>
+                <button
+                  type="button"
+                  className={[
+                    "ground-line",
+                    line.key === selectedKey ? "is-selected" : "",
+                    line.segmentIds.length === 0 ? "is-uncited" : "",
+                  ]
+                    .join(" ")
+                    .trim()}
+                  aria-pressed={line.key === selectedKey}
+                  onClick={() => onLineClick(line.key, line.segmentIds)}
+                  title={
+                    line.segmentIds.length === 0
+                      ? "This line cites no transcript passage"
+                      : line.key === selectedKey
+                        ? "Click again to hear this passage"
+                        : "Click to see where this came from"
+                  }
+                >
+                  {line.text}
+                </button>
+              </li>
             ))}
-          </p>
+          </ul>
           {!signed && (
             <button type="button" className="ghost" onClick={() => setEditing(true)}>
               Edit this section

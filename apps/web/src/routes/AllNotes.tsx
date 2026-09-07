@@ -40,8 +40,13 @@ type NoteRow = {
   signed_at: string | null;
 };
 
+// "generated" reads "Ready to review" rather than "Drafted" on purpose — it
+// is the exact same real-world moment PIPELINE_LABEL.note_generated already
+// names on Home, and the two screens must say the same thing about it
+// (`/impeccable critique`). See noteTab()'s own comment in status-tab.ts for
+// the matching color fix.
 const NOTE_STATUS_LABEL: Record<string, string> = {
-  generated: "Drafted",
+  generated: "Ready to review",
   filed: "Filed",
   authenticated: "Authenticated",
   signed: "Signed",
@@ -129,30 +134,56 @@ export function AllNotes() {
       <section className="card">
         <h2>Search</h2>
         <p className="muted">Leave a field blank to widen the search. Runs on submit, not on every keystroke.</p>
-        <form onSubmit={(e: FormEvent) => { e.preventDefault(); void search(0, false); }}>
-          <label htmlFor="notes-q">Patient name</label>
-          <input
-            id="notes-q"
-            type="text"
-            placeholder="Typed or partial name"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-          <label htmlFor="notes-status">Status</label>
-          <select id="notes-status" value={status} onChange={(e) => setStatus(e.target.value as NoteStatusFilter)}>
-            <option value="">Any</option>
-            <option value="generated">Drafted</option>
-            <option value="filed">Filed</option>
-            <option value="authenticated">Authenticated</option>
-            <option value="signed">Signed</option>
-          </select>
-          <label htmlFor="notes-from">From</label>
-          <input id="notes-from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-          <label htmlFor="notes-to">To</label>
-          <input id="notes-to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-          <button type="submit" disabled={busy}>
-            {busy ? "Searching…" : "Search"}
-          </button>
+        {/* Two rows, not four stacked full-width fields (`/impeccable
+            critique`): this screen's own default is unfiltered browsing —
+            forcing every visit past a tall stack of label/input pairs
+            before the first real row contradicted that. Patient name and
+            Status share a row (name is the field doctors actually type
+            into, so it gets more of it); From/To are kept together on
+            their own row rather than splitting across a wrap point — they
+            read as one range, not two unrelated dates. */}
+        <form
+          className="search-form"
+          onSubmit={(e: FormEvent) => {
+            e.preventDefault();
+            void search(0, false);
+          }}
+        >
+          <div className="search-row">
+            <div className="field field-wide">
+              <label htmlFor="notes-q">Patient name</label>
+              <input
+                id="notes-q"
+                type="text"
+                placeholder="Typed or partial name"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="notes-status">Status</label>
+              <select id="notes-status" value={status} onChange={(e) => setStatus(e.target.value as NoteStatusFilter)}>
+                <option value="">Any</option>
+                <option value="generated">Ready to review</option>
+                <option value="filed">Filed</option>
+                <option value="authenticated">Authenticated</option>
+                <option value="signed">Signed</option>
+              </select>
+            </div>
+          </div>
+          <div className="search-row">
+            <div className="field">
+              <label htmlFor="notes-from">From</label>
+              <input id="notes-from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+            </div>
+            <div className="field">
+              <label htmlFor="notes-to">To</label>
+              <input id="notes-to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            </div>
+            <button type="submit" disabled={busy}>
+              {busy ? "Searching…" : "Search"}
+            </button>
+          </div>
         </form>
       </section>
 
@@ -187,6 +218,10 @@ export function AllNotes() {
                     />
                     <div className="folder-head">
                       <span className="folder-patient">{r.patient_name ?? "Unlinked"}</span>
+                      {/* Home's folder-rows always keep an id alongside whatever else is
+                          shown — losing it here made two same-named patients (a real risk;
+                          see PatientPicker.tsx) indistinguishable except by date. */}
+                      <span className="folder-id">{r.note_id.slice(0, 8)}</span>
                       <span className="folder-date">{new Date(r.created_at).toLocaleDateString()}</span>
                     </div>
                     <div className="folder-actions" onClick={(ev) => ev.stopPropagation()}>

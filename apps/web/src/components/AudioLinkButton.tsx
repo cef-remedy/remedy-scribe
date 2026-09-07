@@ -29,7 +29,17 @@ export function AudioLinkButton({ encounterId }: { encounterId: string }) {
     // A new tab, not this one: the link is a direct handle on a
     // consultation recording, and the S3 case is short-lived — losing this
     // tab's place in the list to follow it would cost more than it's worth.
-    window.open(result.url, "_blank", "noopener");
+    //
+    // This call happens after an `await`, outside the synchronous
+    // user-gesture window most browsers require to allow an unrequested
+    // popup — a real risk on a shared clinic laptop with popup-blocking on
+    // by default. `window.open` returns null rather than throwing when
+    // blocked, so the only way to notice is checking the return value —
+    // otherwise the busy label just clears with nothing to show for it
+    // (`/impeccable critique`).
+    if (!window.open(result.url, "_blank", "noopener")) {
+      setError("Your browser blocked the audio tab — allow pop-ups for this site and try again.");
+    }
   }
 
   return (
