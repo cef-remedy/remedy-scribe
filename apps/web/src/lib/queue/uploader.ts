@@ -67,21 +67,6 @@ export function planParts(
   return parts;
 }
 
-async function decryptSession(sessionId: string): Promise<{ parts: ArrayBuffer[]; mimeType: string }> {
-  const key = await getAudioKey();
-  const chunks = await readSessionChunks(sessionId);
-  if (chunks.length === 0) {
-    // Nothing on disk. Permanent: retrying cannot conjure audio, and the
-    // likely cause is a withdrawal having already shredded it.
-    throw new PermanentUploadError("No local audio remains for this recording.");
-  }
-  const parts: ArrayBuffer[] = [];
-  for (const chunk of chunks) {
-    parts.push(await decryptChunk(key, { ciphertext: chunk.ciphertext, iv: chunk.iv }));
-  }
-  return { parts, mimeType: chunks[0].mimeType };
-}
-
 /**
  * Uploads one recording. Returns once `upload/complete` has succeeded —
  * which confirms the *bytes*, not the pipeline. The queue separately waits
@@ -95,14 +80,40 @@ export async function uploadSession(
   encounterId: string,
   onProgress?: (p: UploadProgress) => void,
 ): Promise<{ objectKey: string; bytesUploaded: number }> {
-  const { parts: plaintextChunks, mimeType } = await decryptSession(sessionId);
-  const bytesTotal = plaintextChunks.reduce((n, b) => n + b.byteLength, 0);
+  const chunks = await readSessionChunks(sessionId);
+  if (chunks.length === 0) {
+    // Nothing on disk. Permanent: retrying cannot conjure audio, and the
+    // likely cause is a withdrawal having already shredded it.
+    throw new PermanentUploadError("No local audio remains for this recording.");
+  }
+  // Every chunk in a session shares one mime type, set once by the recorder
+  // and stored unencrypted on the chunk record itself (recorder/store.ts) —
+  // so it is known before a single byte is decrypted. That is what lets the
+  // next line start `upload/init`'s network round trip immediately, running
+  // alongside decryption instead of waiting behind it.
+  const mimeType = chunks[0].mimeType;
 
   // --- init (idempotent: returns the existing session on retry) ---
-  const init = await api.POST("/api/v1/encounters/{encounter_id}/upload/init", {
+  const initPromise = api.POST("/api/v1/encounters/{encounter_id}/upload/init", {
     params: { path: { encounter_id: encounterId } },
     body: { content_type: mimeType },
   });
+
+  // Decryption used to be one `await` per chunk in a for-loop, serialising
+  // WebCrypto calls that share no state and have nothing to serialise for —
+  // Promise.all runs them concurrently instead (order preserved, since
+  // Promise.all's results array mirrors its input array). Found live: a
+  // longer consult's few hundred ~5s chunks measurably slowed the "getting
+  // ready to upload" phase before a single upload byte had left the laptop,
+  // which is exactly the phase the doctor sees no progress indicator for.
+  const key = await getAudioKey();
+  const decryptPromise = Promise.all(
+    chunks.map((chunk) => decryptChunk(key, { ciphertext: chunk.ciphertext, iv: chunk.iv })),
+  );
+
+  const [init, plaintextChunks] = await Promise.all([initPromise, decryptPromise]);
+  const bytesTotal = plaintextChunks.reduce((n, b) => n + b.byteLength, 0);
+
   if (init.error || !init.data) {
     if (init.response.status === 409) {
       throw new PermanentUploadError(
@@ -117,11 +128,6 @@ export async function uploadSession(
   // parts, Google Drive wants multiples of 256 KiB (decision 0040). Reading
   // it rather than assuming S3's floor is what lets the backend change
   // without touching this file.
-  //
-  // ⚠️ This must stay *after* the init call. It was briefly written above it,
-  // which typechecks as three separate errors and fails at runtime on every
-  // upload with "Cannot access 'init' before initialization" — a bug the unit
-  // tests cannot see, because they do not drive `uploadSession`.
   const plan = planParts(
     plaintextChunks.map((b) => b.byteLength),
     init.data.min_part_size_bytes || MIN_PART_SIZE_BYTES,

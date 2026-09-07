@@ -472,6 +472,26 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 }
 .queue-meta .bad { color: var(--tab-attention); font-weight: 600; }
 .queue-error { font-size: .85rem; margin: .5rem 0 0; color: var(--tab-attention); }
+.queue-detail { font-size: .82rem; margin: .35rem 0 0; color: var(--ink-2); }
+
+/* The circular progress indicator: a filling ring where a real percentage
+   is known (conic-gradient driven by --queue-ring-pct, set inline per
+   entry), a spinning partial ring where only "still working" is known.
+   Exists so a recording mid-upload or mid-pipeline reads as *active*, not
+   frozen — the exact ambiguity a doctor flagged live after audio had
+   already reached storage while the card still looked untouched. */
+.queue-ring {
+  --queue-ring-pct: 0%;
+  width: 1.35rem; height: 1.35rem; flex: none; border-radius: 50%;
+  background: conic-gradient(var(--tab-progress) var(--queue-ring-pct), var(--tab-progress-bg) 0);
+}
+.queue-ring::after { content: ""; display: block; margin: 3px; border-radius: 50%; background: var(--paper-raised); width: calc(100% - 6px); height: calc(100% - 6px); }
+.queue-ring.is-indeterminate {
+  background: conic-gradient(var(--tab-progress) 0deg 100deg, var(--tab-progress-bg) 100deg 360deg);
+  animation: queue-ring-spin .9s linear infinite;
+}
+@keyframes queue-ring-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .queue-ring.is-indeterminate { animation: none; } }
 
 /* ── patient picker (2.5) ───────────────────────────────────────────── */
 

@@ -239,7 +239,20 @@ export async function tick(): Promise<QueueTickResult> {
         result.processed++;
         await patchEntry(entry.id, { state: "uploading" });
         try {
-          const { objectKey, bytesUploaded } = await uploadSession(entry.id, entry.encounterId);
+          // Wired to the progress bar (QueueStatus.tsx): without this,
+          // bytesUploaded only ever changed once, from 0 to the final total,
+          // the instant the whole upload finished — so a multi-part upload
+          // sat showing "0 B of X" for its entire duration, indistinguishable
+          // on screen from being stuck. One patch per completed part is the
+          // real granularity uploadSession has to offer (Drive's protocol has
+          // no finer-grained progress signal than "this whole part landed"),
+          // but for anything longer than one part that is real, live movement
+          // instead of a frozen number.
+          const { objectKey, bytesUploaded } = await uploadSession(
+            entry.id,
+            entry.encounterId,
+            (p) => void patchEntry(entry.id, { bytesUploaded: p.bytesUploaded }),
+          );
           await patchEntry(entry.id, {
             state: "uploaded",
             objectKey,

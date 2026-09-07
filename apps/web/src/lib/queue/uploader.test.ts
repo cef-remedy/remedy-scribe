@@ -229,6 +229,39 @@ describe("uploadSession", () => {
     await expect(uploadSession(SESSION, ENCOUNTER)).rejects.toBeInstanceOf(PermanentUploadError);
   });
 
+  it("starts upload/init before decryption finishes, not after", async () => {
+    // Regression guard for the efficiency fix: `content_type` for init comes
+    // from the chunk record's own (unencrypted) mimeType field, not from
+    // anything decrypted -- so the two no longer have to run back to back.
+    // A `decryptChunk` that never resolves during this test, with `init`
+    // still observed to have fired, is the only way to prove that ordering
+    // rather than just asserting on the eventual result.
+    vi.mocked(readSessionChunks).mockResolvedValue(chunks(4, 20 * 1024));
+    stubApi();
+    stubFetch(200);
+    let releaseDecrypt: () => void = () => {};
+    const blocked = new Promise<void>((resolve) => {
+      releaseDecrypt = resolve;
+    });
+    vi.mocked(decryptChunk).mockImplementation(async (_k: unknown, c: { ciphertext: ArrayBuffer }) => {
+      await blocked;
+      return c.ciphertext;
+    });
+
+    const pending = uploadSession(SESSION, ENCOUNTER);
+    // Let every already-scheduled microtask run without waiting on `blocked`.
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(apiMock.POST).toHaveBeenCalledWith(
+      "/api/v1/encounters/{encounter_id}/upload/init",
+      expect.objectContaining({ body: { content_type: "audio/webm;codecs=opus" } }),
+    );
+
+    releaseDecrypt();
+    await pending;
+  });
+
   it("refuses to upload a session with no local audio", async () => {
     // Permanent by design: retrying cannot conjure audio, and the likely
     // cause is a withdrawal having already shredded it.
