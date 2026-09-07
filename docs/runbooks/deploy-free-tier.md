@@ -169,6 +169,14 @@ done.
 You are deploying **only the frontend**: a static Vite/React bundle. The
 backend runs elsewhere and you need none of its credentials.
 
+> **In case you notice it elsewhere in this repo:** the Celery worker and
+> Beat scheduler run on "your own always-on machine" — that's a constraint of
+> *this free-tier demo specifically* (no free host runs a background worker),
+> not the long-term plan. Production already has a real answer, decided and
+> specified: one small, cheap always-on VM running the whole stack under
+> Docker Compose (decision 0036) — no spare company laptop needed, ever.
+> None of that is part of what you're deploying here.
+
 `apps/web/netlify.toml` is already in the repo and carries the base
 directory, build command, publish directory, Node version, the environment
 variable, both rewrites in the order that matters, and the headers. **One
@@ -400,6 +408,23 @@ State this to your supervisor rather than absorbing it.
 ---
 
 ## 6. Deploy
+
+> ✅ **Status: Render is deployed.** The web service exists and these
+> environment variables are set (names only — values live in Render, not
+> here):
+>
+> `AUDIO_RETENTION_DAYS`, `CORS_ALLOW_ORIGINS`, `DATABASE_URL`,
+> `ENVIRONMENT`, `GOOGLE_DRIVE_FOLDER_ID`,
+> `GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON`, `GROQ_API_KEY`, `JWT_SECRET`,
+> `NOTE_GENERATOR_PROVIDER`, `PHI_ENCRYPTION_KEY`, `REDIS_URL`,
+> `REFRESH_COOKIE_SAMESITE`, `REFRESH_COOKIE_SECURE`,
+> `S3_PROVISION_BUCKET_ON_STARTUP`, `S3_SECRET_KEY`, `STORAGE_BACKEND`.
+>
+> The `GOOGLE_DRIVE_*` and `STORAGE_BACKEND` variables being set means this
+> went straight to **Stage 2** — Drive is configured, not just Stage 1's S3
+> default. What's below is still worth reading (the *why* behind each value,
+> and what a wrong one looks like), but the account/variable creation steps
+> themselves are done.
 
 1. [ ] **Create the Render web service** (render.com → New → Web Service).
        Render's source picker offers three options — pick **Git Provider**,

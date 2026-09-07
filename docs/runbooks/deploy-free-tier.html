@@ -703,6 +703,19 @@
 
     <div class="handover-body">
       <div class="note done">
+        <span class="note-label">In case you notice it elsewhere in this repo</span>
+        <p>
+          The Celery worker and Beat scheduler run on "your own always-on machine" —
+          that's a constraint of <strong>this free-tier demo specifically</strong> (no
+          free host runs a background worker), not the long-term plan. Production
+          already has a real answer, decided and specified: one small, cheap
+          always-on VM running the whole stack under Docker Compose (decision 0036)
+          — no spare company laptop needed, ever. None of that is part of what
+          you're deploying here.
+        </p>
+      </div>
+
+      <div class="note done">
         <span class="note-label">Already in the repo</span>
         <p>
           <code>apps/web/netlify.toml</code> carries the base directory, build command,
@@ -1015,6 +1028,34 @@ STORAGE_BACKEND=drive</code></pre>
   <!-- ══ 6 ══ -->
   <section>
     <div class="sec-head"><span class="sec-num">6</span><h2>Deploy</h2></div>
+
+    <div class="note done">
+      <span class="note-label">✅ Status: Render is deployed</span>
+      <p>
+        The web service exists and these environment variables are set (names
+        only — values live in Render, not here):
+      </p>
+      <p>
+        <code>AUDIO_RETENTION_DAYS</code>, <code>CORS_ALLOW_ORIGINS</code>,
+        <code>DATABASE_URL</code>, <code>ENVIRONMENT</code>,
+        <code>GOOGLE_DRIVE_FOLDER_ID</code>,
+        <code>GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON</code>,
+        <code>GROQ_API_KEY</code>, <code>JWT_SECRET</code>,
+        <code>NOTE_GENERATOR_PROVIDER</code>, <code>PHI_ENCRYPTION_KEY</code>,
+        <code>REDIS_URL</code>, <code>REFRESH_COOKIE_SAMESITE</code>,
+        <code>REFRESH_COOKIE_SECURE</code>,
+        <code>S3_PROVISION_BUCKET_ON_STARTUP</code>,
+        <code>S3_SECRET_KEY</code>, <code>STORAGE_BACKEND</code>.
+      </p>
+      <p>
+        The <code>GOOGLE_DRIVE_*</code> and <code>STORAGE_BACKEND</code>
+        variables being set means this went straight to <strong>Stage 2</strong>
+        — Drive is configured, not just Stage 1's S3 default. What's below is
+        still worth reading (the <em>why</em> behind each value, and what a
+        wrong one looks like), but the account/variable creation steps
+        themselves are done.
+      </p>
+    </div>
 
     <ol class="steps">
       <li><label class="task"><input type="checkbox"><span class="box"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.2 4.6 8.8 10 3.4"/></svg></span><div class="step-body">
