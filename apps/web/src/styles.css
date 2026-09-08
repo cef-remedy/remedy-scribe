@@ -145,6 +145,12 @@ a { color: var(--tab-progress); text-underline-offset: .15em; }
   display: flex; align-items: baseline; justify-content: space-between;
   margin-bottom: 1.35rem; padding-bottom: .9rem; border-bottom: 2px solid var(--ink);
 }
+/* Every header's right-hand cluster (an id/status, "Signed in as…", the
+   back/sign-out control) — the identical `style={{ display: "flex",
+   alignItems: "center", gap: ".7rem" }}` was typed inline on all seven
+   routes that have a header, found sweeping the app with `/frontend-design`
+   polish. One real, reused pattern; promoted here instead of seven copies. */
+.header-actions { display: flex; align-items: center; gap: .7rem; }
 /* Persistent patient identity on NoteReview (P0, `/impeccable critique`):
    sized a step above .muted — this is the answer to "whose note is this",
    not a secondary aside. */

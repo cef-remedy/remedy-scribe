@@ -123,7 +123,7 @@ export function Consent() {
     <main className="app">
       <header>
         <h1>Consent to record</h1>
-        <div style={{ display: "flex", alignItems: "center", gap: ".7rem" }}>
+        <div className="header-actions">
           <code>{encounterId.slice(0, 8)}</code>
           {/* Safe unconditionally here, unlike Record.tsx's equivalent:
               nothing is captured on this screen at all (its own module

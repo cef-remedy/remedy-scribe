@@ -32,11 +32,13 @@ import { Banner, OfflineBanner } from "../components/Banner";
 import { PatientPicker } from "../components/PatientPicker";
 import { RatingPrompt } from "../components/RatingPrompt";
 import { GroundedSection } from "../components/GroundedSection";
+import { FolderTab } from "../components/FolderTab";
 import { useToast } from "../components/Toast";
 import { audioNotice, fetchGrounding, type Grounding } from "../lib/grounding";
 import { useOnlineStatus } from "../lib/offline";
 import { fetchPatient, fetchPriorVisit, linkEncounterToPatient, type PriorVisit } from "../lib/patients";
 import { usePassagePlayer } from "../lib/usePassagePlayer";
+import { noteTab, NOTE_STATUS_LABEL } from "../lib/status-tab";
 
 type Section = "assessment" | "plan" | "subjective" | "objective";
 
@@ -243,13 +245,26 @@ export function NoteReview() {
     <main className="app">
       <header>
         <h1>Review note</h1>
-        <div style={{ display: "flex", alignItems: "center", gap: ".7rem" }}>
-          <code>{note.status}</code>
+        <div className="header-actions">
           <button type="button" className="ghost" onClick={() => navigate("/")}>
             Back to worklist
           </button>
         </div>
       </header>
+
+      {/* Every other screen that shows a note or encounter's status reads it
+          off a colored folder tab (The Patient Folder direction) — this
+          screen used to be the one exception, showing the raw enum
+          (`generated`/`filed`/…) as plain monospace text in the header. On
+          the screen where that status decides what happens next (the
+          signing ceremony below only appears once it reaches
+          "authenticated"), it is exactly the thing a doctor should read at
+          a glance, not decode. Found sweeping the app with `/frontend-design`
+          polish; reuses `noteTab()`/`NOTE_STATUS_LABEL` AllNotes.tsx already
+          established for this same status. */}
+      <section className="card status-card">
+        <FolderTab kind={noteTab(note.status)} label={NOTE_STATUS_LABEL[note.status] ?? note.status} />
+      </section>
 
       {/* Found by `/impeccable critique`'s P0: the one screen where a wrong
           patient is most consequential is also the one that used to stop

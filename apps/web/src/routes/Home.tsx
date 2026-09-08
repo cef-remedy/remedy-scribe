@@ -214,7 +214,7 @@ export function Home() {
     <main className="app">
       <header>
         <h1>Remedy Scribe</h1>
-        <div style={{ display: "flex", alignItems: "center", gap: ".7rem" }}>
+        <div className="header-actions">
           {/* Found by `/impeccable critique`: a shared clinic laptop with no
               on-screen answer to "whose account is this?" beyond a bare
               Sign out button. */}

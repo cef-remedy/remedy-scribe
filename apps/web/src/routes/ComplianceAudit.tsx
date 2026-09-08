@@ -72,7 +72,7 @@ export function ComplianceAudit() {
     <main className="app">
       <header>
         <h1>Audit log</h1>
-        <div style={{ display: "flex", alignItems: "center", gap: ".7rem" }}>
+        <div className="header-actions">
           {name && <span className="muted">Signed in as {name}</span>}
           <button type="button" className="ghost" onClick={() => void signOut()}>
             Sign out

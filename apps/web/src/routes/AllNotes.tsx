@@ -25,7 +25,7 @@ import { useOnlineStatus } from "../lib/offline";
 import { Banner, OfflineBanner } from "../components/Banner";
 import { FolderTab } from "../components/FolderTab";
 import { AudioLinkButton } from "../components/AudioLinkButton";
-import { noteTab } from "../lib/status-tab";
+import { noteTab, NOTE_STATUS_LABEL } from "../lib/status-tab";
 
 type NoteStatusFilter = "" | "generated" | "filed" | "authenticated" | "signed";
 
@@ -38,18 +38,6 @@ type NoteRow = {
   pipeline_status: string;
   created_at: string;
   signed_at: string | null;
-};
-
-// "generated" reads "Ready to review" rather than "Drafted" on purpose — it
-// is the exact same real-world moment PIPELINE_LABEL.note_generated already
-// names on Home, and the two screens must say the same thing about it
-// (`/impeccable critique`). See noteTab()'s own comment in status-tab.ts for
-// the matching color fix.
-const NOTE_STATUS_LABEL: Record<string, string> = {
-  generated: "Ready to review",
-  filed: "Filed",
-  authenticated: "Authenticated",
-  signed: "Signed",
 };
 
 const PAGE_SIZE = 50;
@@ -116,7 +104,7 @@ export function AllNotes() {
     <main className="app">
       <header>
         <h1>All notes</h1>
-        <div style={{ display: "flex", alignItems: "center", gap: ".7rem" }}>
+        <div className="header-actions">
           {name && <span className="muted">Signed in as {name}</span>}
           <button type="button" className="ghost" onClick={() => void signOut()}>
             Sign out

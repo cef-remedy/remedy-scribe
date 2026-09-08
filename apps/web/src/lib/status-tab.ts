@@ -73,6 +73,21 @@ export const PIPELINE_LABEL: Record<string, string> = {
   blocked_no_consent: "No consent on file",
 };
 
+// "generated" reads "Ready to review" rather than "Drafted" on purpose — it
+// is the exact same real-world moment PIPELINE_LABEL.note_generated already
+// names above, and every screen that shows a note's status must say the
+// same thing about it (`/impeccable critique`). Originally local to
+// AllNotes.tsx; shared here once NoteReview needed the identical label for
+// the identical status, found sweeping the app with `/frontend-design`
+// polish — NoteReview was the one screen still showing this status as a
+// bare enum word instead of the app's own folder-tab language.
+export const NOTE_STATUS_LABEL: Record<string, string> = {
+  generated: "Ready to review",
+  filed: "Filed",
+  authenticated: "Authenticated",
+  signed: "Signed",
+};
+
 /**
  * The lockable one-way step-sequence (raised into this direction from the
  * roll's declined origami-fold candidate): recording → uploaded →

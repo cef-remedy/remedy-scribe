@@ -101,7 +101,7 @@ export function EncounterDetail() {
     <main className="app">
       <header>
         <h1>Encounter</h1>
-        <div style={{ display: "flex", alignItems: "center", gap: ".7rem" }}>
+        <div className="header-actions">
           <code>{encounter.id.slice(0, 8)}</code>
           <button type="button" className="ghost" onClick={() => navigate("/")}>
             Back to worklist
