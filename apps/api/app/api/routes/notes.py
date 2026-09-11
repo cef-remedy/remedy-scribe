@@ -14,7 +14,6 @@ from app.services.grounding import resolve_grounding
 from app.services.note_lifecycle import (
     InvalidTransitionError,
     PatientIdentityNotConfirmedError,
-    SigningRequiresLicenseError,
     transition,
 )
 from app.services.patient_matching import decrypt_patient_names, name_matches
@@ -249,15 +248,14 @@ def transition_note(
     note_id: str,
     payload: NoteTransitionRequest,
     db: Session = Depends(get_db),
-    # RBAC (0.2): filing/authenticating/signing are doctor actions;
-    # signing in particular binds a PRC license number to a real
-    # clinician identity, which only "doctor" accounts should be able
-    # to attest to.
+    # RBAC (0.2): filing/authenticating/signing are doctor actions; signing
+    # in particular binds a clinician identity to the note, which only
+    # "doctor" accounts should be able to attest to.
     clinician: Clinician = Depends(require_role("doctor")),
 ) -> NoteOut:
     """Drives the P0-5 state machine one step at a time. Signing
-    (to_status == "signed") additionally requires prc_license_number and
-    is recorded in the audit trail with the clinician's identity.
+    (to_status == "signed") is recorded in the audit trail with the
+    clinician's identity.
     """
     note = _get_note_or_404(db, note_id)
     try:
@@ -266,13 +264,10 @@ def transition_note(
             note,
             payload.to_status,
             clinician_id=clinician.id,
-            prc_license_number=payload.prc_license_number,
             confirmed_patient_id=payload.confirmed_patient_id,
         )
     except InvalidTransitionError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
-    except SigningRequiresLicenseError as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
     except PatientIdentityNotConfirmedError as exc:
         # A state problem, not a permissions one: the caller may file,
         # the note just is not attached to a confirmed patient yet.

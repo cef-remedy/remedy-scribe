@@ -3288,17 +3288,6 @@
           "to_status": {
             "$ref": "#/components/schemas/NoteStatus"
           },
-          "prc_license_number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Prc License Number"
-          },
           "confirmed_patient_id": {
             "anyOf": [
               {
@@ -3316,7 +3305,7 @@
           "to_status"
         ],
         "title": "NoteTransitionRequest",
-        "description": "Advances the note exactly one step in the state machine\n(P0-5: generated -> filed -> authenticated -> signed, no skipping).\nSigning additionally requires PRC license number, and **filing\nadditionally requires confirming the patient** (P0-6: identity is\nre-confirmed at the moment a note is filed, not only at recording\nstart)."
+        "description": "Advances the note exactly one step in the state machine\n(P0-5: generated -> filed -> authenticated -> signed, no skipping).\n**Filing additionally requires confirming the patient** (P0-6: identity\nis re-confirmed at the moment a note is filed, not only at recording\nstart)."
       },
       "PartUploadUrlResponse": {
         "properties": {

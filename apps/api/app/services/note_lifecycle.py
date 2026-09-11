@@ -25,10 +25,6 @@ class InvalidTransitionError(Exception):
     pass
 
 
-class SigningRequiresLicenseError(Exception):
-    pass
-
-
 class PatientIdentityNotConfirmedError(Exception):
     """P0-6: "Patient identity is re-confirmed at the moment a note is
     filed, not only at recording start."
@@ -44,7 +40,6 @@ def transition(
     to_status: NoteStatus,
     *,
     clinician_id: str,
-    prc_license_number: str | None = None,
     confirmed_patient_id: str | None = None,
 ) -> Note:
     """Advances the note exactly one step.
@@ -87,12 +82,11 @@ def transition(
             )
 
     if to_status == NoteStatus.SIGNED:
-        # P0-5: "Signing captures doctor identity, PRC license number, and
-        # timestamp in an audit trail."
-        if not prc_license_number:
-            raise SigningRequiresLicenseError("Signing requires a PRC license number.")
+        # P0-5: "Signing captures doctor identity and timestamp in an audit
+        # trail." PRC license number used to be part of this too; it is
+        # captured outside the app now, so it is no longer required (or
+        # stored) here.
         note.signed_by_clinician_id = clinician_id
-        note.signed_prc_license_number = prc_license_number
         note.signed_at = datetime.now(timezone.utc)
 
     note.status = to_status

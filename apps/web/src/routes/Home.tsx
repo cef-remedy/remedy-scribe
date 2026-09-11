@@ -10,10 +10,10 @@
  *   review/sign (2.6), and the grounding UI (Phase 3) were "not built yet" —
  *   stale since all three shipped; NoteReview.tsx alone is 370+ lines wiring
  *   real grounding, not a stub.
- * - There was no button anywhere that created a new encounter.
- *   `Consent.tsx` only ever reads `:encounterId` from the URL, it never
- *   creates one. "Start a new consultation" below does what a doctor
- *   actually does first.
+ * - There was no button anywhere that created a new encounter. Neither the
+ *   recording screen nor the (since-removed) in-app consent screen ever
+ *   created one — both only read `:encounterId` from the URL. "Start a new
+ *   consultation" below does what a doctor actually does first.
  *
  * Two gaps this redesign's own completeness audit found and closes:
  * - "Needs attention" listed failed encounters with no way to retry them —
@@ -174,7 +174,7 @@ export function Home() {
         setError("Could not start a new consultation. Try again.");
         return;
       }
-      navigate(`/encounters/${res.data.id}/consent`);
+      navigate(`/encounters/${res.data.id}/record`);
     } catch (e) {
       setError(
         e instanceof OfflineError
@@ -232,10 +232,7 @@ export function Home() {
         <button type="button" onClick={() => void startConsultation()} disabled={starting}>
           {starting ? "Starting…" : "Start a new consultation"}
         </button>
-        <p className="muted">
-          Consent first, then recording — the consent screen never lets the
-          microphone open before the roster and script are logged (P0-1).
-        </p>
+        <p className="muted">Recording starts immediately — consent is handled outside the app.</p>
       </section>
 
       <QueueStatus entries={entries} storage={storage} onRetry={retry} onUploadNow={uploadNow} />
@@ -519,10 +516,10 @@ export function Home() {
       <section className="card">
         <h2>How this works</h2>
         <p className="muted">
-          Starting a consultation above is the one entry point: consent, recording, patient
-          identity, and note review/edit/sign all follow from there, even if the wifi drops
-          mid-visit. Once a note is drafted, tap any line to see — and hear — exactly where it
-          came from before you sign it. Capture runs at mono Opus{" "}
+          Starting a consultation above is the one entry point: recording, patient identity, and
+          note review/edit/sign all follow from there, even if the wifi drops mid-visit. Once a
+          note is drafted, tap any line to see — and hear — exactly where it came from before you
+          sign it. Capture runs at mono Opus{" "}
           {TARGET_BITS_PER_SECOND / 1000} kbps (~{Math.round(estimatedBytesPerMinute() / 1024)} KB/min).
         </p>
       </section>

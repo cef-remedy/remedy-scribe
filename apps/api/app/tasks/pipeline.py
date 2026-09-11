@@ -64,7 +64,6 @@ from app.db.session import SessionLocal
 from app.models.encounter import Encounter, EncounterPipelineStatus
 from app.models.note import Note
 from app.services.asr import get_asr_provider
-from app.services.consent import ConsentNotValidError, assert_consent_valid
 from app.services.note_generation import get_note_generator
 from app.services.transcripts import load_transcript, persist_transcript
 from app.tasks.celery_app import celery_app
@@ -219,12 +218,6 @@ def transcribe_encounter(self, encounter_id: str, correlation_id: str | None = N
                 timing["status"] = "noop"
                 return encounter_id  # already done — redelivered message, no-op
 
-            # Re-checked here, not just at confirm_upload: consent can be
-            # withdrawn in the gap between "upload confirmed" and "this task
-            # actually runs" (queue backlog, retry delay, worker restart).
-            # A withdrawal must stop the pipeline at the next checkpoint.
-            assert_consent_valid(db, encounter_id)
-
             if not encounter.audio_object_key:
                 raise ValueError(f"Encounter {encounter_id} has no uploaded audio yet")
 
@@ -252,22 +245,6 @@ def transcribe_encounter(self, encounter_id: str, correlation_id: str | None = N
             timing["provider"] = provider.provider_name
             timing["model"] = provider.model_version
             timing["segments"] = len(segments)
-            return encounter_id
-        except ConsentNotValidError:
-            # Not transient — retrying won't make a withdrawn/absent consent
-            # valid again. Stop here, terminally, rather than burning retries
-            # or (worse) transcribing PHI we're no longer allowed to hold.
-            db.rollback()
-            encounter = db.get(Encounter, encounter_id)
-            if encounter is not None:
-                encounter.pipeline_status = EncounterPipelineStatus.BLOCKED_NO_CONSENT
-                encounter.pipeline_updated_at = _utcnow()
-                db.add(encounter)
-                db.commit()
-            # Not "failed". A withdrawal honoured is the system working, and
-            # counting it as a stage failure would fire the failure-rate
-            # alert on P0-1 doing its job.
-            timing["status"] = "blocked_no_consent"
             return encounter_id
         except Exception as exc:  # noqa: BLE001 - retry any transient provider failure
             if _mark_stage_failure(db, encounter_id, self, exc, EncounterPipelineStatus.TRANSCRIPTION_FAILED):
@@ -399,10 +376,12 @@ def _record_consult_cost(encounter_id: str, transcript, generated, generator) ->
 
 
 # Non-terminal statuses a stuck encounter can be found in. Deliberately
-# excludes BLOCKED_NO_CONSENT and the two *_FAILED statuses — those are
-# terminal by design (retrying them automatically would defeat the point
-# of a dead letter: a human, or the /retry route acting on a human's
-# behalf, decides what happens next).
+# excludes BLOCKED_NO_CONSENT (no longer produced now that the consent gate
+# is gone, but the enum value stays for any encounter still carrying it from
+# before) and the two *_FAILED statuses — those are terminal by design
+# (retrying them automatically would defeat the point of a dead letter: a
+# human, or the /retry route acting on a human's behalf, decides what
+# happens next).
 _STUCK_STATUSES = (EncounterPipelineStatus.UPLOADED, EncounterPipelineStatus.TRANSCRIBED)
 
 

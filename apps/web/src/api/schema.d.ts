@@ -1518,15 +1518,12 @@ export interface components {
          * NoteTransitionRequest
          * @description Advances the note exactly one step in the state machine
          *     (P0-5: generated -> filed -> authenticated -> signed, no skipping).
-         *     Signing additionally requires PRC license number, and **filing
-         *     additionally requires confirming the patient** (P0-6: identity is
-         *     re-confirmed at the moment a note is filed, not only at recording
+         *     **Filing additionally requires confirming the patient** (P0-6: identity
+         *     is re-confirmed at the moment a note is filed, not only at recording
          *     start).
          */
         NoteTransitionRequest: {
             to_status: components["schemas"]["NoteStatus"];
-            /** Prc License Number */
-            prc_license_number?: string | null;
             /** Confirmed Patient Id */
             confirmed_patient_id?: string | null;
         };

@@ -32,7 +32,6 @@ from app.schemas.upload import (
     UploadPartsStatusResponse,
 )
 from app.services import audit, storage
-from app.services.consent import ConsentNotValidError, assert_consent_valid
 
 router = APIRouter(prefix="/encounters/{encounter_id}/upload", tags=["uploads"])
 
@@ -177,11 +176,9 @@ def complete_upload(
     db: Session = Depends(get_db),
     clinician: Clinician = Depends(require_role("doctor")),
 ) -> EncounterOut:
-    """Finalizes the S3 object, then runs the same gate + bookkeeping the
-    old confirm_upload did: consent check first (before touching S3 —
-    an invalid-consent encounter's multipart upload is left incomplete
-    for the lifecycle rule to reap, not finalized), then retention clock,
-    pipeline_status, and kicking the pipeline.
+    """Finalizes the S3 object, then runs the same bookkeeping the old
+    confirm_upload did: retention clock, pipeline_status, and kicking the
+    pipeline.
     """
     encounter = _get_encounter_or_404(db, encounter_id)
 
@@ -193,11 +190,6 @@ def complete_upload(
     if encounter.audio_upload_id is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "No upload in progress — call upload/init first")
     assert encounter.audio_object_key is not None  # set alongside audio_upload_id
-
-    try:
-        assert_consent_valid(db, encounter_id)
-    except ConsentNotValidError as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
 
     try:
         storage.complete_multipart_upload(encounter.audio_object_key, encounter.audio_upload_id)

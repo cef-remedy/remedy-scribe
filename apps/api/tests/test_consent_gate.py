@@ -1,9 +1,15 @@
-"""Phase 0.1: the consent gate must be enforced server-side, not just in
-the mobile client's UI. These tests exercise both enforcement points —
-`POST /upload/complete` (Phase 1.1 renamed this from `confirm_upload`;
-the check itself, and where it sits in the flow, didn't move) and the
-head of `transcribe_encounter` — against an encounter that has no (or no
-longer active) consent record.
+"""Phase 0.1 used to enforce the consent gate server-side at two points —
+`POST /upload/complete` and the head of `transcribe_encounter` — blocking
+either one against an encounter with no (or no longer active) consent
+record. Consent capture has since moved outside the app entirely, so
+neither enforcement point exists anymore: uploads and transcription now
+proceed regardless of the ledger's state (see the "no longer enforced"
+section below).
+
+The ledger itself, `assert_consent_valid`, the client-facing read, and
+withdrawal's server-side side effects (retention, audio deletion) are all
+still exercised here — none of that was removed, just its use as a
+recording/processing gate.
 """
 
 import pytest
@@ -113,35 +119,17 @@ def test_re_given_after_withdrawn_passes(db):
     assert_consent_valid(db, encounter.id)  # must not raise
 
 
-# --- enforcement point 1: POST /upload/complete ----------------------------
+# --- no longer enforced: POST /upload/complete and transcribe_encounter ---
+#
+# Both used to reject/block an encounter with no active consent record.
+# Neither does anymore — consent capture happens outside the app now, so
+# processing must not depend on the in-app ledger having an entry at all.
 
 
-def test_upload_complete_rejects_encounter_with_no_consent(db, client):
-    encounter, clinician = _seed_encounter(db)
-    encounter.audio_object_key = "encounters/x/audio/y.m4a"
-    encounter.audio_upload_id = "upload-1"  # simulates a completed upload/init
-    db.add(encounter)
-    db.commit()
-    token = create_access_token(subject=clinician.id, extra_claims={"role": clinician.role})
-
-    # Consent is checked before storage.complete_multipart_upload is ever
-    # called, so this doesn't need storage mocked — an invalid-consent
-    # encounter never reaches S3 at all.
-    response = client.post(
-        f"/api/v1/encounters/{encounter.id}/upload/complete",
-        headers={"Authorization": f"Bearer {token}"},
-    )
-
-    assert response.status_code == 409
-    db.refresh(encounter)
-    assert encounter.pipeline_status == "recording"  # never advanced to "uploaded"
-    assert encounter.audio_upload_id == "upload-1"  # untouched — nothing was finalized
-
-
-def test_upload_complete_succeeds_once_consent_given(db, client, monkeypatch):
-    # Don't let this test depend on a live Celery broker or real S3/MinIO
-    # — both are out of scope for a consent-gate test. storage.py's real
-    # mechanics are covered by tests/test_storage_specific.py instead.
+def test_upload_complete_succeeds_with_no_consent_record(db, client, monkeypatch):
+    # Don't let this test depend on a live Celery broker or real S3/MinIO —
+    # both are out of scope here. storage.py's real mechanics are covered by
+    # tests/test_storage_specific.py instead.
     monkeypatch.setattr("app.tasks.pipeline.run_pipeline", lambda encounter_id: None)
     monkeypatch.setattr("app.services.storage.complete_multipart_upload", lambda key, upload_id: {})
     monkeypatch.setattr("app.services.storage.head_object", lambda key: {"ContentLength": 123})
@@ -150,7 +138,6 @@ def test_upload_complete_succeeds_once_consent_given(db, client, monkeypatch):
     encounter.audio_object_key = "encounters/x/audio/y.m4a"
     encounter.audio_upload_id = "upload-1"
     db.add(encounter)
-    db.add(_ledger_entry(encounter.id, "given"))
     db.commit()
     token = create_access_token(subject=clinician.id, extra_claims={"role": clinician.role})
 
@@ -165,36 +152,26 @@ def test_upload_complete_succeeds_once_consent_given(db, client, monkeypatch):
     assert encounter.audio_upload_id is None  # consumed on completion
 
 
-# --- enforcement point 2: transcribe_encounter (defense in depth) ---------
+def test_transcribe_encounter_proceeds_with_no_consent_record(db, monkeypatch):
+    class _StubProvider:
+        provider_name = "stub-asr"
+        model_version = "stub-v1"
 
+        def transcribe(self, audio_object_key: str) -> list:
+            return []
 
-def test_transcribe_encounter_blocks_without_consent(db):
-    encounter, _ = _seed_encounter(db)
-    encounter.audio_object_key = "s3://bucket/key"  # simulate confirm_upload's check having been bypassed/raced
-    db.add(encounter)
-    db.commit()
+    monkeypatch.setattr("app.tasks.pipeline.get_asr_provider", lambda: _StubProvider())
 
-    result = transcribe_encounter(encounter.id)
-
-    assert result == encounter.id
-    db.refresh(encounter)
-    assert encounter.pipeline_status == "blocked_no_consent"
-
-
-def test_transcribe_encounter_blocks_after_withdrawal(db):
     encounter, _ = _seed_encounter(db)
     encounter.audio_object_key = "s3://bucket/key"
     db.add(encounter)
-    db.add(_ledger_entry(encounter.id, "given"))
-    db.commit()
-    db.add(_ledger_entry(encounter.id, "withdrawn"))
     db.commit()
 
     result = transcribe_encounter(encounter.id)
 
     assert result == encounter.id
     db.refresh(encounter)
-    assert encounter.pipeline_status == "blocked_no_consent"
+    assert encounter.pipeline_status == "transcribed"
 
 
 # --- Phase 2.2: the client-facing consent read -----------------------------

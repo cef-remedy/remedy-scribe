@@ -173,17 +173,13 @@ export function EncounterDetail() {
           <button type="button" onClick={() => navigate(`/notes/${encounter.note_id}`)}>
             Open note
           </button>
-        ) : status === "recording" ? (
+        ) : status === "recording" || status === "blocked_no_consent" ? (
+          // blocked_no_consent is a leftover status from before the in-app
+          // consent gate was removed — nothing blocks recording anymore, so
+          // it resumes the same way an in-progress recording does.
           <button type="button" onClick={() => navigate(`/encounters/${encounter.id}/record`)}>
             Resume recording
           </button>
-        ) : status === "blocked_no_consent" ? (
-          <>
-            <p className="muted">Consent hasn't been captured for this encounter yet.</p>
-            <button type="button" onClick={() => navigate(`/encounters/${encounter.id}/consent`)}>
-              Capture consent
-            </button>
-          </>
         ) : FAILED_STATUSES.has(status) ? (
           <>
             <p className="muted">

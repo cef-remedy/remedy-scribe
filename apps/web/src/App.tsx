@@ -11,7 +11,6 @@ import { Login } from "./routes/Login";
 import { SignUp } from "./routes/SignUp";
 import { Home } from "./routes/Home";
 import { Record } from "./routes/Record";
-import { Consent } from "./routes/Consent";
 import { NoteReview } from "./routes/NoteReview";
 import { MfaEnroll } from "./routes/MfaEnroll";
 import { ComplianceAudit } from "./routes/ComplianceAudit";
@@ -52,16 +51,12 @@ export function App() {
         element={signedIn ? <ComplianceAudit /> : <Navigate to="/login" replace />}
       />
       <Route
-        path="/encounters/:encounterId/consent"
-        element={signedIn ? <Consent /> : <Navigate to="/login" replace />}
-      />
-      <Route
         path="/encounters/:encounterId/record"
         element={signedIn ? <Record /> : <Navigate to="/login" replace />}
       />
       {/* The catch-all worklist destination: every status without a more
-          specific page (blocked-on-consent, failed, mid-pipeline, unlinked)
-          lands here. React Router ranks routes by specificity regardless of
+          specific page (failed, mid-pipeline, unlinked) lands here. React
+          Router ranks routes by specificity regardless of
           declaration order, unlike the backend's, so this one segment
           shorter than the two above is not at risk of shadowing them. */}
       <Route

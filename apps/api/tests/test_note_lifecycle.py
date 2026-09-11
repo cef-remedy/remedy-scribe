@@ -7,7 +7,6 @@ from app.models.patient import Patient
 from app.services.note_lifecycle import (
     InvalidTransitionError,
     PatientIdentityNotConfirmedError,
-    SigningRequiresLicenseError,
     transition,
 )
 
@@ -51,17 +50,6 @@ def test_cannot_skip_states(db):
     note, clinician, _patient = _seed_note(db)
 
     with pytest.raises(InvalidTransitionError):
-        transition(db, note, NoteStatus.SIGNED, clinician_id=clinician.id, prc_license_number="PRC-123")
-
-
-def test_signing_requires_license_number(db):
-    note, clinician, patient = _seed_note(db)
-    note = transition(
-        db, note, NoteStatus.FILED, clinician_id=clinician.id, confirmed_patient_id=patient.id
-    )
-    note = transition(db, note, NoteStatus.AUTHENTICATED, clinician_id=clinician.id)
-
-    with pytest.raises(SigningRequiresLicenseError):
         transition(db, note, NoteStatus.SIGNED, clinician_id=clinician.id)
 
 
@@ -72,11 +60,10 @@ def test_full_lifecycle_records_signature(db):
         db, note, NoteStatus.FILED, clinician_id=clinician.id, confirmed_patient_id=patient.id
     )
     note = transition(db, note, NoteStatus.AUTHENTICATED, clinician_id=clinician.id)
-    note = transition(db, note, NoteStatus.SIGNED, clinician_id=clinician.id, prc_license_number="PRC-123")
+    note = transition(db, note, NoteStatus.SIGNED, clinician_id=clinician.id)
 
     assert note.status == NoteStatus.SIGNED
     assert note.signed_by_clinician_id == clinician.id
-    assert note.signed_prc_license_number == "PRC-123"
     assert note.signed_at is not None
 
 
@@ -137,6 +124,6 @@ def test_confirmation_is_only_required_at_filing(db):
         db, note, NoteStatus.FILED, clinician_id=clinician.id, confirmed_patient_id=patient.id
     )
     note = transition(db, note, NoteStatus.AUTHENTICATED, clinician_id=clinician.id)
-    note = transition(db, note, NoteStatus.SIGNED, clinician_id=clinician.id, prc_license_number="PRC-1")
+    note = transition(db, note, NoteStatus.SIGNED, clinician_id=clinician.id)
 
     assert note.status == NoteStatus.SIGNED

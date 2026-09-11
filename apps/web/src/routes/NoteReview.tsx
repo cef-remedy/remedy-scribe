@@ -21,9 +21,10 @@
  *    and the default gesture should be the one the doctor is accountable for.
  *
  * 4. **Signing is a distinct ceremony**, not the last button in a row. It
- *    binds a PRC licence number to a real clinician, is irreversible, and
- *    makes the doctor — not the model — accountable for the content. It is
- *    visually separated and requires typing the licence number every time.
+ *    binds the signed-in clinician's identity to the note, is irreversible,
+ *    and makes the doctor — not the model — accountable for the content. It
+ *    is visually separated from the rest of the screen so it never reads as
+ *    just the next button in a row.
  */
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -82,7 +83,7 @@ export function NoteReview() {
   const { showToast } = useToast();
   // Found by `/impeccable critique`: this is the screen where a note is
   // filed and signed — a dropped connection here used to give no advance
-  // warning, only a failure after the doctor already typed a PRC licence.
+  // warning, only a failure after the doctor already committed to the step.
   const online = useOnlineStatus();
   const [note, setNote] = useState<Note | null>(null);
   const [drafts, setDrafts] = useState<Record<Section, string>>({
@@ -95,7 +96,6 @@ export function NoteReview() {
   const [patient, setPatient] = useState<{ id: string; full_name: string; birthdate: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  const [licence, setLicence] = useState("");
   const [savingSection, setSavingSection] = useState<Section | null>(null);
   const [grounding, setGrounding] = useState<Grounding | null>(null);
   const player = usePassagePlayer(note?.encounter_id ?? null);
@@ -202,9 +202,6 @@ export function NoteReview() {
         params: { path: { note_id: noteId } },
         body: {
           to_status: to,
-          // Required only when signing; the server rejects a signature
-          // without it rather than trusting the client to have asked.
-          ...(to === "signed" ? { prc_license_number: licence.trim() } : {}),
           // Required only when filing (P0-6): identity is re-confirmed at
           // the moment the note is filed, not only at recording start.
           ...(to === "filed" ? { confirmed_patient_id: patient?.id ?? null } : {}),
@@ -216,19 +213,16 @@ export function NoteReview() {
         setError(
           response.status === 409
             ? (detail ?? "That step is not allowed from the note's current state.")
-            : response.status === 422
-              ? "A PRC licence number is required to sign."
-              : "That step could not be completed.",
+            : "That step could not be completed.",
         );
         return;
       }
       setNote(data as Note);
-      setLicence("");
       if (to === "signed") setInfo("Signed. This note is now part of the patient's permanent record.");
     } catch {
       setError("That step could not be completed — you may be offline.");
     }
-  }, [note, noteId, licence, patient]);
+  }, [note, noteId, patient]);
 
   if (error && !note) return <main className="app"><Banner tone="error">{error}</Banner></main>;
   if (!note) return <main className="app"><p className="muted">Loading the note…</p></main>;
@@ -293,8 +287,8 @@ export function NoteReview() {
       {signed && (
         <Banner tone="success">
           Signed
-          {note.signed_at ? ` on ${new Date(note.signed_at).toLocaleString()}` : ""} under PRC licence{" "}
-          {note.signed_prc_license_number}. Signed notes are immutable.
+          {note.signed_at ? ` on ${new Date(note.signed_at).toLocaleString()}` : ""}. Signed notes
+          are immutable.
         </Banner>
       )}
 
@@ -414,20 +408,11 @@ export function NoteReview() {
         <section className="card ceremony">
           <h2>Sign this note</h2>
           <p>
-            Signing attaches <strong>your</strong> name and PRC licence to this content. It cannot be
-            undone, and after it the note is immutable. Read the sections above before signing — you
-            are accountable for them, not the model that drafted them.
+            Signing attaches <strong>your</strong> name to this content. It cannot be undone, and
+            after it the note is immutable. Read the sections above before signing — you are
+            accountable for them, not the model that drafted them.
           </p>
-          <label htmlFor="prc">PRC licence number</label>
-          <input
-            id="prc"
-            type="text"
-            autoComplete="off"
-            placeholder="e.g. 0123456"
-            value={licence}
-            onChange={(e) => setLicence(e.target.value)}
-          />
-          <button type="button" disabled={!licence.trim()} onClick={() => void advance()}>
+          <button type="button" onClick={() => void advance()}>
             Sign as the responsible clinician
           </button>
         </section>

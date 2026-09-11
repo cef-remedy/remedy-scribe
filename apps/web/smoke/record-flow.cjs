@@ -2,21 +2,22 @@
  * Phase 2.2 end-to-end smoke test: real recording in a real browser.
  *
  * The unit tests cover crypto and storage. Everything they cannot reach —
- * getUserMedia, MediaRecorder, AudioWorklet, the wake lock, and the P0-1
- * consent gate wired to the live API — is only meaningfully testable
- * against a real Chromium, so it is tested there rather than mocked. A
- * jsdom MediaRecorder would only ever prove the mock works; that is the
- * exact gap that hid a real httpx bug in Phase 1.3.
+ * getUserMedia, MediaRecorder, AudioWorklet, and the wake lock — is only
+ * meaningfully testable against a real Chromium, so it is tested there
+ * rather than mocked. A jsdom MediaRecorder would only ever prove the mock
+ * works; that is the exact gap that hid a real httpx bug in Phase 1.3.
+ *
+ * The in-app P0-1 consent gate this file used to also cover (blocked with
+ * no consent, unblocked once granted, re-blocked on withdrawal) was removed
+ * along with the consent screen — consent capture happens outside the app
+ * now, so the record button is available immediately.
  *
  * What it asserts, ordered by what would hurt most to get wrong:
- *   1. **Recording is blocked with no consent.** This is P0-1 and it is a
- *      legal control. If it regresses, the app records patients unlawfully.
- *   2. Recording starts once consent exists in the ledger, and the
- *      persistent indicator (also P0-1) is visible while it runs.
- *   3. Real chunks land in IndexedDB, and what is stored is ciphertext —
+ *   1. The record button is available immediately, and the persistent
+ *      recording indicator (P0-1) is visible while capture runs.
+ *   2. Real chunks land in IndexedDB, and what is stored is ciphertext —
  *      plaintext audio must never reach disk (P0-2).
- *   4. The audio clock tracks wall clock, i.e. no silent gaps.
- *   5. Consent withdrawal re-blocks recording.
+ *   3. The audio clock tracks wall clock, i.e. no silent gaps.
  *
  * Prerequisites: API on :8000 seeded with a clinician, Vite dev server on
  * :5173. See the Phase 2.2 progress writeup for the exact commands.
@@ -147,46 +148,22 @@ function readStoredChunks(page, sessionId) {
   }, API_URL);
   check("encounter created", !!encounterId, encounterId);
 
-  // --- 1. P0-1: recording must be blocked with no consent in the ledger
-  console.log("\n=== 1. consent gate blocks recording (P0-1) ===");
+  // --- 1. the record button is available immediately, no gate in the way
+  console.log("\n=== 1. record button available immediately ===");
   await page.goto(`${WEB_URL}/encounters/${encounterId}/record`, { waitUntil: "networkidle" });
   await sleep(1200);
 
-  const blockedText = await page.locator(".banner--error").first().textContent().catch(() => "");
-  check("blocked banner shown", /Recording is blocked/.test(blockedText || ""), (blockedText || "").slice(0, 70));
   check(
-    "no start button offered without consent",
-    (await page.getByRole("button", { name: /start recording/i }).count()) === 0,
+    "start button appears with no consent step first",
+    (await page.getByRole("button", { name: /start recording/i }).count()) === 1,
   );
   check(
-    "recording indicator absent before consent",
+    "recording indicator absent before recording starts",
     (await page.locator(".rec-indicator").count()) === 0,
   );
 
-  // --- 2. grant consent in the ledger, then record for real
-  console.log("\n=== 2. consent granted -> real recording ===");
-  const consentStatus = await page.evaluate(async (encId) => {
-    const mod = await import("/src/api/client.ts");
-    const res = await mod.api.POST("/api/v1/consent", {
-      body: {
-        encounter_id: encId,
-        event: "given",
-        participant_roster: ["doctor", "patient"],
-        purposes: ["clinical documentation"],
-        script_language: "fil",
-      },
-    });
-    return res.response.status;
-  }, encounterId);
-  check("consent 'given' appended to the ledger", consentStatus === 201, "HTTP " + consentStatus);
-
-  await page.reload({ waitUntil: "networkidle" });
-  await sleep(1200);
-  check(
-    "start button appears once consent exists",
-    (await page.getByRole("button", { name: /start recording/i }).count()) === 1,
-  );
-
+  // --- 2. record for real
+  console.log("\n=== 2. real recording ===");
   await page.getByRole("button", { name: /start recording/i }).click();
   await sleep(1500);
 
@@ -212,7 +189,7 @@ function readStoredChunks(page, sessionId) {
     (await page.locator(".rec-indicator").count()) === 0,
   );
 
-  // --- 3. what actually landed on disk
+  // --- what actually landed on disk
   console.log("\n=== 3. stored chunks (P0-2: encrypted before disk) ===");
   const stored = await readStoredChunks(page, encounterId);
   console.log("  " + JSON.stringify(stored));
@@ -244,34 +221,6 @@ function readStoredChunks(page, sessionId) {
   check(
     "no gap banner on an undisturbed run",
     (await page.getByText(/gap in the audio|gaps in the audio/).count()) === 0,
-  );
-
-  // --- 5. withdrawal re-blocks
-  console.log("\n=== 5. withdrawal re-blocks recording ===");
-  await page.evaluate(async (encId) => {
-    const mod = await import("/src/api/client.ts");
-    await mod.api.POST("/api/v1/consent", {
-      body: {
-        encounter_id: encId,
-        event: "withdrawn",
-        participant_roster: [],
-        purposes: [],
-        script_language: "fil",
-      },
-    });
-  }, encounterId);
-
-  await page.reload({ waitUntil: "networkidle" });
-  await sleep(1200);
-  const withdrawnText = await page.locator(".banner--error").first().textContent().catch(() => "");
-  check(
-    "withdrawal blocks recording again",
-    /withdrawn/i.test(withdrawnText || ""),
-    (withdrawnText || "").slice(0, 80),
-  );
-  check(
-    "no start button after withdrawal",
-    (await page.getByRole("button", { name: /start recording/i }).count()) === 0,
   );
 
   console.log("\n=== page errors ===");

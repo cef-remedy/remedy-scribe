@@ -335,7 +335,7 @@ def test_signing_captures_a_frozen_metric(db, client):
 
     from app.services.note_lifecycle import transition
 
-    transition(db, note, NoteStatus.SIGNED, clinician_id=c.id, prc_license_number="PRC-1")
+    transition(db, note, NoteStatus.SIGNED, clinician_id=c.id)
 
     row = db.query(NoteQualityMetric).filter(NoteQualityMetric.note_id == note.id).one()
     assert row.definition_version == DEFINITION_VERSION
@@ -365,7 +365,7 @@ def test_capture_never_blocks_a_signature(db, monkeypatch):
     monkeypatch.setattr("app.services.pilot_metrics.compute_note_burden", _boom)
     from app.services.note_lifecycle import transition
 
-    signed = transition(db, note, NoteStatus.SIGNED, clinician_id=c.id, prc_license_number="PRC-1")
+    signed = transition(db, note, NoteStatus.SIGNED, clinician_id=c.id)
 
     assert signed.status is NoteStatus.SIGNED
     assert signed.signed_at is not None

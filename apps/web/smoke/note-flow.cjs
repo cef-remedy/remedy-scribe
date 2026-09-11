@@ -14,8 +14,7 @@
  *     mismatch is rejected rather than silently corrected
  *   - APSO section order (not SOAP)
  *   - edits persist and signed notes become immutable
- *   - no state skipping; signing needs a PRC licence and captures identity
- *     and timestamp
+ *   - no state skipping; signing captures clinician identity and timestamp
  *   - the signed note becomes the patient's prior visit
  *
  * Prerequisites: Postgres, Redis, MinIO, API, Celery worker, Vite dev server.
@@ -311,7 +310,7 @@ const call = (page, fn, arg) => page.evaluate(fn, arg);
     const mod = await import("/src/api/client.ts");
     const r = await mod.api.POST("/api/v1/notes/{note_id}/transition", {
       params: { path: { note_id: id } },
-      body: { to_status: "signed", prc_license_number: "PRC-9" },
+      body: { to_status: "signed" },
     });
     return r.response.status;
   }, noteId);
@@ -361,11 +360,7 @@ const call = (page, fn, arg) => page.evaluate(fn, arg);
       };
       await step({ to_status: "filed", confirmed_patient_id: args.patient }, "filed");
       await step({ to_status: "authenticated" }, "authenticated");
-      await step({ to_status: "signed" }, "signed-without-licence");
-      const note = await step(
-        { to_status: "signed", prc_license_number: "PRC-0123456" },
-        "signed",
-      );
+      const note = await step({ to_status: "signed" }, "signed");
       return { steps, note };
     },
     { id: noteId, patient: seeded.maria },
@@ -374,10 +369,8 @@ const call = (page, fn, arg) => page.evaluate(fn, arg);
 
   check("filed with a confirmed patient", walked.steps[0][1] === 200 && walked.steps[0][2] === "filed");
   check("authenticated", walked.steps[1][1] === 200 && walked.steps[1][2] === "authenticated");
-  check("signing without a PRC licence is rejected", walked.steps[2][1] === 422, "HTTP " + walked.steps[2][1]);
-  check("signed with a licence", walked.steps[3][1] === 200 && walked.steps[3][2] === "signed");
+  check("signed with no licence required", walked.steps[2][1] === 200 && walked.steps[2][2] === "signed");
   check("signature captures the clinician", !!walked.note?.signed_by_clinician_id);
-  check("signature captures the PRC licence", walked.note?.signed_prc_license_number === "PRC-0123456");
   check("signature captures a timestamp", !!walked.note?.signed_at);
 
   const editSigned = await call(page, async (id) => {
@@ -405,8 +398,8 @@ const call = (page, fn, arg) => page.evaluate(fn, arg);
   await page.reload({ waitUntil: "networkidle" });
   await sleep(1400);
   check(
-    "review screen shows the PRC licence it was signed under",
-    (await page.getByText(/PRC-0123456/).count()) >= 1,
+    "review screen shows the note as signed",
+    (await page.getByText(/Signed/i).count()) >= 1,
   );
   // Phase 3: a signed note renders as evidence only — there is no textarea to
   // disable. A stronger guarantee than a disabled field, and worth asserting

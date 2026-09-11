@@ -234,7 +234,7 @@ describe("uploadSession", () => {
     await expect(uploadSession(SESSION, ENCOUNTER)).rejects.toBeInstanceOf(OfflineError);
   });
 
-  it("treats a 409 on complete as permanent — consent may have been withdrawn", async () => {
+  it("treats a 409 on complete as permanent — the server may have rejected the finalize", async () => {
     vi.mocked(readSessionChunks).mockResolvedValue(chunks(4, 20 * 1024));
     stubApi();
     stubFetch(200);

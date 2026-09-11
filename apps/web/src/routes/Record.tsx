@@ -1,31 +1,22 @@
 /**
  * The recording screen (checklist 2.2 / 2.3).
  *
- * The consent gate is the first thing that happens and the only path to the
- * record button. P0-1 requires the app to block recording "before anything
- * is captured", so the gate is checked before `getUserMedia` is ever called
- * — not after, and not in parallel — and re-checked at the moment of the tap,
- * because consent can be withdrawn while this screen sits open.
+ * Consent used to be captured in-app before this screen would let the
+ * microphone open at all (the P0-1 gate, and the bilingual consent script
+ * that went with it). That is now handled outside the app, so the record
+ * button is available as soon as the screen loads — nothing here blocks on
+ * a ledger check anymore.
  *
- * Phase 2.3 added the three things that make the gate a workflow rather than
- * a wall:
- *   - a route into the real bilingual consent screen when consent is missing;
- *   - the spoken-confirmation prompt, shown only once recording is actually
- *     running, because P0-1 wants that exchange as the *first segment* and
- *     wants nothing captured before consent;
- *   - **pause for mid-visit re-consent** and **withdrawal**. Note that
- *     resuming is gated on the ledger entry landing, not on the doctor
- *     saying it did: resuming without one would leave a new participant
- *     unconsented, which is the exact situation the pause exists to prevent.
+ * What phase 2.2 still owns:
+ *   - the write-ahead queue entry, written before any audio exists, so a
+ *     crash mid-recording is recovered rather than orphaned;
+ *   - the device-full check, run at the moment of the tap rather than
+ *     discovered mid-consultation;
+ *   - the sticky recording indicator, so a patient in the room can tell at a
+ *     glance that capture is live.
  */
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { checkConsentGate, reconsent, withdrawConsent, type ConsentGate } from "../lib/consent";
-import {
-  REQUIRED_PARTICIPANTS,
-  SUGGESTED_PARTICIPANTS,
-  spokenConfirmation,
-} from "../lib/consent-script";
+import { useNavigate, useParams } from "react-router-dom";
 import { useRecorder } from "../lib/recorder/useRecorder";
 import { RecordingIndicator } from "../components/RecordingIndicator";
 import { Banner } from "../components/Banner";
@@ -33,7 +24,6 @@ import { formatBytes, formatDuration } from "../lib/format";
 import { TARGET_BITS_PER_SECOND } from "../lib/audio-config";
 import { useOnlineStatus } from "../lib/offline";
 import {
-  abandonRecording,
   checkStorage,
   enqueueRecording,
   markReadyToUpload,
@@ -45,30 +35,11 @@ import { QueueStatus, StorageWarning } from "../components/QueueStatus";
 export function Record() {
   const { encounterId = "" } = useParams();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const online = useOnlineStatus();
-  const { state, start, stop, pause, resume, isRecording } = useRecorder();
-  const [gate, setGate] = useState<ConsentGate | null>(null);
+  const { state, start, stop, isRecording } = useRecorder();
   const [summary, setSummary] = useState<string | null>(null);
-  const [withdrawal, setWithdrawal] = useState<string | null>(null);
-  const [newParticipant, setNewParticipant] = useState<string>(SUGGESTED_PARTICIPANTS[0]);
-  const [reconsentError, setReconsentError] = useState<string | null>(null);
   const [storageBlock, setStorageBlock] = useState<string | null>(null);
   const { entries, storage, retry, uploadNow } = useQueue();
-
-  // Set by the consent screen's redirect. The doctor has just logged consent
-  // and now needs to speak the confirmation that becomes segment 1 (P0-1).
-  const promptConfirmation = searchParams.get("confirm") === "1";
-
-  useEffect(() => {
-    let cancelled = false;
-    void checkConsentGate(encounterId).then((result) => {
-      if (!cancelled) setGate(result);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [encounterId]);
 
   // Heartbeat while capturing, so the queue can distinguish a live recording
   // from one the app died in the middle of. Without it the queue "recovers"
@@ -94,13 +65,6 @@ export function Record() {
   }, [isRecording]);
 
   const onStart = useCallback(async () => {
-    // Re-checked at the moment of the tap, not just on mount: consent can be
-    // withdrawn while this screen sits open, and the mount-time answer would
-    // be stale. Cheap, and it is the difference between a gate and a hint.
-    const fresh = await checkConsentGate(encounterId);
-    setGate(fresh);
-    if (!fresh.allowed) return;
-
     // Device-full check happens here, not mid-consultation: an IndexedDB
     // write that fails with QuotaExceededError halfway through loses the rest
     // of the recording, and there is no graceful recovery in the moment.
@@ -149,81 +113,6 @@ export function Record() {
     );
   }, [stop, encounterId, uploadNow]);
 
-  const onWithdraw = useCallback(async () => {
-    // Found by `/impeccable critique`: this is the one truly irreversible
-    // action on this screen — it destroys captured audio with no undo — and
-    // it used to fire on a single tap with less friction than signing a
-    // note gets. window.confirm matches the guard the "Back to worklist"
-    // link above already uses for a much smaller loss (leaving the page).
-    if (
-      !window.confirm(
-        "This stops recording and permanently deletes the captured audio from this laptop. It cannot be undone. Continue?",
-      )
-    ) {
-      return;
-    }
-
-    // Order matters and is deliberate: stop capturing first, then destroy the
-    // local copy, then tell the server. If the network call fails, the audio
-    // is already gone from this laptop — the failure mode leaves *less* data
-    // behind, not more.
-    if (state.status === "recording" || state.status === "paused") {
-      await stop();
-    }
-    let localDeleted = 0;
-    try {
-      const { deleteSession } = await import("../lib/recorder/store");
-      localDeleted = await deleteSession(encounterId);
-    } catch {
-      /* reported below */
-    }
-
-    // The queue must stop trying to upload audio that no longer exists, and
-    // the entry is kept (not deleted) as a record that the recording existed
-    // and why it stopped.
-    await abandonRecording(encounterId, "Consent was withdrawn — the audio was deleted.");
-
-    const result = await withdrawConsent(encounterId);
-    setGate(await checkConsentGate(encounterId));
-
-    if (!result.ok) {
-      setWithdrawal(result.reason);
-      return;
-    }
-    setWithdrawal(
-      `Withdrawal recorded. ${localDeleted} piece${localDeleted === 1 ? "" : "s"} of audio deleted from this laptop. ` +
-        (result.nothingToDelete
-          ? "Nothing had been uploaded yet, so there is nothing on the server to delete."
-          : result.audioDeleted
-            ? "The uploaded audio has been deleted from the server."
-            : "The uploaded audio is queued for deletion — the server could not delete it immediately.") +
-        " Processing stops at the next stage boundary, not instantly — a transcription already running cannot be killed mid-flight.",
-    );
-  }, [encounterId, state.status, stop]);
-
-  const onNewParticipant = useCallback(async () => {
-    setReconsentError(null);
-    // Pause FIRST. P0-1: "recording pauses until fresh consent is logged" —
-    // the pause is the compliance action, so it must not wait on a network
-    // round trip that might fail.
-    await pause();
-  }, [pause]);
-
-  const onReconsentGiven = useCallback(async () => {
-    const ok = await reconsent(
-      encounterId,
-      [...REQUIRED_PARTICIPANTS, newParticipant],
-      "fil",
-    );
-    if (!ok) {
-      setReconsentError(
-        "Fresh consent could not be saved, so recording stays paused. Retry — resuming without a ledger entry would leave the new participant unconsented.",
-      );
-      return;
-    }
-    await resume();
-  }, [encounterId, newParticipant, resume]);
-
   return (
     <main className="app">
       <RecordingIndicator
@@ -270,114 +159,24 @@ export function Record() {
       )}
 
       {state.error && <Banner tone="error">{state.error}</Banner>}
-
-      {/* --- the consent gate (P0-1) --- */}
-      {gate === null && <p className="muted">Checking consent for this encounter…</p>}
-
-      {gate && !gate.allowed && (
-        <Banner
-          tone="error"
-          action={
-            gate.needsConsentFlow ? (
-              <button
-                type="button"
-                onClick={() => navigate(`/encounters/${encounterId}/consent`)}
-              >
-                Capture consent
-              </button>
-            ) : undefined
-          }
-        >
-          <span>
-            <strong>Recording is blocked.</strong> {gate.reason}
-          </span>
-        </Banner>
-      )}
-
-      {withdrawal && <Banner tone="warn">{withdrawal}</Banner>}
       {storageBlock && <Banner tone="error">{storageBlock}</Banner>}
       <StorageWarning storage={storage} />
 
       {/* --- controls --- */}
       <section className="card">
         <h2>Capture</h2>
-        {gate?.allowed ? (
-          <>
-            <p className="muted">
-              Mono Opus at {TARGET_BITS_PER_SECOND / 1000} kbps, encrypted on this laptop before it
-              touches disk, written in 5-second pieces so a crash costs at most one piece.
-            </p>
-            {state.status === "recording" || state.status === "paused" ? (
-              <div className="consent-actions">
-                <button type="button" onClick={() => void onStop()}>
-                  Stop recording
-                </button>
-                {state.status === "recording" && (
-                  <button type="button" className="ghost" onClick={() => void onNewParticipant()}>
-                    Someone joined — pause
-                  </button>
-                )}
-                <button type="button" className="ghost danger" onClick={() => void onWithdraw()}>
-                  Patient withdrew consent
-                </button>
-              </div>
-            ) : (
-              <button type="button" onClick={() => void onStart()} disabled={state.status === "starting"}>
-                {state.status === "starting" ? "Starting…" : "Start recording"}
-              </button>
-            )}
-
-            {/* P0-1: the spoken exchange is the FIRST segment of the audio, so
-                this prompt appears only once recording is actually running. */}
-            {promptConfirmation && state.status === "recording" && state.elapsedMs < 30000 && (
-              <Banner tone="info">
-                <span>
-                  <strong>Say this now, for the record:</strong>{" "}
-                  “{spokenConfirmation("fil", [...REQUIRED_PARTICIPANTS])}”
-                </span>
-              </Banner>
-            )}
-
-            {/* Mid-visit re-consent. The pause already happened; resuming is
-                gated on the ledger entry, not on the doctor's word. */}
-            {state.status === "paused" && (
-              <div className="card reconsent">
-                <h2>Fresh consent needed</h2>
-                <p className="muted">
-                  Recording is paused. P0-1 requires a new ledger entry naming everyone now present
-                  before it can resume — read the script again for the new participant.
-                </p>
-                <label className="inl" htmlFor="who-joined">
-                  Who joined?
-                </label>
-                <br />
-                <select
-                  id="who-joined"
-                  value={newParticipant}
-                  onChange={(e) => setNewParticipant(e.target.value)}
-                >
-                  {SUGGESTED_PARTICIPANTS.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
-                {reconsentError && <Banner tone="error">{reconsentError}</Banner>}
-                <div className="consent-actions">
-                  <button type="button" onClick={() => void onReconsentGiven()}>
-                    They consented — resume
-                  </button>
-                  <button type="button" className="ghost danger" onClick={() => void onWithdraw()}>
-                    They declined — stop and delete
-                  </button>
-                </div>
-              </div>
-            )}
-          </>
+        <p className="muted">
+          Mono Opus at {TARGET_BITS_PER_SECOND / 1000} kbps, encrypted on this laptop before it
+          touches disk, written in 5-second pieces so a crash costs at most one piece.
+        </p>
+        {state.status === "recording" || state.status === "paused" ? (
+          <button type="button" onClick={() => void onStop()}>
+            Stop recording
+          </button>
         ) : (
-          <p className="muted">
-            The record control appears once consent has been captured for this encounter.
-          </p>
+          <button type="button" onClick={() => void onStart()} disabled={state.status === "starting"}>
+            {state.status === "starting" ? "Starting…" : "Start recording"}
+          </button>
         )}
 
         {summary && <Banner tone="info">{summary}</Banner>}
