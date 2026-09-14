@@ -1098,7 +1098,6 @@ def seed(db, *, with_audio: bool) -> Counts:
                 note,
                 target,
                 clinician_id=doctor.id,
-                prc_license_number=doctor.prc_license_number,
                 confirmed_patient_id=encounter.patient_id,
             )
 

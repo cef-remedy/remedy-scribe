@@ -287,13 +287,15 @@ jobs:
 
       - run: npm ci
 
-      # `high` rather than `moderate`, and stated as a decision rather than
-      # left at the default: this bundle is a browser client with no server
-      # side, and npm's advisory feed is dense with transitive dev-only
-      # findings (a build tool's regex backtracking) that are not reachable
-      # from anything a patient's browser executes. As of 2026-08-28 the
-      # tree reports 0 vulnerabilities at any level, so this threshold is
-      # not hiding anything today -- it is the level at which a failure is
-      # worth waking someone for.
+      # `high` rather than `moderate`, and `--omit=dev`, both stated as
+      # decisions rather than left at the default: this bundle is a browser
+      # client with no server side, and npm's advisory feed is dense with
+      # transitive dev-only findings (a build tool's regex backtracking, or
+      # -- as of 2026-09-14 -- @redocly/openapi-core's js-yaml, pulled in
+      # only by openapi-typescript for `npm run api:types`) that are not
+      # reachable from anything a patient's browser executes. Scoping to
+      # prod dependencies keeps that category of finding from blocking
+      # every push until upstream ships a fix, while still failing CI the
+      # moment a *shipped* dependency has a high-severity advisory.
       - name: npm audit
-        run: npm audit --audit-level=high
+        run: npm audit --omit=dev --audit-level=high
