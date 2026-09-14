@@ -1,0 +1,1210 @@
+<!-- artifact: https://claude.ai/code/artifact/1db2b3ff-f63a-4b71-bd6e-cd9d7c3ee85b (docs/end-to-end-walkthrough.html) -->
+<title>Remedy Scribe End to End</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+  :root {
+    --ground:      #F6F6F3;
+    --surface:     #FFFFFF;
+    --panel:       #EFF0EC;
+    --ink:         #191C1F;
+    --ink-2:       #4A5257;
+    --ink-3:       #7C858B;
+    --rule:        #DCDED8;
+    --rule-2:      #BCC0B9;
+    --accent:      #1B4A6B;
+    --accent-soft: #E1E9EF;
+    --verified:    #0E5C52;
+    --verified-soft:#DFEBE6;
+    --gotcha:      #9E4025;
+    --gotcha-soft: #F6E6DF;
+    --concept:     #5A4A86;
+    --concept-soft:#EAE6F3;
+
+    --f-display: "Newsreader", Georgia, "Times New Roman", serif;
+    --f-body:    "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+    --f-mono:    "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+    --measure: 66ch;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #101315;
+      --surface:     #171B1E;
+      --panel:       #1D2226;
+      --ink:         #E7EBEC;
+      --ink-2:       #A6AFB4;
+      --ink-3:       #79838A;
+      --rule:        #2A3136;
+      --rule-2:      #3D464C;
+      --accent:      #74B4DC;
+      --accent-soft: #162936;
+      --verified:    #5CC2AE;
+      --verified-soft:#14302A;
+      --gotcha:      #E29473;
+      --gotcha-soft: #32201A;
+      --concept:     #AFA0DC;
+      --concept-soft:#221E33;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #101315;
+    --surface:     #171B1E;
+    --panel:       #1D2226;
+    --ink:         #E7EBEC;
+    --ink-2:       #A6AFB4;
+    --ink-3:       #79838A;
+    --rule:        #2A3136;
+    --rule-2:      #3D464C;
+    --accent:      #74B4DC;
+    --accent-soft: #162936;
+    --verified:    #5CC2AE;
+    --verified-soft:#14302A;
+    --gotcha:      #E29473;
+    --gotcha-soft: #32201A;
+    --concept:     #AFA0DC;
+    --concept-soft:#221E33;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 16.5px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+  .wrap { max-width: 880px; margin: 0 auto; padding: 44px 24px 110px; }
+  main { min-width: 0; }
+
+  @media (min-width: 1120px) {
+    .wrap {
+      display: grid;
+      grid-template-columns: 196px minmax(0, 1fr);
+      gap: 54px;
+      max-width: 1180px;
+      align-items: start;
+    }
+    main { max-width: 820px; }
+  }
+
+  /* ── Contents panel ───────────────────────────────────── */
+  .toc { display: none; }
+
+  @media (min-width: 1120px) {
+    .toc {
+      display: block;
+      position: sticky;
+      top: 0;
+      max-height: 100vh;
+      overflow-y: auto;
+      padding: 48px 0 40px;
+    }
+  }
+
+  .toc-h {
+    font-family: var(--f-mono);
+    font-size: 10px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 14px;
+  }
+
+  .toc ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+  .toc li { margin: 0; }
+
+  .toc a {
+    display: grid;
+    grid-template-columns: 16px 1fr;
+    gap: 9px;
+    align-items: baseline;
+    padding: 6px 9px;
+    border-radius: 3px;
+    color: var(--ink-2);
+    text-decoration: none;
+    font-size: 13.5px;
+    line-height: 1.35;
+  }
+  .toc a:hover { color: var(--ink); background: var(--panel); }
+  .toc a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .toc .t-n {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .toc a[aria-current="true"] {
+    color: var(--accent);
+    background: var(--accent-soft);
+    font-weight: 500;
+  }
+  .toc a[aria-current="true"] .t-n { color: var(--accent); }
+
+  /* Narrow screens: a disclosure instead of the panel */
+  .toc-m {
+    margin: 26px 0 0;
+    padding: 12px 15px;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    max-width: var(--measure);
+  }
+  .toc-m summary {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--accent);
+    cursor: pointer;
+  }
+  .toc-m summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+  .toc-m ul {
+    list-style: none;
+    margin: 13px 0 2px;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 3px 18px;
+  }
+  .toc-m li { margin: 0; }
+  .toc-m a { font-size: .94rem; text-decoration: none; color: var(--ink-2); }
+  .toc-m a:hover { color: var(--accent); }
+  @media (min-width: 1120px) { .toc-m { display: none; } }
+
+  /* Anchor jumps shouldn't butt against the viewport edge */
+  section[id] { scroll-margin-top: 26px; }
+
+  /* ── Masthead ─────────────────────────────────────────── */
+  .masthead { padding-bottom: 30px; border-bottom: 1px solid var(--rule-2); }
+
+  .kicker {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: .17em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 20px;
+  }
+
+  h1 {
+    font-family: var(--f-display);
+    font-weight: 500;
+    font-size: clamp(2.2rem, 5.6vw, 3.5rem);
+    line-height: 1.06;
+    letter-spacing: -.015em;
+    margin: 0 0 20px;
+    text-wrap: balance;
+  }
+
+  .standfirst {
+    font-family: var(--f-display);
+    font-size: 1.28rem;
+    line-height: 1.48;
+    color: var(--ink-2);
+    max-width: 54ch;
+    margin: 0;
+  }
+
+  .facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 30px;
+    margin: 28px 0 0;
+    padding: 0;
+    list-style: none;
+    font-family: var(--f-mono);
+    font-size: 12px;
+    color: var(--ink-3);
+  }
+
+  /* ── Step ledger (end-to-end trace) ───────────────────── */
+  ol.trace { list-style: none; padding: 0; max-width: var(--measure); counter-reset: s; margin: 24px 0; }
+  ol.trace li {
+    counter-increment: s;
+    display: grid;
+    grid-template-columns: 30px 1fr;
+    gap: 14px;
+    padding: 13px 0;
+    border-top: 1px solid var(--rule);
+    margin: 0;
+  }
+  ol.trace li:first-child { border-top: none; }
+  ol.trace li::before {
+    content: counter(s, decimal-leading-zero);
+    font-family: var(--f-mono);
+    font-size: 11px;
+    color: var(--accent);
+    padding-top: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  ol.trace .t-what { display: block; font-weight: 600; margin-bottom: 3px; }
+  ol.trace .t-where { font-family: var(--f-mono); font-size: 11.5px; color: var(--ink-3); display: block; margin-bottom: 4px; }
+  ol.trace .t-why { color: var(--ink-2); font-size: .95rem; }
+</style>
+
+<div class="wrap">
+
+  <nav class="toc" aria-label="Sections">
+    <p class="toc-h">Contents</p>
+    <ul>
+      <li><a href="#orientation"><span class="t-n"></span><span>Orientation</span></a></li>
+      <li><a href="#trace"><span class="t-n"></span><span>The trace</span></a></li>
+      <li><a href="#spine"><span class="t-n">1</span><span>Two state machines</span></a></li>
+      <li><a href="#signin"><span class="t-n">2</span><span>Signing in</span></a></li>
+      <li><a href="#start"><span class="t-n">3</span><span>Opening a consult</span></a></li>
+      <li><a href="#capture"><span class="t-n">4</span><span>Capture</span></a></li>
+      <li><a href="#upload"><span class="t-n">5</span><span>Getting bytes out</span></a></li>
+      <li><a href="#background"><span class="t-n">6</span><span>The async half</span></a></li>
+      <li><a href="#draft"><span class="t-n">7</span><span>The draft</span></a></li>
+      <li><a href="#grounding"><span class="t-n">8</span><span>Grounding</span></a></li>
+      <li><a href="#signing"><span class="t-n">9</span><span>Filing &amp; signing</span></a></li>
+      <li><a href="#after"><span class="t-n">10</span><span>After the signature</span></a></li>
+      <li><a href="#tests"><span class="t-n">11</span><span>What tests can&#39;t cover</span></a></li>
+      <li><a href="#edges"><span class="t-n">12</span><span>The edges</span></a></li>
+      <li><a href="#bugs"><span class="t-n">13</span><span>Six things that broke</span></a></li>
+      <li><a href="#selfcheck"><span class="t-n">14</span><span>Self-check</span></a></li>
+    </ul>
+  </nav>
+
+  <main>
+
+  <header class="masthead">
+    <p class="kicker">Remedy Scribe · End-to-end walkthrough</p>
+    <h1>One consultation, end to end: from a tap in the room to a signed note</h1>
+    <p class="standfirst">Following a single recording all the way through the system — browser, API, object storage, worker, two vendors and back — and stopping at each seam to say what is guaranteed there, and what is only hoped for.</p>
+    <ul class="facts">
+      <li><b>39</b> API operations</li>
+      <li><b>7</b> pipeline states</li>
+      <li><b>4</b> note states</li>
+      <li><b>41</b> decisions</li>
+      <li><b>545</b> tests</li>
+    </ul>
+  </header>
+
+    <details class="toc-m">
+      <summary>Contents</summary>
+      <ul>
+      <li><a href="#orientation">Orientation</a></li>
+      <li><a href="#trace">The trace</a></li>
+      <li><a href="#spine">Two state machines</a></li>
+      <li><a href="#signin">Signing in</a></li>
+      <li><a href="#start">Opening a consult</a></li>
+      <li><a href="#capture">Capture</a></li>
+      <li><a href="#upload">Getting bytes out</a></li>
+      <li><a href="#background">The async half</a></li>
+      <li><a href="#draft">The draft</a></li>
+      <li><a href="#grounding">Grounding</a></li>
+      <li><a href="#signing">Filing &amp; signing</a></li>
+      <li><a href="#after">After the signature</a></li>
+      <li><a href="#tests">What tests can&#39;t cover</a></li>
+      <li><a href="#edges">The edges</a></li>
+      <li><a href="#bugs">Six things that broke</a></li>
+      <li><a href="#selfcheck">Self-check</a></li>
+      </ul>
+    </details>
+
+  <!-- ══════════════ ORIENTATION ══════════════ -->
+  <section id="orientation">
+    <p class="part">Orientation</p>
+    <h2>The whole consultation in one paragraph</h2>
+    <p>A doctor signs in on a clinic laptop and taps <em>Start a new consultation</em>. The browser opens an encounter on the server, then records — encrypting every five-second piece of audio before it touches disk, and counting samples to prove no audio went missing. When the visit ends, a durable queue reassembles those pieces into storage-sized parts and uploads them straight to object storage, bypassing the API entirely. The API is told only when the bytes have landed, and it verifies that claim before believing it. Two Celery tasks then run: one sends the audio to Groq's Whisper for a transcript, the other sends the transcript to Groq's language model for an APSO-structured draft whose every sentence cites the transcript segments it came from. The doctor opens the draft, taps any line to see the passage behind it and taps again to hear that exact moment of the recording, edits what needs editing, confirms who the patient is, and signs. Behind that signature, the system freezes a measurement of how much had to change.</p>
+    <p>That is the happy path, and it is about a third of the code. The rest is what happens when the wifi drops, the laptop lid closes, the vendor times out, the doctor rewrites a line after generation, or the patient asks for the recording to be destroyed. This document walks the path and stops at each of those.</p>
+
+    <div class="note proof">
+      <span class="note-tag">Verified</span>
+      <div class="note-body">
+        <p>The numbers here were measured, not remembered. <code>pytest</code> over the API: <strong>473 passed, 19 skipped, 2 failed</strong> — both failures are this machine's <code>.env</code> holding real Google Drive service-account credentials that two tests assume are absent (one of them successfully reached Google's token endpoint mid-run). <code>vitest</code> over the browser client: <strong>72 passed</strong>. The 19 skips are the Postgres and MinIO suites, which need containers this run did not start. Endpoint and state counts come from <code>docs/api/openapi.json</code> and from the enums themselves. Where a claim below is <em>not</em> covered by a test, it says so.</p>
+      </div>
+    </div>
+
+    <div class="note trap">
+      <span class="note-tag">Read this first</span>
+      <div class="note-body">
+        <p>Two things are <strong>deliberately outside the app</strong>, and were removed from it on this branch. <strong>Consent</strong> is captured in the room before the microphone opens — the ledger, its API and its withdrawal effects all still exist server-side, but nothing in the client asks for consent and no server check blocks on it any more. And <strong>signing no longer collects a PRC licence number</strong>; the column survives, nullable and unused. The older phase writeups in <code>docs/progress/</code> describe both as in-app gates. They were, until commit <code>4bc6031</code>.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ THE TRACE ══════════════ -->
+  <section id="trace">
+    <p class="part">The trace</p>
+    <h2>Twelve files, in the order the consultation touches them</h2>
+    <p>The companion document orders the code by dependency. This one orders it by <em>time</em> — open these in sequence and you are following one recording through the system. It is not a complete reading list; it is the spine, and every section below hangs off one of these steps.</p>
+
+    <ol class="trace">
+      <li><div>
+        <span class="t-what">The doctor signs in</span>
+        <span class="t-where">web/src/lib/auth.tsx → api/app/api/routes/auth.py</span>
+        <span class="t-why">An access token in memory, a refresh token in an httpOnly cookie. Note what the client is deliberately not allowed to keep.</span>
+      </div></li>
+      <li><div>
+        <span class="t-what">An encounter is opened</span>
+        <span class="t-where">web/src/routes/Home.tsx → routes/encounters.py, start_or_resume</span>
+        <span class="t-why">Get-or-create on a client-supplied idempotency key. The patient is allowed to be unknown, on purpose.</span>
+      </div></li>
+      <li><div>
+        <span class="t-what">Intent is written before any audio exists</span>
+        <span class="t-where">web/src/lib/queue/queue.ts, enqueueRecording</span>
+        <span class="t-why">The write-ahead invariant. A crash mid-consultation is recoverable only because this row landed first.</span>
+      </div></li>
+      <li><div>
+        <span class="t-what">The microphone opens</span>
+        <span class="t-where">web/src/lib/recorder/session.ts</span>
+        <span class="t-why">Wake lock, an AudioWorklet counting samples, mono Opus at an explicitly pinned bitrate.</span>
+      </div></li>
+      <li><div>
+        <span class="t-what">Each piece is encrypted, then stored</span>
+        <span class="t-where">web/src/lib/recorder/crypto.ts, recorder/store.ts</span>
+        <span class="t-why">AES-GCM under a non-extractable key. Plaintext audio never reaches IndexedDB.</span>
+      </div></li>
+      <li><div>
+        <span class="t-what">The queue reassembles and uploads</span>
+        <span class="t-where">web/src/lib/queue/uploader.ts, planParts and uploadSession</span>
+        <span class="t-why">Many small chunks become few large parts, cut on exact byte boundaries. The bytes never pass through the API.</span>
+      </div></li>
+      <li><div>
+        <span class="t-what">The server accepts the recording</span>
+        <span class="t-where">api/app/api/routes/uploads.py, complete_upload</span>
+        <span class="t-why">Finalize, then HEAD the object to check that "complete" was true. The retention clock starts on that line.</span>
+      </div></li>
+      <li><div>
+        <span class="t-what">Two background tasks run</span>
+        <span class="t-where">api/app/tasks/pipeline.py</span>
+        <span class="t-why">A Celery chain; each stage idempotent, each with its own terminal failure state and its own way back out.</span>
+      </div></li>
+      <li><div>
+        <span class="t-what">Audio becomes a transcript</span>
+        <span class="t-where">api/app/services/asr/groq_whisper.py</span>
+        <span class="t-why">Whisper large-v3. There is no diarization here, and the code refuses to fake one.</span>
+      </div></li>
+      <li><div>
+        <span class="t-what">The transcript becomes a cited draft</span>
+        <span class="t-where">app/services/note_generation/groq.py, with shared.py</span>
+        <span class="t-why">The clinically load-bearing half lives in shared.py precisely so it cannot vary by vendor.</span>
+      </div></li>
+      <li><div>
+        <span class="t-what">The doctor checks it against the recording</span>
+        <span class="t-where">app/services/grounding.py → web/src/components/GroundedSection.tsx</span>
+        <span class="t-why">The product's actual differentiator, and the one place the system would rather say nothing than guess.</span>
+      </div></li>
+      <li><div>
+        <span class="t-what">It is filed, then signed</span>
+        <span class="t-where">app/services/note_lifecycle.py</span>
+        <span class="t-why">One step at a time, identity re-confirmed at filing, and the quality measurement frozen at the signature.</span>
+      </div></li>
+    </ol>
+  </section>
+
+  <!-- ══════════════ SPINE ══════════════ -->
+  <section id="spine">
+    <p class="part">Part one</p>
+    <h2>Two state machines, and the handover between them</h2>
+    <p>Everything in this system is tracked by one of two enums, and knowing which is which explains most of the architecture. <code>Encounter.pipeline_status</code> is <em>the machine's</em> progress — did the audio arrive, did transcription run, did generation run. <code>Note.status</code> is <em>the doctor's</em> progress — generated, filed, authenticated, signed. They meet exactly once, at the moment a note row is created, and after that they never touch again.</p>
+    <p>That separation is why a doctor can be reviewing a note while the pipeline for the next consultation is still running, and why a pipeline failure is a different kind of problem from an unsigned note: one is an operations question with a retry button, the other is a clinical question with a person attached.</p>
+
+    <figure class="dia">
+      <div class="dia-hold">
+        <svg viewBox="0 0 700 640" role="img" aria-label="Timeline of one consultation: sign in, open an encounter, record on the laptop, upload parts directly to object storage, finalize on the API, transcribe and draft in a background worker, review with grounding, and sign. On the left, the encounter pipeline status and note status at each stage. On the right, what would survive if the laptop died at that point.">
+          <defs>
+            <marker id="e2e-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <text x="118" y="14" text-anchor="middle" class="svg-lbl">STATE</text>
+          <text x="350" y="14" text-anchor="middle" class="svg-lbl">WHAT HAPPENS</text>
+          <text x="582" y="14" text-anchor="middle" class="svg-lbl">IF THE LAPTOP DIES HERE</text>
+
+          <!-- 1 sign in -->
+          <rect x="232" y="28" width="236" height="40" rx="4" class="svg-box"/>
+          <text x="350" y="53" text-anchor="middle" class="svg-txt">Sign in</text>
+          <text x="582" y="53" text-anchor="middle" class="svg-lbl">nothing to lose yet</text>
+
+          <line x1="350" y1="68" x2="350" y2="92" stroke="currentColor" stroke-width="1.4" marker-end="url(#e2e-ar)"/>
+
+          <!-- 2 encounter -->
+          <rect x="232" y="96" width="236" height="52" rx="4" class="svg-box"/>
+          <text x="350" y="118" text-anchor="middle" class="svg-txt">Open an encounter</text>
+          <text x="350" y="137" text-anchor="middle" class="svg-lbl">POST /encounters</text>
+          <text x="118" y="127" text-anchor="middle" class="svg-mono">recording</text>
+          <text x="582" y="127" text-anchor="middle" class="svg-lbl">the encounter row</text>
+
+          <line x1="350" y1="148" x2="350" y2="172" stroke="currentColor" stroke-width="1.4" marker-end="url(#e2e-ar)"/>
+
+          <!-- 3 record -->
+          <rect x="232" y="176" width="236" height="62" rx="4" class="svg-lit"/>
+          <text x="350" y="199" text-anchor="middle" class="svg-txt">Record</text>
+          <text x="350" y="217" text-anchor="middle" class="svg-lbl">5s chunks, AES-GCM,</text>
+          <text x="350" y="231" text-anchor="middle" class="svg-lbl">IndexedDB on the laptop</text>
+          <text x="582" y="200" text-anchor="middle" class="svg-lbl">encrypted chunks +</text>
+          <text x="582" y="214" text-anchor="middle" class="svg-lbl">a queue entry written</text>
+          <text x="582" y="228" text-anchor="middle" class="svg-lbl">before the first byte</text>
+
+          <line x1="350" y1="238" x2="350" y2="262" stroke="currentColor" stroke-width="1.4" marker-end="url(#e2e-ar)"/>
+
+          <!-- 4 upload -->
+          <rect x="232" y="266" width="236" height="62" rx="4" class="svg-box"/>
+          <text x="350" y="289" text-anchor="middle" class="svg-txt">Upload parts</text>
+          <text x="350" y="307" text-anchor="middle" class="svg-lbl">browser → object storage,</text>
+          <text x="350" y="321" text-anchor="middle" class="svg-lbl">presigned, not via the API</text>
+          <text x="582" y="297" text-anchor="middle" class="svg-lbl">whatever landed;</text>
+          <text x="582" y="311" text-anchor="middle" class="svg-lbl">storage reports it back</text>
+
+          <line x1="350" y1="328" x2="350" y2="352" stroke="currentColor" stroke-width="1.4" marker-end="url(#e2e-ar)"/>
+
+          <!-- 5 complete -->
+          <rect x="232" y="356" width="236" height="52" rx="4" class="svg-box"/>
+          <text x="350" y="378" text-anchor="middle" class="svg-txt">Finalize + verify</text>
+          <text x="350" y="397" text-anchor="middle" class="svg-lbl">POST /upload/complete</text>
+          <text x="118" y="387" text-anchor="middle" class="svg-mono">uploaded</text>
+          <text x="582" y="380" text-anchor="middle" class="svg-lbl">the server owns it;</text>
+          <text x="582" y="394" text-anchor="middle" class="svg-lbl">retention clock started</text>
+
+          <line x1="350" y1="408" x2="350" y2="432" stroke="currentColor" stroke-width="1.4" marker-end="url(#e2e-ar)"/>
+
+          <!-- 6 pipeline -->
+          <rect x="232" y="436" width="236" height="62" rx="4" class="svg-lit"/>
+          <text x="350" y="459" text-anchor="middle" class="svg-txt">Transcribe → draft</text>
+          <text x="350" y="477" text-anchor="middle" class="svg-lbl">Celery chain, Groq ×2,</text>
+          <text x="350" y="491" text-anchor="middle" class="svg-lbl">no browser involved</text>
+          <text x="118" y="460" text-anchor="middle" class="svg-mono">transcribed</text>
+          <text x="118" y="478" text-anchor="middle" class="svg-mono">note_generated</text>
+          <text x="582" y="467" text-anchor="middle" class="svg-lbl">transcript and draft,</text>
+          <text x="582" y="481" text-anchor="middle" class="svg-lbl">both in Postgres</text>
+
+          <line x1="350" y1="498" x2="350" y2="522" stroke="currentColor" stroke-width="1.4" marker-end="url(#e2e-ar)"/>
+
+          <!-- 7 review -->
+          <rect x="232" y="526" width="236" height="52" rx="4" class="svg-box"/>
+          <text x="350" y="548" text-anchor="middle" class="svg-txt">Review, ground, edit</text>
+          <text x="350" y="567" text-anchor="middle" class="svg-lbl">every edit is a revision</text>
+          <text x="118" y="548" text-anchor="middle" class="svg-mono">note:</text>
+          <text x="118" y="565" text-anchor="middle" class="svg-mono">generated</text>
+          <text x="582" y="557" text-anchor="middle" class="svg-lbl">every edit, saved on blur</text>
+
+          <line x1="350" y1="578" x2="350" y2="600" stroke="currentColor" stroke-width="1.4" marker-end="url(#e2e-ar)"/>
+
+          <!-- 8 sign -->
+          <rect x="232" y="604" width="236" height="34" rx="4" class="svg-lit"/>
+          <text x="350" y="626" text-anchor="middle" class="svg-mono">filed → authenticated → signed</text>
+          <text x="582" y="626" text-anchor="middle" class="svg-lbl">permanent record</text>
+        </svg>
+      </div>
+      <figcaption>One consultation, top to bottom. The left column is the state a crash would leave behind; the right column is what is actually durable at that moment. Note that the two highlighted stages — recording and the pipeline — are the two where nobody is watching, and both are where most of the defensive code lives.</figcaption>
+    </figure>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>State</th><th>Set by</th><th>What it means</th></tr></thead>
+        <tbody>
+          <tr><td><code>recording</code></td><td><code>POST /encounters</code></td><td>An encounter exists. There may be no audio at all.</td></tr>
+          <tr><td><code>uploaded</code></td><td><code>POST /upload/complete</code></td><td>The object exists in storage and has been verified by a <code>HEAD</code>.</td></tr>
+          <tr><td><code>transcribed</code></td><td><code>transcribe_encounter</code></td><td>A transcript row exists, encrypted, with per-word timings.</td></tr>
+          <tr><td><code>note_generated</code></td><td><code>generate_note</code></td><td>A note row exists. This is where the machine hands over to the doctor.</td></tr>
+          <tr><td><code>transcription_failed</code></td><td>retries exhausted</td><td>Terminal. Only <code>POST /retry</code> or a human moves it.</td></tr>
+          <tr><td><code>generation_failed</code></td><td>retries exhausted</td><td>Terminal, and cheaper to retry — the transcript already exists.</td></tr>
+          <tr><td><code>blocked_no_consent</code></td><td>nothing, now</td><td>A legacy value. Rows carrying it resume recording rather than pointing at a deleted page.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note why">
+      <span class="note-tag">Why it matters</span>
+      <div class="note-body">
+        <p>There is no <code>upload_failed</code> state, and that absence is deliberate (decision 0023). An upload failure is <em>synchronous</em> — the browser's own request gets a 409 or a 502 and can retry immediately, with a human right there. The two states that do exist are the ones that fail inside a Celery task with nobody watching, which is the only situation that needs a state to be <em>discovered</em> later. Adding a third for symmetry would have added a status nothing could ever be found in.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ SIGN IN ══════════════ -->
+  <section id="signin">
+    <p class="part">Part two</p>
+    <h2>Signing in, and what the browser is allowed to keep</h2>
+    <p>The consultation starts with a login, and the login is where the client's security model is decided. Two tokens, held in deliberately different places:</p>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>Token</th><th>Lives</th><th>Why there</th></tr></thead>
+        <tbody>
+          <tr><td>Access</td><td>A module-scoped variable in memory</td><td>Lost on reload, which is fine — the cookie restores the session. Never <code>localStorage</code>: anything a script can read, an XSS payload can read.</td></tr>
+          <tr><td>Refresh</td><td>An httpOnly cookie</td><td>This code cannot read it <em>at all</em> — the one respect in which the browser client is strictly stronger than the mobile app planned first, since <code>expo-secure-store</code> was always readable by app code.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>That choice has a visible consequence on the very first frame. <code>App.tsx</code> refuses to render either the login screen or the app while it is still asking the server whether the cookie is valid:</p>
+
+    <figure class="code">
+      <div class="filebar"><span>apps/web/src/App.tsx</span><span class="lines">excerpt</span></div>
+<pre><code><span class="cmt">// Neither screen is correct while we are still asking the server whether</span>
+<span class="cmt">// the httpOnly cookie is valid. Showing login here would flash a</span>
+<span class="cmt">// sign-in prompt at an already-signed-in doctor on every reload.</span>
+<span class="kw">if</span> (status === <span class="str">"checking"</span>) {
+  <span class="kw">return</span> &lt;main className=<span class="str">"app"</span>&gt;&lt;p className=<span class="str">"muted"</span>&gt;Restoring your session…&lt;/p&gt;&lt;/main&gt;;
+}</code></pre>
+      <figcaption>A third state — neither signed in nor signed out — because the honest answer at that moment is "we do not know yet".</figcaption>
+    </figure>
+
+    <h3>Where the login route is unusually careful</h3>
+    <p>Three things happen server-side that are worth knowing before you read <code>routes/auth.py</code>:</p>
+    <ul>
+      <li><strong>Rate limiting is backed by Postgres, not Redis</strong> (decision 0008). Redis is already a dependency, so this looks wrong — until you notice Redis here is a <em>job broker</em> whose loss window is quantified and accepted. A lockout counter that evaporates on a broker restart can be cleared by causing a restart.</li>
+      <li><strong>A presented body token beats the cookie.</strong> Getting that backwards is a real bug, not a style choice: with cookie-first, a caller naming a specific token cannot use it, which silently broke the reuse-detection tests — they present a deliberately stale token and expect a 401, and the route rotated the valid cookie instead and returned 200.</li>
+      <li><strong>The role in the JWT is a routing hint, never a boundary.</strong> It decides whether a compliance login lands on <code>/audit</code> instead of the doctor worklist; every route re-checks with <code>require_role(...)</code> regardless.</li>
+    </ul>
+
+    <div class="note trap">
+      <span class="note-tag">The catch</span>
+      <div class="note-body">
+        <p>MFA enrollment (<code>/enroll-mfa</code>) is deliberately reachable while signed <em>out</em>, and that looks like a hole until you read why: it exists for a clinician who <em>cannot log in yet</em> because their account requires MFA and has no secret. Both of its routes prove identity themselves with email and password. Before the screen existed, the only way any account got MFA was a seed script writing a secret straight into the database — an ops gap that had been open since Phase 0.3 and was found not by a test but by an audit of which endpoints had no caller.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ OPEN A CONSULT ══════════════ -->
+  <section id="start">
+    <p class="part">Part three</p>
+    <h2>Opening a consultation before you know who the patient is</h2>
+    <p><code>POST /encounters</code> is four lines of behaviour with two requirements packed into them. The first is idempotency: the route is a get-or-create on a client-supplied <code>upload_idempotency_key</code>, backed by a unique constraint on the column. A retried request with the same key returns the existing encounter rather than opening a second one, which is what stops a flaky connection from producing two notes for one consultation.</p>
+    <p>The second is subtler and is the requirement that shapes the whole worklist: <strong>recording is never blocked on identity.</strong> <code>Encounter.patient_id</code> is nullable, so a doctor whose patient is already talking can start capturing and sort out the chart afterwards. Encounters with no patient sit in a clinic-wide "loose sessions" tray until someone links them.</p>
+
+    <div class="note why">
+      <span class="note-tag">Worth noticing</span>
+      <div class="note-body">
+        <p>Creating and resuming are audited as <em>different actions</em> — <code>encounter.create</code> and <code>encounter.resume</code> — and the reasoning is one sentence in the route: the idempotency key is client-supplied, so a resume can return an encounter belonging to a different clinician's recording. "Who picked this session back up" is a real access question, and collapsing it into a create would hide it behind an event that did not happen.</p>
+      </div>
+    </div>
+
+    <p>Notice also which lists are scoped and which are not. <code>/encounters/recent</code> is filtered to the calling clinician, because it answers "what was I just doing". <code>/encounters/loose</code> and <code>/encounters/failed</code> are clinic-wide, because an unlinked or dead-lettered recording is a backlog anyone may need to clear. All three write an audit row with <code>entity_id = "*"</code> and a result count rather than enumerating the ids — otherwise a polled tray screen would write an audit row proportional to the clinic's backlog every few seconds.</p>
+
+    <div class="note trap">
+      <span class="note-tag">Found by walking, not by testing</span>
+      <div class="note-body">
+        <p><code>/encounters/recent</code> exists because of a hole no unit test could see: <strong>after filing a note there was no way back to it.</strong> The only lists were loose and failed, so the moment a doctor linked a patient the encounter left the only tray showing it, and the note was reachable only by remembering its URL. Every test addresses an encounter by an id it already holds, so every test passed. The same shape of bug appeared again at Phase 2.6, where the review screen was unreachable because nothing exposed <code>note_id</code>. Both were found by opening a browser and trying to work.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ CAPTURE ══════════════ -->
+  <section id="capture">
+    <p class="part">Part four</p>
+    <h2>Capture: what the laptop does while nobody is looking at it</h2>
+    <p>This is the stage with the most defensive code in the system, for a simple reason — it is the only stage whose failure destroys something irreplaceable. A failed upload retries. A failed transcription retries. A consultation that was not captured is gone, and the patient has left.</p>
+
+    <h3>The order of operations at the tap</h3>
+    <p>Three things happen before <code>getUserMedia</code> is even called, and each one is in that position deliberately:</p>
+    <ol>
+      <li><strong>The device-full check.</strong> Free space is checked at the tap, not discovered mid-consultation. An IndexedDB write that fails with <code>QuotaExceededError</code> halfway through loses the rest of the recording and there is no graceful recovery in the moment. If space is critical, the screen refuses to start and says how many <em>minutes</em> remain — minutes, not a percentage, because "12% free" does not answer the question a doctor is actually asking.</li>
+      <li><strong>The write-ahead queue entry.</strong> The record of intent, including the idempotency key, reaches durable storage <em>before any audio exists</em>. A crash mid-recording then leaves both the chunks and the intent on disk, so the queue recovers the recording on next launch instead of orphaning it.</li>
+      <li><strong>Only then, the microphone.</strong></li>
+    </ol>
+
+    <h3>Four things learned from measurement, not assumed</h3>
+    <p>Everything load-bearing in <code>session.ts</code> came out of a capture harness run rather than from documentation, and decision 0024 records the numbers.</p>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>What</th><th>What the harness actually showed</th></tr></thead>
+        <tbody>
+          <tr><td>The wake lock must be re-acquired on every return to visible</td><td>Acquired at 0.0s, dropped at 35.1s on the first backgrounding, never restored by the browser. Idle sleep went unguarded for 28 of 29 minutes, and a suspend duly followed at 122.8s.</td></tr>
+          <tr><td>An explicit <code>audioBitsPerSecond</code> is mandatory</td><td>Without it the browser picks: 129 kbps stereo, 26.7 MB over 29 minutes, despite mono being requested.</td></tr>
+          <tr><td>A requested constraint is not an achieved setting</td><td>The device reported <code>channelCount: 2</code> while being asked for 1. Mismatches are surfaced to the doctor rather than assumed away.</td></tr>
+          <tr><td>Gaps must be detected, not hoped against</td><td>Closing the lid cost 6.5s of real audio. No client architecture prevents that, so the honest response is to record that a gap happened and carry the fact forward.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Gap detection is the interesting one. An <code>AudioWorklet</code> counts samples as they pass through the audio graph and posts the running total four times a second. Wall-clock elapsed time minus captured audio time is, by construction, audio that does not exist — and the count only falls behind if the graph genuinely stalled. The recording screen shows all three numbers live, and the "missing" one turns red past a second.</p>
+
+    <div class="note why">
+      <span class="note-tag">Why it matters</span>
+      <div class="note-body">
+        <p>A truncated recording presented as complete is the failure mode the PRD explicitly rejects, and it is worse than an obviously broken one. If six seconds of a consultation are missing and nothing says so, the transcript reads as continuous, the model drafts a note from it as if nothing were absent, and the grounding UI will happily show a doctor the passage on either side of the hole. The gap total travels with the queue entry precisely so that fact does not live only on a screen the doctor has already navigated away from.</p>
+      </div>
+    </div>
+
+    <h3>Encryption, and the limitation stated out loud</h3>
+    <p>Each chunk is AES-GCM encrypted before it reaches IndexedDB, under a key held with <code>extractable: false</code>. Two properties matter: the raw key bytes cannot be read back out of the browser at all — not by this code, not by an XSS payload — and GCM is authenticated, so a tampered chunk fails to decrypt rather than decrypting to garbage that then gets transcribed as if it were speech.</p>
+
+    <div class="note trap">
+      <span class="note-tag">The honest limit</span>
+      <div class="note-body">
+        <p>A browser cannot seal this key in hardware the way iOS Keychain or Android Keystore could. <code>extractable: false</code> is enforced by the browser, not by a secure element: someone with the device, the OS user session and local code execution can still <em>use</em> the key. The file says so in its own docstring rather than leaving it to be discovered. If Legal requires hardware-sealed custody for on-device PHI, that requirement — not a performance or preference argument — is what would force the Electron option from decision 0024.</p>
+      </div>
+    </div>
+
+    <h3>Telling a crash apart from a recording in progress</h3>
+    <p>While capturing, the screen writes a heartbeat to the queue entry every five seconds. Without it the recovery logic cannot distinguish a crashed recording from one happening right now in this very tab — and it got that wrong once: a 14-second recording was labelled "interrupted" and pushed into the upload queue <em>while still capturing</em>, which both showed the doctor a false fault and risked uploading before the last chunks existed. A timestamp is the right signal rather than an in-memory flag, because it survives the process dying, which is exactly the case being detected.</p>
+  </section>
+
+  <!-- ══════════════ UPLOAD ══════════════ -->
+  <section id="upload">
+    <p class="part">Part five</p>
+    <h2>Getting the bytes off the laptop</h2>
+    <p>A four-endpoint protocol in which the audio never touches the API: the server mints presigned URLs and tracks metadata, and the browser <code>PUT</code>s bytes straight to object storage. Decision 0013, replacing an earlier route that accepted a client-supplied object key on faith with no proof it pointed at anything real.</p>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>Call</th><th>What it does</th><th>What makes it safe to retry</th></tr></thead>
+        <tbody>
+          <tr><td><code>POST …/upload/init</code></td><td>Server generates the object key, opens a multipart session</td><td>If a session is already open, returns the same one rather than orphaning a second in storage</td></tr>
+          <tr><td><code>POST …/upload/parts/{n}</code></td><td>Mints one presigned <code>PUT</code></td><td>Stateless; minting again is free</td></tr>
+          <tr><td><code>GET …/upload/parts</code></td><td>Reports what has already landed</td><td>Storage is the source of truth, not a Postgres table this app would have to keep in sync with it</td></tr>
+          <tr><td><code>POST …/upload/complete</code></td><td>Finalizes, verifies, starts the clock, kicks the pipeline</td><td>Returns the encounter unchanged if it is no longer <code>recording</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>The granularity that must not be conflated</h3>
+    <p>Two different sizes are in play, and getting them backwards breaks the upload for every part but the last.</p>
+
+    <figure class="dia">
+      <div class="dia-hold">
+        <svg viewBox="0 0 700 250" role="img" aria-label="Diagram: many small five-second recorder chunks of about seventeen kilobytes are reassembled into large upload parts cut on exact byte boundaries, so a part boundary can fall in the middle of a chunk. The final part carries the remainder and is exempt from the size floor.">
+          <defs><marker id="parts-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/></marker></defs>
+          <text x="8" y="20" class="svg-lbl">RECORDER CHUNKS — ~5s, ~17 KB, one IndexedDB row each</text>
+
+          <rect x="8" y="32" width="42" height="34" rx="3" class="svg-box"/>
+          <rect x="54" y="32" width="42" height="34" rx="3" class="svg-box"/>
+          <rect x="100" y="32" width="42" height="34" rx="3" class="svg-box"/>
+          <rect x="146" y="32" width="42" height="34" rx="3" class="svg-box"/>
+          <rect x="192" y="32" width="42" height="34" rx="3" class="svg-box"/>
+          <rect x="238" y="32" width="42" height="34" rx="3" class="svg-box"/>
+          <rect x="284" y="32" width="42" height="34" rx="3" class="svg-box"/>
+          <rect x="330" y="32" width="42" height="34" rx="3" class="svg-box"/>
+          <rect x="376" y="32" width="42" height="34" rx="3" class="svg-box"/>
+          <rect x="422" y="32" width="42" height="34" rx="3" class="svg-box"/>
+          <rect x="468" y="32" width="42" height="34" rx="3" class="svg-box"/>
+          <rect x="514" y="32" width="42" height="34" rx="3" class="svg-box"/>
+          <rect x="560" y="32" width="42" height="34" rx="3" class="svg-box"/>
+          <rect x="606" y="32" width="42" height="34" rx="3" class="svg-box"/>
+          <text x="660" y="54" class="svg-lbl">…</text>
+
+          <line x1="336" y1="24" x2="336" y2="120" stroke="var(--accent)" stroke-width="1.6" stroke-dasharray="4 3"/>
+          <text x="344" y="20" class="svg-acc">a part boundary can fall mid-chunk</text>
+
+          <line x1="180" y1="76" x2="180" y2="104" stroke="currentColor" stroke-width="1.2" marker-end="url(#parts-ar)"/>
+          <line x1="480" y1="76" x2="480" y2="104" stroke="currentColor" stroke-width="1.2" marker-end="url(#parts-ar)"/>
+
+          <text x="8" y="128" class="svg-lbl">UPLOAD PARTS — exact multiples of the backend floor, last one exempt</text>
+
+          <rect x="8" y="140" width="328" height="46" rx="4" class="svg-lit"/>
+          <text x="172" y="162" text-anchor="middle" class="svg-mono">part 1 — exactly partSize</text>
+          <text x="172" y="178" text-anchor="middle" class="svg-lbl">S3: 5 MiB · Drive: 256 KiB multiple</text>
+
+          <rect x="336" y="140" width="312" height="46" rx="4" class="svg-box"/>
+          <text x="492" y="162" text-anchor="middle" class="svg-mono">part 2 — the remainder</text>
+          <text x="492" y="178" text-anchor="middle" class="svg-lbl">the only part exempt from the floor</text>
+
+          <text x="8" y="212" class="svg-lbl">At mono Opus 32 kbps a 5 MiB S3 part is roughly 21 minutes of audio,</text>
+          <text x="8" y="228" class="svg-lbl">so a typical consultation is one part — the last one.</text>
+        </svg>
+      </div>
+      <figcaption>Recorder chunks are small so a crash costs one chunk. Upload parts are large because storage requires it. The reassembly is what <code>planParts</code> does, and it slices bytes rather than grouping whole chunks — which is the only way a part can end at an exact boundary.</figcaption>
+    </figure>
+
+    <div class="note trap">
+      <span class="note-tag">Found live</span>
+      <div class="note-body">
+        <p><code>planParts</code> used to group whole recorder chunks until their running total first <em>reached</em> the minimum. S3 only requires "at least", so that was correct there and silently wrong on Google Drive, which persists a resumable upload in 256 KiB increments and reports progress as a byte offset. Real ~5s Opus chunks are ~17 KB and never sum to exactly 256 KiB, so part 1 overshot, Drive kept only the aligned prefix and answered <code>308</code>, and part 2 then announced a range starting at a byte Drive had never reached. The symptom was a 1:35 consultation stuck on "Part 2 upload failed (HTTP 503)" through all eight attempts — <em>deterministic, not flaky</em>, because every retry re-derived the same wrong offset from the same ragged plan. Decision 0041.</p>
+      </div>
+    </div>
+
+    <h3>Two verifications on the way in</h3>
+    <p><code>complete_upload</code> does not take the client's word for anything. It finalizes the multipart upload, and then does something that looks redundant and is not:</p>
+
+    <figure class="code">
+      <div class="filebar"><span>apps/api/app/api/routes/uploads.py</span><span class="lines">excerpt</span></div>
+<pre><code><span class="kw">if</span> storage.head_object(encounter.audio_object_key) <span class="kw">is None</span>:
+    <span class="kw">raise</span> HTTPException(
+        status.HTTP_502_BAD_GATEWAY,
+        <span class="str">"Upload reported complete but the object could not be found in storage"</span>
+    )
+
+settings = get_settings()
+encounter.audio_retention_expires_at = datetime.now(timezone.utc) + timedelta(
+    days=settings.audio_retention_days
+)
+encounter.pipeline_status = EncounterPipelineStatus.UPLOADED</code></pre>
+      <figcaption>Only after storage confirms the object exists does the retention clock start and the status advance. "The API returned 200" and "the recording exists" are different claims.</figcaption>
+    </figure>
+
+    <h3>When local audio is allowed to be deleted</h3>
+    <p>Not when <code>upload/complete</code> succeeds. The queue polls <code>GET /encounters/{id}</code> and waits for <code>pipeline_status</code> to show the pipeline actually started, and only then deletes the encrypted chunks from the laptop. The distinction is the checklist's own sharpening of P0-2: <em>the confirmation the device waits for should be about the pipeline, not the bytes.</em> <code>upload/complete</code> confirms bytes and enqueues work; only the status says whether that work ran.</p>
+
+    <div class="note why">
+      <span class="note-tag">Worth noticing</span>
+      <div class="note-body">
+        <p>That poll is the one place in the API that needed a coalescing valve on the audit log. Reading an encounter is a genuine disclosure — it reveals the patient linkage, the pipeline state and the note id — so it must be logged. But a 20-minute transcription polled every 15 seconds would write around 80 identical rows for one recording and bury the human reads on either side of them. A 60-second window keeps the first access and the shape of the polling session, and drops only the repeat count (decision 0032).</p>
+      </div>
+    </div>
+
+    <p>Offline is handled as a normal state rather than a fault. The recorder does not need the network at all; the queue backs off and retries; the record screen says so plainly ("Recording still works — audio is saved on this laptop and uploads later") rather than showing an error the doctor cannot act on.</p>
+  </section>
+
+  <!-- ══════════════ ASYNC ══════════════ -->
+  <section id="background">
+    <p class="part">Part six</p>
+    <h2>The asynchronous half: two tasks, three ways of failing</h2>
+    <p><code>complete_upload</code> ends by calling <code>run_pipeline</code>, which builds a Celery chain of exactly two tasks — <code>transcribe_encounter | generate_note</code> — and returns. Everything after that point happens with no browser attached and nobody watching, which is what all the machinery below is for.</p>
+
+    <p><strong>Idempotency is enforced twice, at different altitudes.</strong> Upstream, at the encounter row: the idempotency key resolves to a single encounter, so a retried upload never enqueues a second chain. Downstream, inside each task: <code>transcribe_encounter</code> no-ops if the status is already <code>transcribed</code> or beyond, and <code>generate_note</code> no-ops if a note row already exists. You want both, because they defend against different things — the first against a retrying client, the second against Celery redelivering a message under <code>task_acks_late</code>.</p>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>Failure mode</th><th>What catches it</th><th>Why the other one can't</th></tr></thead>
+        <tbody>
+          <tr><td>The task ran and raised, repeatedly</td><td><strong>Dead-lettering</strong> — after <code>max_retries</code>, the encounter moves to a terminal <code>*_failed</code> status</td><td>The sweep looks for encounters that stopped progressing; a dead-lettered one has, by design, and re-kicking it would defeat the point of a dead letter</td></tr>
+          <tr><td>The task never ran at all — broker down, worker pool at zero</td><td><strong><code>sweep_stuck_encounters</code></strong>, on Celery Beat every five minutes</td><td>Dead-lettering lives inside an <code>except</code> block. A task that never started never reaches one</td></tr>
+          <tr><td>Beat itself is wedged, or a sweep is failing silently</td><td><strong><code>monitor_pipeline_health</code></strong>, which reads a snapshot, evaluates alert rules and emits breaches at <code>ERROR</code></td><td>Neither sweep watches itself. Both run in one Beat process, and if it dies the app keeps serving while expired PHI quietly stops being deleted</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note trap">
+      <span class="note-tag">Known gap</span>
+      <div class="note-body">
+        <p>The monitor runs in the same Beat process as the jobs it watches, and the code says so rather than pretending otherwise: if Beat dies, the monitor dies with the sweeps. What it does catch is the far more common case — Beat alive, a sweep failing or wedged on a query. The honest fix is an external check, and it is written up as such in the observability runbook. Separately, <code>ERROR</code>-level alerts only reach a human when <code>SENTRY_DSN</code> is set; without one, every alert rule in the system is a line in a log file. That is stated in the task's own docstring.</p>
+      </div>
+    </div>
+
+    <h3>The one line that looks trivial</h3>
+    <figure class="code">
+      <div class="filebar"><span>apps/api/app/tasks/pipeline.py</span><span class="lines">excerpt</span></div>
+<pre><code>resolved = correlation_id <span class="kw">or</span> current_correlation_id() <span class="kw">or</span> new_correlation_id(<span class="str">"pipeline"</span>)
+chain = transcribe_encounter.s(encounter_id, correlation_id=resolved) | generate_note.s(correlation_id=resolved)</code></pre>
+      <figcaption>The correlation ID is passed as an explicit task kwarg, not read from ambient context inside the task.</figcaption>
+    </figure>
+    <p>A <code>ContextVar</code> does not survive serialisation into Redis. So the ID is <em>read</em> from the ambient context here — where an HTTP request has already bound one — and <em>written</em> into both task signatures, which is what lets a browser request, a transcription and a note generation minutes later all carry the same ID with no changes to either route that calls this.</p>
+    <p>The sweep does something deliberately different: with no inbound request there is nothing to inherit, so it mints its own <code>sweep-…</code> ID and every encounter it re-kicks inherits that. This answers a question a request ID cannot — <em>which sweep run rescued this encounter, and what else did that run touch?</em> A burst of failures sharing one sweep ID is a broker or worker problem; the same failures spread across many IDs is a per-encounter problem.</p>
+
+    <div class="note why">
+      <span class="note-tag">Worth noticing</span>
+      <div class="note-body">
+        <p>Both tasks wrap their whole body in <code>sensitive_scope()</code>, and it is opened <em>outside</em> the <code>try</code> — so the <code>except</code> blocks are inside it. That is where <code>_mark_stage_failure</code> writes an exception summary to an unencrypted column, and it is the exact spot where Phase 4.0 found a real leak: a helper had interpolated an entire model response into an error message, writing generated clinical prose into <code>last_pipeline_error</code>. Truncating to 500 characters was never a control — the first 500 characters of a note are still a note. Routing the write through the scrubber fixes the class rather than the instance.</p>
+      </div>
+    </div>
+
+    <p><code>POST /encounters/{id}/retry</code> is the doctor-facing way out of a dead letter, and it re-runs only the failed stage onward. A <code>generation_failed</code> encounter already has a real transcript, so retrying it calls <code>run_note_generation</code> rather than paying for a second ASR call that would produce the transcript the first one already got right. One button covers both failure states, because from the doctor's side they are the same problem at different depths.</p>
+  </section>
+
+  <!-- ══════════════ DRAFT ══════════════ -->
+  <section id="draft">
+    <p class="part">Part seven</p>
+    <h2>From audio to a draft that cites its sources</h2>
+    <p>Both vendor calls go to Groq, and that consolidation is the decision worth understanding (0035). The audio and its verbatim transcript are already processed there for ASR, so moving note generation to the same vendor means <strong>one processor to contract with, audit and disclose</strong> under the Data Privacy Act instead of two — and the note is derived from a transcript Groq has already seen, so it discloses nothing new.</p>
+
+    <h3>What the ASR step cannot do, said plainly</h3>
+    <p>Whisper large-v3 is a transcription model, not a diarization one. There is no per-speaker label anywhere in its output, on Groq or anywhere else it is hosted. So every segment is labelled <code>speaker_unknown</code> — deliberately <em>not</em> shaped like the <code>speaker_0</code>/<code>speaker_1</code> labels a real diarizing vendor would emit, so nothing downstream can mistake it for "one speaker successfully identified out of several." The PRD named ElevenLabs Scribe v2, which does diarize; decision 0018 traded that away and the code refuses to paper over the loss.</p>
+
+    <h3>The parts that must be identical across vendors</h3>
+    <p><code>note_generation/shared.py</code> exists for a correctness reason, not a DRY one. Two things in it are load-bearing for features built in entirely different phases, and a provider that reimplemented either slightly differently would break those features <em>silently</em>:</p>
+    <ul>
+      <li><strong>The span convention.</strong> <code>build_section</code> joins sentences with a single space and records each sentence's character offsets as it goes. The grounding UI re-derives exactly that invariant to decide whether a note's stored offsets still fit its text. If one provider joined with a newline, every note it generated would report "source links no longer line up" from the moment it was created — a feature failing quietly, on one vendor only, with nothing raising.</li>
+      <li><strong>Citation verification.</strong> Cited segment IDs are checked against the segments actually sent, and dropped when they do not match. A hallucinated citation is worse than an uncited sentence, because it looks like evidence.</li>
+    </ul>
+
+    <p>The <code>[INAUDIBLE]</code> substitution lives there for the same reason. P0-4's suppression requirement is enforced <em>mechanically</em> — by never showing the model the unreliable words — rather than by asking it nicely in a prompt. That guarantee is only as strong as its least careful provider.</p>
+
+    <figure class="code">
+      <div class="filebar"><span>apps/api/app/services/note_generation/shared.py</span><span class="lines">system prompt, excerpt</span></div>
+<pre><code><span class="str">"Some words are replaced with the literal marker [INAUDIBLE] — that word's</span>
+<span class="str">transcription was too unreliable to trust; do not guess what it might have</span>
+<span class="str">been, and do not paraphrase around it as if you know what was said.</span>
+<span class="str">…</span>
+<span class="str">If a section has no reliable spoken content to support it, set that section's</span>
+<span class="str">suppressed field to true and leave its sentences empty. Do not invent</span>
+<span class="str">plausible-sounding content to fill a section that has nothing behind it —</span>
+<span class="str">an empty, honest section is correct; a fabricated one is not."</span></code></pre>
+      <figcaption>The prompt asks for the same honesty the code enforces. Note that it is the code, not this text, that guarantees the model never sees the suppressed words.</figcaption>
+    </figure>
+
+    <p>Groq's structured output is used rather than forced tool use, and not by preference: Groq's own docs state that streaming and tool use are not supported with structured outputs, so the two are mutually exclusive there. Given the choice, <code>response_format: json_schema</code> with <code>strict: true</code> is the stronger one — the schema is enforced by constrained decoding, so the model <em>cannot</em> emit a violating token sequence, whereas a forced tool call still asks a model to fill a schema correctly. The cost is that arguments arrive as a JSON string to parse, which adds a failure mode.</p>
+
+    <div class="note trap">
+      <span class="note-tag">Blocked, not broken</span>
+      <div class="note-body">
+        <p>Groq's free tier allows roughly 8,000 tokens per minute on this model, and a 20–40 minute consultation transcript is comfortably 10k–20k tokens. Short visits work; a real clinic day does not. Separately, Groq's BAA covers "Covered Cloud Services", which excludes both preview-stage models and services provided free of charge — so PHI needs a paid plan <em>and</em> a Production-status model. This is not a code gap. It is a purchase order.</p>
+      </div>
+    </div>
+
+    <p>One more thing happens in <code>generate_note</code> and nowhere else: the per-consultation cost estimate. This is the only place that knows both numbers it needs — audio duration, taken from the transcript's own last word timestamp, and text volume — and knows them without an extra query or a byte of PHI leaving the function. It also never raises: a failure to <em>measure</em> a note must not fail the note.</p>
+  </section>
+
+  <!-- ══════════════ GROUNDING ══════════════ -->
+  <section id="grounding">
+    <p class="part">Part eight</p>
+    <h2>Grounding: the hard part, and the four places it refuses to guess</h2>
+    <p>This is the product's trust mechanism and the genuinely difficult piece of the system. The doctor's rational response to "an AI wrote this" is <em>prove it</em>, and this is the proof. Everything upstream exists to make it honest: segment IDs assigned at persist time, the model citing those IDs rather than inventing offsets, and citations verified against the segments actually sent.</p>
+
+    <figure class="dia">
+      <div class="dia-hold">
+        <svg viewBox="0 0 700 300" role="img" aria-label="Diagram: a note sentence carries stored character offsets, which name transcript segment ids, which carry per-word millisecond timings, which bound a playback window in the recording. Each of the four links is checked at read time, and any failed check withholds the highlight rather than approximating it.">
+          <defs><marker id="gr-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/></marker></defs>
+          <rect x="8" y="34" width="150" height="56" rx="4" class="svg-lit"/>
+          <text x="83" y="57" text-anchor="middle" class="svg-txt">Note sentence</text>
+          <text x="83" y="76" text-anchor="middle" class="svg-lbl">what the doctor taps</text>
+
+          <rect x="188" y="34" width="150" height="56" rx="4" class="svg-box"/>
+          <text x="263" y="57" text-anchor="middle" class="svg-txt">Stored span</text>
+          <text x="263" y="76" text-anchor="middle" class="svg-lbl">text_start / text_end</text>
+
+          <rect x="368" y="34" width="150" height="56" rx="4" class="svg-box"/>
+          <text x="443" y="57" text-anchor="middle" class="svg-txt">Segment ids</text>
+          <text x="443" y="76" text-anchor="middle" class="svg-lbl">seg3, seg4 …</text>
+
+          <rect x="548" y="34" width="144" height="56" rx="4" class="svg-lit"/>
+          <text x="620" y="57" text-anchor="middle" class="svg-txt">Audio window</text>
+          <text x="620" y="76" text-anchor="middle" class="svg-lbl">start_ms → end_ms</text>
+
+          <line x1="158" y1="62" x2="184" y2="62" stroke="currentColor" stroke-width="1.4" marker-end="url(#gr-ar)"/>
+          <line x1="338" y1="62" x2="364" y2="62" stroke="currentColor" stroke-width="1.4" marker-end="url(#gr-ar)"/>
+          <line x1="518" y1="62" x2="544" y2="62" stroke="currentColor" stroke-width="1.4" marker-end="url(#gr-ar)"/>
+
+          <text x="8" y="128" class="svg-lbl">EACH LINK IS RE-CHECKED AT READ TIME — AND WITHHELD, NOT APPROXIMATED, IF IT FAILS</text>
+
+          <rect x="8" y="142" width="330" height="62" rx="4" class="svg-box"/>
+          <text x="24" y="164" class="svg-mono">spans_fit</text>
+          <text x="24" y="182" class="svg-lbl">slice by the offsets, re-join with one space:</text>
+          <text x="24" y="196" class="svg-lbl">it must reproduce the text exactly, or no highlight</text>
+
+          <rect x="352" y="142" width="340" height="62" rx="4" class="svg-box"/>
+          <text x="368" y="164" class="svg-mono">edited_since_generation</text>
+          <text x="368" y="182" class="svg-lbl">a same-length rewrite keeps the offsets valid</text>
+          <text x="368" y="196" class="svg-lbl">while making the words the doctor's, not the model's</text>
+
+          <rect x="8" y="216" width="330" height="62" rx="4" class="svg-box"/>
+          <text x="24" y="238" class="svg-mono">audio_state</text>
+          <text x="24" y="256" class="svg-lbl">verified by a HEAD against storage — the database</text>
+          <text x="24" y="270" class="svg-lbl">saying the audio exists is not evidence that it does</text>
+
+          <rect x="352" y="216" width="340" height="62" rx="4" class="svg-box"/>
+          <text x="368" y="238" class="svg-mono">cited segments only</text>
+          <text x="368" y="256" class="svg-lbl">plus one neighbour either side, dimmed — never</text>
+          <text x="368" y="270" class="svg-lbl">the whole transcript shipped to a browser</text>
+        </svg>
+      </div>
+      <figcaption>Four checks, four different ways the obvious implementation would produce a confidently wrong answer. For a feature whose entire job is proof, a confident wrong answer is worse than none — which is decision 0030 in one sentence.</figcaption>
+    </figure>
+
+    <h3>Why the offsets are re-derived rather than trusted</h3>
+    <p><code>text_start</code> and <code>text_end</code> are offsets into the text <em>as generated</em>. A doctor's edit shifts every offset after it, so highlighting by stored offsets after an edit highlights the wrong words. <code>spans_fit_text</code> checks the invariant instead of assuming it: slice the current text by the spans, re-join with a single space, and the result must be the original text back. Any insertion, deletion or reordering breaks it. A same-length in-sentence substitution does not — correctly, because the offsets genuinely still delimit that sentence, and whether its <em>content</em> is still the model's is the separate question <code>edited_since_generation</code> answers.</p>
+
+    <div class="note why">
+      <span class="note-tag">Why it matters</span>
+      <div class="note-body">
+        <p>These two flags are separate because they fail differently. Broken offsets are a <em>rendering</em> problem — the UI would underline the wrong words. A same-length rewrite is a <em>provenance</em> problem — the offsets are fine, and presenting a transcript passage as "the source of this line" would simply be false, because the line is now the doctor's sentence. Collapsing them into one boolean would mean either withholding grounding from notes that still have it, or attributing a doctor's words to the model.</p>
+      </div>
+    </div>
+
+    <h3>The degradation ladder</h3>
+    <p>Notes outlive audio. So both <code>audio_state</code> and <code>transcript_state</code> are five-valued, and the UI says which rung it is on in words rather than showing a play button that does nothing:</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th>State</th><th>What the doctor is told</th></tr></thead>
+        <tbody>
+          <tr><td><code>available</code></td><td>Play it.</td></tr>
+          <tr><td><code>never_recorded</code></td><td>There was no recording for this encounter.</td></tr>
+          <tr><td><code>withdrawn</code></td><td>Deleted at the patient's request — legally and clinically a different fact from time passing.</td></tr>
+          <tr><td><code>expired</code></td><td>The retention period elapsed.</td></tr>
+          <tr><td><code>unreachable</code></td><td>Storage did not answer. Deliberately not folded into <code>expired</code>: "we could not check" and "it is gone" warrant different words, and guessing the harsher one is still a guess.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The transcript ladder gained its own <code>withdrawn</code> rung for exactly this reason. Retention deletes a withdrawn encounter's transcript too — correctly, since it is verbatim PHI derived from a recording someone asked to have destroyed — and with only <code>expired</code> available, that deletion was being described to the doctor as "the retention period elapsed," which is the wrong reason.</p>
+
+    <h3>In the browser: two taps, and a window rather than a file</h3>
+    <p>Each section renders as clickable lines first and swaps to a textarea only when the doctor chooses to edit. That ordering is the point rather than a workaround: the first pass over an AI draft should be verification, and the default gesture should be the one the doctor is accountable for. <strong>Tap a line to highlight its source passage; tap again to hear it</strong> — two taps rather than one, because playing audio aloud in a consultation room is not something to trigger by accident.</p>
+    <p>Playback stops at the cited passage's <code>end_ms</code> plus a 250 ms tail rather than running on into the rest of the consultation. The doctor asked to hear one line's source; continuing past it discloses more of the recording than they asked for, and does it without them noticing. The presigned URL is minted on the click that justifies it, carries <code>Cache-Control: no-store</code>, and is re-fetched rather than held across a long review session.</p>
+
+    <div class="note trap">
+      <span class="note-tag">The catch</span>
+      <div class="note-body">
+        <p>On the Google Drive backend none of that byte-path reasoning holds, and the code says so instead of quietly degrading. Drive has <strong>no presigned GET</strong>, so <code>presign_audio_playback</code> raises <code>UnsupportedByBackendError</code> and the route falls back to streaming the audio <em>through the API</em> — honouring Range requests so one cited passage does not pull the whole consultation, and setting <code>no-store</code> by hand, since on the S3 path that header was signed into the URL. This gives up exactly the property decision 0013 was written to protect: PHI bytes crossing the application server. It is a limitation of Drive at every tier, not of the free plan.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ SIGNING ══════════════ -->
+  <section id="signing">
+    <p class="part">Part nine</p>
+    <h2>Filing and signing: four states, one step at a time</h2>
+    <p><code>note_lifecycle.transition()</code> is the only code path allowed to write <code>Note.status</code>. Routes must call it rather than assigning the field, so "no state skippable" is enforced in one place instead of trusted to every caller. The allowed moves are a dictionary of exactly three entries: generated → filed → authenticated → signed.</p>
+
+    <p>Two of those steps do more than move a value.</p>
+
+    <h4>Filing re-confirms who the patient is</h4>
+    <p>Filing is the point the note becomes part of a patient's record, so it is the last moment a mis-linked recording can be caught cheaply — after that, the note is in the wrong person's history. The route therefore requires the caller to <em>name</em> the patient rather than reading <code>encounter.patient_id</code> and trusting it:</p>
+
+    <figure class="code">
+      <div class="filebar"><span>apps/api/app/services/note_lifecycle.py</span><span class="lines">excerpt</span></div>
+<pre><code><span class="kw">if</span> confirmed_patient_id != actual_patient_id:
+    <span class="cmt"># The client believed a different patient than the encounter</span>
+    <span class="cmt"># holds. Never silently prefer one: that is precisely how a</span>
+    <span class="cmt"># note lands in the wrong person's record.</span>
+    <span class="kw">raise</span> PatientIdentityNotConfirmedError(
+        <span class="str">"The confirmed patient does not match the one this recording is linked to. "</span>
+        <span class="str">"Reload the note and check the patient before filing."</span>
+    )</code></pre>
+      <figcaption>A stale client showing the previous patient will disagree with the server, and be rejected. That disagreement is the whole value of asking.</figcaption>
+    </figure>
+
+    <div class="note trap">
+      <span class="note-tag">Found live, with a screenshot</span>
+      <div class="note-body">
+        <p>This check produced a bug that is worth the space. A doctor picked and confirmed a patient right there on the review screen — the banner said "Linked to …, born …. Filing will confirm this." — and filing rejected it <em>every time</em>. The picker component never calls the server on its own by design; the two screens using it are each supposed to. Home's loose-session tray did. The review screen's handler was pure React state, so the banner was true only in that component's memory, while the column the transition actually checks had never been touched. The fix was one call to <code>linkEncounterToPatient()</code> before setting local state. The lesson: a confirmation step can only confirm something that already exists, and "confirm" and "create" reading identically in the UI is what let the gap survive.</p>
+      </div>
+    </div>
+
+    <h4>Signing captures identity, and freezes the measurement</h4>
+    <p>Signing writes <code>signed_by_clinician_id</code> and <code>signed_at</code>, and the route audits it. Then, <em>after</em> the commit and deliberately unable to raise, it captures the edit-burden metric. Retention will delete the note's revisions long before the pilot is assessed, so a metric computed later would quietly become uncomputable — and a bug in a similarity ratio must never refuse a doctor's signature or roll one back. The measurement is recomputable; a refused signature in a consultation room is not.</p>
+
+    <div class="note why">
+      <span class="note-tag">Why it matters</span>
+      <div class="note-body">
+        <p>The definition behind that measurement is the last engineering decision the project made, and the obvious version of it was unsafe. The PRD's headline target is "≥70% of signed notes require only minor edits". Under a plain distance threshold, <code>500mg</code> → <code>5000mg</code> is a one-character edit — maximally minor, and a tenfold overdose; <code>no chest pain</code> → <code>chest pain</code> is a three-character deletion that inverts a finding. So an edit is minor only if it is <strong>small <em>and</em> clinically inert</strong>, with the clinical check acting as a veto rather than a weighting. Under the naive definition the metric would have reported the model as most trustworthy precisely where it was most dangerous — in the number being used to justify skipping vendor validation for two vendors (decision 0039).</p>
+      </div>
+    </div>
+
+    <p>The measurement compares generated text to signed text, not the sum of the revisions — a doctor who types a word, deletes it and retypes it produces three revisions and zero net change. Recovering the generated text is done structurally rather than by timestamp: <strong>it is the <code>previous_text</code> that never appears as any <code>new_text</code> for that section.</strong> Edits form a chain A→B→C and only A is never anyone's output, which is ordering-independent and needs no new column. The one genuine ambiguity — an edit followed by a revert makes every value both an input and an output — is detected and reported as <code>ambiguous</code> rather than guessed at.</p>
+  </section>
+
+  <!-- ══════════════ AFTER ══════════════ -->
+  <section id="after">
+    <p class="part">Part ten</p>
+    <h2>After the signature: what is kept, what is destroyed, who can tell</h2>
+    <p>The consultation is over, but three subsystems keep acting on it for months.</p>
+
+    <h3>Retention, in two layers that cannot substitute for each other</h3>
+    <p>The bucket's own lifecycle rule expires the audio objects. It runs inside object storage, so it holds whether or not this application is running, deployed, or even correct — that is the backstop, and it matters most because the raw recording is the most sensitive artifact. A Celery Beat job handles everything the bucket cannot see: the Postgres rows <em>derived</em> from that audio — transcript, drafting history — plus the write-back that keeps the encounter row honest about what has already gone. <strong>A lifecycle rule cannot reach Postgres; an application job cannot be trusted to have run.</strong></p>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>Artifact</th><th>Fate</th></tr></thead>
+        <tbody>
+          <tr><td>Audio object</td><td>Deleted by the lifecycle rule, and by the purge job, whichever gets there first</td></tr>
+          <tr><td>Transcript</td><td>Deleted by the purge job on its own clock, or immediately on withdrawal</td></tr>
+          <tr><td><code>NoteRevision</code> rows</td><td>Deleted <em>with</em> the transcript, never separately</td></tr>
+          <tr><td>The signed note</td><td><strong>Never.</strong> No code path in the retention module touches the notes table, for any reason</td></tr>
+          <tr><td>The consent ledger</td><td>Never. It is append-only at the database level and is the legal record of the withdrawal that may have triggered the deletion</td></tr>
+          <tr><td>Audit rows</td><td>Their own retention period, deliberately longer than the PHI they describe</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note why">
+      <span class="note-tag">Why revisions die with the transcript</span>
+      <div class="note-body">
+        <p>Grounding derives <code>edited_since_generation</code> from a revision merely <em>existing</em> for a section. Delete revisions while the transcript survives and a doctor-rewritten section flips back to "these are the model's words," and the UI will highlight transcript passages as the source of prose the model never wrote — exactly the confidently-wrong answer the whole grounding design exists to prevent. So they are only ever removed in the same purge that removes the transcript, at which point grounding reports <code>expired</code>, returns no segments, and has nothing left to mis-attribute.</p>
+      </div>
+    </div>
+
+    <p>On the Google Drive backend the first layer does not exist: Drive has no lifecycle rules, so expired audio is deleted <em>only</em> by the Celery purge, which runs only while the worker machine is up. That is one of the three costs decision 0040 names rather than absorbs, and no paid Google tier removes it.</p>
+
+    <h3>The audit trail, and the rule that replaced twenty-three judgment calls</h3>
+    <p>Every disclosure of, or capability over, PHI is logged — and requests are never logged. That single rule is why <code>GET /upload/parts</code> writes no row (it discloses part numbers and ETags, no PHI, and grants nothing) while <code>POST /upload/parts/{n}</code> does (a presigned <code>PUT</code> is a live, writable handle on a recording). The vocabulary is <code>&lt;entity&gt;.&lt;verb&gt;</code>, with a <code>.read</code> segment wherever the event is a disclosure rather than a change — because an access log that only records writes answers "who changed this?" and cannot answer "who looked at this?", which is the question a breach investigation actually asks.</p>
+    <p>The log is append-only at the database level, <em>plus</em> a <code>TRUNCATE</code> guard — added because Phase 4.2 found that append-only triggers do not fire on a truncate, so the table could be emptied in one statement by anything holding the privilege. The same phase found that <code>PATCH /notes</code>, the one endpoint in the whole API that <em>changes clinical content</em>, was writing no audit row at all.</p>
+
+    <h3>Measurement</h3>
+    <p>Beyond edit burden, the pipeline emits per-stage latency and a per-consultation cost estimate, and the pilot report exposes coverage so silent loss of a measurement is visible rather than assumed away. Two numbers are worth carrying: the PRD's <strong>&lt;$0.10 per consult</strong> target breaks even at about <strong>51.7 minutes of audio</strong>, because ASR costs 15–23× note generation — it is really a duration budget, not a cost one. And the <strong>≥70% minor-edit</strong> target is now measurable but not yet meaningful, because nobody has seen the distribution it will be judged against.</p>
+  </section>
+
+  <!-- ══════════════ TESTS ══════════════ -->
+  <section id="tests">
+    <p class="part">Part eleven</p>
+    <h2>What the tests pin down, and what they structurally cannot</h2>
+    <p>Measured this session: <strong>473 passed, 19 skipped, 2 failed</strong> across 494 collected API tests, in 2m 48s; <strong>72 passed</strong> in the browser client's vitest suite, in 2.4s. The two failures are environmental — this machine's <code>.env</code> supplies real Google Drive service-account credentials, and two tests assert the behaviour of their absence. One of them reached Google's live token endpoint mid-run and got a 200, which is a decent illustration of why they fail here and pass in CI.</p>
+    <p>The 19 skips are not neglect; they are the suites that require containers. <code>test_postgres_specific.py</code> and <code>test_storage_specific.py</code> spin up real Postgres and MinIO via testcontainers and skip — loudly, with the Docker error in the message — when the daemon is not there. The reasoning is in the file: <em>the interesting kind of bug is in exactly the mechanics a mock skips.</em></p>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>What a test can prove here</th><th>What it cannot</th></tr></thead>
+        <tbody>
+          <tr><td>The note state machine refuses every skip</td><td>That a doctor understands what "authenticated" means</td></tr>
+          <tr><td>The append-only trigger rejects an <code>UPDATE</code> on the consent ledger</td><td>That the production database role lacks the privilege to drop the trigger</td></tr>
+          <tr><td>The purge job deletes the right rows</td><td>That the bucket lifecycle rule behaves as configured — MinIO silently drops the orphan-upload-abort action, so the local backstop is not the deployed one</td></tr>
+          <tr><td>Citations are dropped when they name a segment that was not sent</td><td>That the model's clinical content is <em>correct</em>. No test in this repo evaluates a note's medicine</td></tr>
+          <tr><td>Every alert rule fires on its threshold</td><td>That anyone receives it. Without a Sentry DSN the delivery mechanism is a log line</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note trap">
+      <span class="note-tag">The catch</span>
+      <div class="note-body">
+        <p>The most instructive bugs in this project's history were invisible to the suite by construction, and the pattern repeats: <em>every test addresses an entity by an id it already holds.</em> That is why "there is no navigation path to this screen" shipped twice behind a green suite, why 419 passing tests hid a seed script that made every account unloginnable, and why a real browser recording had — probably — never once transcribed successfully while every ASR test passed. Synthetic test audio produced a content type simple enough to dodge the bug, and then failed for being fake, which is what kept the real failure hidden.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ EDGES ══════════════ -->
+  <section id="edges">
+    <p class="part">Part twelve</p>
+    <h2>The edges: deploy, CI, and the things that only fail in production</h2>
+
+    <h3>What a green check is allowed to mean</h3>
+    <p>The CI question that shaped Phase 5.3 was not "which linters should run" but <em>what is a passing build actually evidence of?</em> The suite builds its schema with <code>create_all()</code> against SQLite, so it is <strong>structurally incapable</strong> of noticing that a model has no migration. Add a column, everything goes green, <code>alembic upgrade head</code> succeeds at deploy because there is nothing to apply, and the first query against the new column raises <code>UndefinedColumn</code> at a clinic. Green, green, green, outage — a passing check asserting something it never looked at, which is worse than no check, because a green badge is what stops anyone looking.</p>
+    <p>The rule the phase worked to is worth stealing verbatim:</p>
+    <div class="note why">
+      <span class="note-tag">The rule</span>
+      <div class="note-body">
+        <p><strong>A gate must be able to fail, must have been seen failing, and must not be able to pass by not running.</strong> Hence a migration check built as a <em>snapshot assertion rather than an ignore list</em> — it fails when a divergence <em>disappears</em> too, so nobody can quiet it by deleting an entry — and Postgres suites that cannot silently skip themselves in CI the way they legitimately do on a laptop. It found four real schema divergences nothing had ever compared.</p>
+      </div>
+    </div>
+
+    <h3>Deployment, as actually configured</h3>
+    <p>The production topology in decision 0036 is one Linux VM on Docker Compose with a bought Postgres. What is <em>deployed</em> today is the free-tier variant, and it is a different shape with different costs:</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th>Piece</th><th>Service</th><th>What it costs you</th></tr></thead>
+        <tbody>
+          <tr><td>Browser client</td><td>Netlify</td><td>—</td></tr>
+          <tr><td>API</td><td>Render</td><td>Sleeps after 15 minutes idle</td></tr>
+          <tr><td>Worker + Beat</td><td>A purchased always-on VM</td><td>Not free, and unavoidable — no free host runs a background worker</td></tr>
+          <tr><td>Postgres</td><td>Neon</td><td>Scale-to-zero; demo scale only</td></tr>
+          <tr><td>Redis</td><td>Upstash</td><td>Command-count limited; the poll timeout must be raised</td></tr>
+          <tr><td>Audio</td><td>Google Drive</td><td>No presigned GET (playback proxies through the API) and no lifecycle rules (no retention backstop)</td></tr>
+          <tr><td>ASR + notes</td><td>Groq free tier</td><td>Cannot carry a full consultation, and is excluded from the BAA</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Three configuration choices in that stack are non-obvious and each came from a failure:</p>
+    <ul>
+      <li><strong>CORS was the wrong tool for local-against-Render development.</strong> The runbook once told an engineer to add <code>http://localhost:5173</code> to the deployed origin list, and the production boot guard refused to start — correctly, since it cannot tell a deliberate temporary addition from a dev <code>.env</code> deployed by accident. A conditional Vite dev-server proxy replaced it, deliberately not <code>VITE_</code>-prefixed so it can never leak into the bundle. It also fixed a problem the CORS approach carried silently: cross-origin from a real browser would have made the <code>SameSite=lax</code> refresh cookie unusable mid-recording.</li>
+      <li><strong>Security headers are raw ASGI middleware</strong>, added <em>inside</em> the CORS middleware so they still land on the responses CORS short-circuits. A rejected preflight is still a response leaving the API.</li>
+    </ul>
+
+    <div class="note trap">
+      <span class="note-tag">Blocked, not broken</span>
+      <div class="note-body">
+        <p>What is left on this project is mostly not engineering. Legal has not cleared the RA 4200 consent script; a Data Protection Officer and a breach-response team are both legally required and currently nonexistent; decision 0036's four data-residency questions are unanswered. On the accounts side a real pilot needs a paid Groq plan, a Sentry account, a managed Postgres and a VM. None of those is a code change, and no amount of engineering closes any of them. The repository's own README carries a standing instruction not to record a real patient yet.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ BUGS ══════════════ -->
+  <section id="bugs">
+    <p class="part">Part thirteen</p>
+    <h2>Six things that broke after the code looked finished</h2>
+    <p>Every one of these was found by using the deployed system, not by a test. They are ordered by how much they change the way you would read the codebase.</p>
+
+    <h4>1 · Every real browser recording had probably never transcribed</h4>
+    <p><strong>Observed:</strong> a real recording sat at "waiting for the server to start processing"; worker logs showed a bare Groq <code>400</code> on every attempt, with no complaint about content.</p>
+    <p><strong>Actually:</strong> Groq identifies audio format from the <em>filename extension</em> in the multipart upload. Two bugs were stacked. The extension lookup matched on the full MIME string, but MediaRecorder's real value is <code>audio/webm;codecs=opus</code> — with parameters — so it missed every real recording and fell back to a generic <code>.audio</code>. And the <code>audio/webm → .weba</code> mapping it would have used was itself wrong: the same bytes 400 as <code>.weba</code> and 200 as <code>.webm</code>. Only synthetic test audio ever had a content type simple enough to dodge the first bug, and it failed anyway for being fake — which is precisely what kept the real failure invisible.</p>
+    <p><strong>The generalizable move:</strong> when a test fixture is simpler than production input in <em>any</em> dimension, that dimension is untested — and a test that fails for its own separate reason will hide the bug rather than reveal it.</p>
+
+    <h4>2 · A 500 on upload, from a component the error never named</h4>
+    <p><strong>Observed:</strong> the <code>PUT</code> to Drive succeeded, the database correctly advanced to <code>uploaded</code> with a retention timestamp, and then <code>upload/complete</code> returned a bare 500 with no detail. Readiness had been reporting <code>redis:ok</code> the whole time.</p>
+    <p><strong>Actually:</strong> the two Redis clients in the codebase disagree about <code>rediss://</code>. The health probe uses <code>redis.Redis.from_url()</code>, which infers TLS from the scheme. Celery's client, Kombu, refuses a <code>rediss://</code> connection unless a certificate policy is stated explicitly — and refuses <em>late</em>, at the first real connection, which is <code>chain.apply_async()</code> inside <code>complete_upload</code>, after storage and the database commit had already succeeded.</p>
+    <p><strong>The generalizable move:</strong> two clients for the same dependency is two configurations, and a health check that uses the easier one is not evidence about the harder one.</p>
+
+    <h4>3 · A confirmation that confirmed nothing</h4>
+    <p><strong>Observed:</strong> a doctor confirmed a patient on the review screen, the banner said so, and filing rejected it every time with "This recording is not linked to a patient yet."</p>
+    <p><strong>Actually:</strong> the picker never calls the server itself by design; the two screens using it are each meant to. One did. The review screen's handler was pure React state, so the banner was true only in that component's memory while the column the transition checks had never been written.</p>
+    <p><strong>The generalizable move:</strong> a shared component with a by-design responsibility left to its callers has as many chances to be wrong as it has callers — and "confirm" and "create" looking identical in the UI is what lets one of them go unimplemented.</p>
+
+    <h4>4 · An upload bug that shipped behind a clean typecheck</h4>
+    <p><strong>Observed:</strong> "Cannot access 'init' before initialization" on <em>every</em> upload, on every backend, always.</p>
+    <p><strong>Actually:</strong> a stale <code>tsconfig.app.tsbuildinfo</code> let the typecheck skip <code>uploader.ts</code> entirely; a forced run reported three errors on one line. The part-size plan read <code>init.data</code> on the line <em>above</em> the <code>const init = await …</code> that declares it — a temporal dead zone error, so it does not depend on backend, load, or consultation length.</p>
+    <p><strong>The generalizable move:</strong> an incremental build cache means "the typecheck passed" and "the typechecker looked at this file" are different claims. The follow-up is the more useful half: the forty lines that actually talk to storage had no unit test at all, only an end-to-end smoke test needing Postgres, MinIO, a worker and a real Chromium — a real test, and not one anybody runs while editing a header.</p>
+
+    <h4>5 · The queue that could not see a fix applied elsewhere</h4>
+    <p><strong>Observed:</strong> an encounter that failed at note generation was successfully retried from the worklist and reached <code>note_generated</code> — while the browser's own upload queue card kept showing it as failed, forever, with the same stale error.</p>
+    <p><strong>Actually:</strong> the queue's poll only ever re-checked entries in the <code>uploaded</code> state. Once an entry moved to <code>failed</code> — correctly, the first time — nothing looked at it again, and the doctor's retry went through an entirely separate server-side path the client has no visibility into.</p>
+    <p><strong>The generalizable move:</strong> when two components can both change the same state, a terminal state in one of them has to stay observable, or the two drift apart permanently at exactly the moment the problem gets fixed.</p>
+
+    <h4>6 · Two mechanisms, each individually correct, in direct conflict</h4>
+    <p><strong>Observed:</strong> every seeded account was unloginnable, with 419 tests passing.</p>
+    <p><strong>Actually:</strong> two independent reasons. The seed created clinicians with no MFA secret, while login requires one. And every seeded address was on <code>@staging.remedy.invalid</code> — which <code>email-validator</code>, used by Pydantic's <code>EmailStr</code>, rejects as a special-use TLD, so the request died at the schema with a 422 before any credential was checked. The seed's own production-safety design is what required a non-routable domain.</p>
+    <p><strong>The generalizable move:</strong> two correct rules can be jointly unsatisfiable, and nothing in either rule's own tests will say so. The place to look is wherever two subsystems constrain the same value from opposite directions.</p>
+
+    <div class="note why">
+      <span class="note-tag">The ratio, again</span>
+      <div class="note-body">
+        <p>Five of these six are integration or environment failures rather than logic errors, which is the same ratio the scaffold walkthrough reported at the other end of the project — and the failures got <em>more</em> integration-shaped, not less, as the code matured. All six were found by driving the real deployed system. None of the six was a hard problem to fix; the hard part in every case was seeing that something was wrong at all.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ SELF-CHECK ══════════════ -->
+  <section id="selfcheck">
+    <p class="part">Part fourteen</p>
+    <h2>If you can answer these, you can change the flow safely</h2>
+    <p>Not a quiz to pass — a way to find which section to re-read. If an answer feels vague, that is the part worth opening the code for.</p>
+
+    <ul class="quiz">
+      <li>The queue waits for <code>pipeline_status</code> rather than the 200 on <code>upload/complete</code> before deleting local audio. What would go wrong if it did not?<span class="where">Part five — when local audio may be deleted</span></li>
+      <li>Why are recorder chunks ~17 KB and upload parts megabytes, and what breaks if you make them the same thing?<span class="where">Part five — the granularity diagram</span></li>
+      <li>Two different mechanisms stop a retried upload producing two notes. Name both, and say what each one alone would miss.<span class="where">Part six — idempotency at two altitudes</span></li>
+      <li>Dead-lettering and the stuck-encounter sweep look redundant. What can each catch that the other structurally cannot?<span class="where">Part six — the failure table</span></li>
+      <li>Why does the correlation ID travel as an explicit task kwarg instead of being read from context inside the task?<span class="where">Part six — the line that looks trivial</span></li>
+      <li>What does <code>spans_fit</code> actually compute, and why is <code>edited_since_generation</code> a separate flag rather than part of it?<span class="where">Part eight — the two flags</span></li>
+      <li>Grounding distinguishes <code>withdrawn</code> from <code>expired</code>. They are observationally identical — so why does the code refuse to merge them?<span class="where">Part eight — the degradation ladder</span></li>
+      <li>Filing requires the client to <em>name</em> the patient rather than the server reading the linked one. What is that asymmetry buying?<span class="where">Part nine — filing re-confirms identity</span></li>
+      <li>Why is <code>500mg</code> → <code>5000mg</code> the argument against the obvious definition of a minor edit?<span class="where">Part nine — the measurement</span></li>
+      <li>Why must <code>NoteRevision</code> rows never be deleted while a transcript survives?<span class="where">Part ten — retention</span></li>
+      <li>Which parts of the audio path change when <code>STORAGE_BACKEND</code> is <code>drive</code> rather than S3, and which of those changes are permanent rather than free-tier limitations?<span class="where">Parts eight and twelve</span></li>
+      <li>The test suite passes and the deployed system is broken. Name three shapes of bug from this project's history that both of those statements were true for at once.<span class="where">Parts eleven and thirteen</span></li>
+    </ul>
+  </section>
+
+  <div class="closer">
+    <p>Two companions. <strong>Inside the scaffold</strong> covers the same system at the other end of its life — the layer rule, the patterns, and why the shape was chosen before there was anything to shape. The <strong>production checklist</strong> covers what is left, and its "honest headline" section is the authoritative answer to "is this ready" — currently: the engineering is done, and every remaining blocker is a signature, an account or a server. For running any of this yourself, start at <code>docs/runbooks/local-development.md</code>; every other runbook assumes it.</p>
+  </div>
+
+  </main>
+</div>
+
+<script>
+  (function () {
+    var links = Array.prototype.slice.call(document.querySelectorAll('.toc a[href^="#"]'));
+    if (!links.length) return;
+
+    var targets = links.map(function (a) {
+      return { link: a, el: document.getElementById(a.getAttribute('href').slice(1)) };
+    }).filter(function (t) { return t.el; });
+
+    var current = null;
+    function mark() {
+      var line = 130;                     // treat this y-offset as "where the reader is"
+      var active = targets[0];
+      for (var i = 0; i < targets.length; i++) {
+        if (targets[i].el.getBoundingClientRect().top <= line) { active = targets[i]; }
+      }
+      // At the very bottom, favour the last section even if it never crosses the line.
+      if (window.innerHeight + window.scrollY >= document.body.scrollHeight - 4) {
+        active = targets[targets.length - 1];
+      }
+      if (active === current) return;
+      if (current) current.link.removeAttribute('aria-current');
+      active.link.setAttribute('aria-current', 'true');
+      current = active;
+    }
+
+    var queued = false;
+    function onScroll() {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(function () { queued = false; mark(); });
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    mark();
+  })();
+</script>
